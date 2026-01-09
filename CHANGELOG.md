@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.2.0] - 2026-01-09
+### Añadido
+- Workflow de GitHub Actions para generar APK debug en la rama develop.
+
 ## [1.1.9] - 2026-01-09
 ### Añadido
 - Tests unitarios para exportación y planificación de segmentos.
