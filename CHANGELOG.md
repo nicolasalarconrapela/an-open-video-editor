@@ -1,9 +1,5 @@
 # Changelog
 
-## [1.2.1] - 2026-01-09
-### Añadido
-- Repositorio Maven de FFmpegKit para resolver dependencias en CI.
-
 ## [1.2.0] - 2026-01-09
 ### Añadido
 - Workflow de GitHub Actions para generar APK debug en la rama develop.
