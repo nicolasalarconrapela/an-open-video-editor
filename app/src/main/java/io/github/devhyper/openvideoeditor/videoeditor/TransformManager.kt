@@ -36,12 +36,15 @@ import com.arthenica.ffmpegkit.FFmpegKitConfig
 import com.arthenica.ffmpegkit.SessionState
 import io.github.devhyper.openvideoeditor.misc.PROJECT_FILE_EXT
 import io.github.devhyper.openvideoeditor.misc.getFileNameFromUri
+import io.github.devhyper.openvideoeditor.misc.getVideoFileDuration
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.MutableStateFlow
+import java.io.File
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
+import kotlin.math.ceil
 
 
 typealias Trim = Pair<Long, Long>
@@ -68,6 +71,9 @@ class ExportSettings {
     var speed: Float = 0F
     var outputPath: String = ""
     var losslessCut: Boolean = false
+    var segmentedExportMinDurationMs: Long = 10 * 60 * 1000L
+    var segmentedExportMinSizeBytes: Long = 1024L * 1024L * 1024L
+    var segmentDurationMs: Long = 5 * 60 * 1000L
 
     /*
     fun log() {
@@ -198,6 +204,7 @@ data class ProjectData(
     val videoEffects: MutableList<UserEffect> = mutableListOf(),
     val audioProcessors: MutableList<AudioProcessor> = mutableListOf(),
     val mediaTrims: MutableList<Trim> = mutableListOf(),
+    var segmentExportState: SegmentExportState? = null,
 ) : java.io.Serializable {
     companion object {
         fun read(uri: String, context: Context): ProjectData? {
@@ -219,6 +226,20 @@ data class ProjectData(
         }
     }
 }
+
+data class SegmentExportState(
+    var outputPath: String,
+    var segmentDurationMs: Long,
+    var totalDurationMs: Long,
+    var segmentDirectoryPath: String,
+    var completedSegments: MutableSet<Int> = mutableSetOf(),
+) : java.io.Serializable
+
+data class SegmentRange(
+    val index: Int,
+    val startMs: Long,
+    val durationMs: Long,
+)
 
 class TransformManager {
     lateinit var player: ExoPlayer
@@ -435,6 +456,247 @@ class TransformManager {
         }
     }
 
+    private fun getExportDurationMs(context: Context): Long {
+        val trim = getMergedTrim()
+        val baseDuration = getVideoFileDuration(context, projectData.uri.toUri()) ?: 0L
+        return if (trim != null) {
+            (trim.second - trim.first).coerceAtMost(baseDuration)
+        } else {
+            baseDuration
+        }
+    }
+
+    private fun getExportFileSize(context: Context): Long? {
+        val fd = context.contentResolver.openAssetFileDescriptor(projectData.uri.toUri(), "r")
+        val fileSize = fd?.length
+        fd?.close()
+        return fileSize
+    }
+
+    private fun shouldUseSegmentedExport(context: Context, exportSettings: ExportSettings): Boolean {
+        val durationMs = getExportDurationMs(context)
+        val fileSize = getExportFileSize(context) ?: 0L
+        val durationThresholdReached =
+            exportSettings.segmentedExportMinDurationMs > 0 &&
+                durationMs >= exportSettings.segmentedExportMinDurationMs
+        val sizeThresholdReached =
+            exportSettings.segmentedExportMinSizeBytes > 0 &&
+                fileSize >= exportSettings.segmentedExportMinSizeBytes
+        return durationThresholdReached || sizeThresholdReached
+    }
+
+    private fun getSegmentExportDirectory(context: Context, outputPath: String): File {
+        val baseDirectory = File(context.filesDir, "segmented_exports")
+        if (!baseDirectory.exists()) {
+            baseDirectory.mkdirs()
+        }
+        val segmentDirectory = File(baseDirectory, outputPath.hashCode().toString())
+        if (!segmentDirectory.exists()) {
+            segmentDirectory.mkdirs()
+        }
+        return segmentDirectory
+    }
+
+    private fun buildSegmentRanges(
+        totalDurationMs: Long,
+        segmentDurationMs: Long,
+    ): List<SegmentRange> {
+        if (segmentDurationMs <= 0 || totalDurationMs <= 0) {
+            return emptyList()
+        }
+        val segmentCount = ceil(totalDurationMs.toDouble() / segmentDurationMs.toDouble()).toInt()
+        return (0 until segmentCount).map { index ->
+            val startMs = segmentDurationMs * index
+            val durationMs = minOf(segmentDurationMs, totalDurationMs - startMs)
+            SegmentRange(index, startMs, durationMs)
+        }
+    }
+
+    private fun resolveSegmentExportState(
+        context: Context,
+        exportSettings: ExportSettings,
+        totalDurationMs: Long,
+    ): SegmentExportState {
+        val segmentDirectory = getSegmentExportDirectory(context, exportSettings.outputPath)
+        val existingState = projectData.segmentExportState
+        return if (
+            existingState == null ||
+            existingState.outputPath != exportSettings.outputPath ||
+            existingState.segmentDurationMs != exportSettings.segmentDurationMs ||
+            existingState.totalDurationMs != totalDurationMs ||
+            existingState.segmentDirectoryPath != segmentDirectory.absolutePath
+        ) {
+            SegmentExportState(
+                outputPath = exportSettings.outputPath,
+                segmentDurationMs = exportSettings.segmentDurationMs,
+                totalDurationMs = totalDurationMs,
+                segmentDirectoryPath = segmentDirectory.absolutePath,
+            ).also { projectData.segmentExportState = it }
+        } else {
+            existingState
+        }
+    }
+
+    private fun clearSegmentExportState() {
+        projectData.segmentExportState = null
+    }
+
+    private fun segmentFilePath(state: SegmentExportState, index: Int): String {
+        return File(state.segmentDirectoryPath, "segment_$index.mp4").absolutePath
+    }
+
+    private fun runConcat(
+        context: Context,
+        state: SegmentExportState,
+        segments: List<SegmentRange>,
+        onFFmpegError: () -> Unit,
+    ) {
+        val listFile = File(state.segmentDirectoryPath, "concat_list.txt")
+        listFile.bufferedWriter().use { writer ->
+            segments.forEach { segment ->
+                val segmentPath = segmentFilePath(state, segment.index)
+                writer.appendLine("file '${segmentPath.replace("'", "\\'")}'")
+            }
+        }
+        val outputSafPath =
+            FFmpegKitConfig.getSafParameterForWrite(context, state.outputPath.toUri())
+        FFmpegKit.executeAsync(
+            "-f concat -safe 0 -i ${listFile.absolutePath} -c copy $outputSafPath"
+        ) { session ->
+            val completed = session.state == SessionState.COMPLETED
+            if (completed) {
+                clearSegmentExportState()
+            } else {
+                onFFmpegError()
+            }
+        }
+    }
+
+    private fun canUseLosslessSegmentCopy(exportSettings: ExportSettings): Boolean {
+        val noEffects = projectData.videoEffects.isEmpty() && projectData.audioProcessors.isEmpty()
+        val noSpeedOrFramerate = exportSettings.speed <= 0 && exportSettings.framerate <= 0
+        val defaultMimeTypes =
+            exportSettings.audioMimeType == null && exportSettings.videoMimeType == null
+        val keepAudioVideo = exportSettings.exportAudio && exportSettings.exportVideo
+        return noEffects && noSpeedOrFramerate && defaultMimeTypes && keepAudioVideo
+    }
+
+    private fun startSegmentedExportWithFfmpeg(
+        context: Context,
+        exportSettings: ExportSettings,
+        onFFmpegError: () -> Unit,
+        segments: List<SegmentRange>,
+        state: SegmentExportState,
+    ) {
+        val trim = getMergedTrim()
+        val baseOffsetMs = trim?.first ?: 0L
+        state.completedSegments.removeIf { index ->
+            val segmentPath = segmentFilePath(state, index)
+            !File(segmentPath).exists()
+        }
+
+        fun exportNextSegment(startIndex: Int) {
+            val nextSegment =
+                segments.drop(startIndex).firstOrNull { !state.completedSegments.contains(it.index) }
+            if (nextSegment == null) {
+                runConcat(context, state, segments, onFFmpegError)
+                return
+            }
+            val segmentPath = segmentFilePath(state, nextSegment.index)
+            val ffmpegInputPath =
+                FFmpegKitConfig.getSafParameterForRead(context, projectData.uri.toUri())
+            val segmentStartMs = baseOffsetMs + nextSegment.startMs
+            FFmpegKit.executeAsync(
+                "-ss ${segmentStartMs}ms -t ${nextSegment.durationMs}ms -i $ffmpegInputPath -c copy $segmentPath"
+            ) { session ->
+                val file = File(segmentPath)
+                if (session.state == SessionState.COMPLETED && file.exists() && file.length() > 0L) {
+                    state.completedSegments.add(nextSegment.index)
+                    exportNextSegment(nextSegment.index + 1)
+                } else {
+                    onFFmpegError()
+                }
+            }
+        }
+
+        exportNextSegment(0)
+    }
+
+    private fun startSegmentedExportWithTransformer(
+        context: Context,
+        exportSettings: ExportSettings,
+        transformerListener: Transformer.Listener,
+        onFFmpegError: () -> Unit,
+        segments: List<SegmentRange>,
+        state: SegmentExportState,
+    ) {
+        val trim = getMergedTrim()
+        val baseOffsetMs = trim?.first ?: 0L
+        state.completedSegments.removeIf { index ->
+            val segmentPath = segmentFilePath(state, index)
+            !File(segmentPath).exists()
+        }
+        val effectArray = getEffectArray()
+        effectArray.apply {
+            if (exportSettings.speed > 0) {
+                add(SpeedChangeEffect(exportSettings.speed))
+            }
+            if (exportSettings.framerate > 0) {
+                add(FrameDropEffect.createDefaultFrameDropEffect(exportSettings.framerate))
+            }
+        }
+
+        fun exportNextSegment(startIndex: Int) {
+            val nextSegment =
+                segments.drop(startIndex).firstOrNull { !state.completedSegments.contains(it.index) }
+            if (nextSegment == null) {
+                runConcat(context, state, segments, onFFmpegError)
+                return
+            }
+            val startMs = baseOffsetMs + nextSegment.startMs
+            val endMs = startMs + nextSegment.durationMs
+            val clipConfig = ClippingConfiguration.Builder().setStartPositionMs(startMs)
+                .setEndPositionMs(endMs).build()
+            val segmentMedia = originalMedia.buildUpon().setClippingConfiguration(clipConfig).build()
+            val editedMediaItem = EditedMediaItem.Builder(segmentMedia)
+                .setEffects(Effects(projectData.audioProcessors, effectArray))
+                .setRemoveAudio(!exportSettings.exportAudio)
+                .setRemoveVideo(!exportSettings.exportVideo)
+                .build()
+            transformer = Transformer.Builder(context)
+                .setTransformationRequest(
+                    TransformationRequest.Builder()
+                        .setHdrMode(exportSettings.hdrMode)
+                        .setAudioMimeType(exportSettings.audioMimeType)
+                        .setVideoMimeType(exportSettings.videoMimeType)
+                        .build()
+                )
+                .addListener(
+                    object : Transformer.Listener {
+                        override fun onCompleted(
+                            composition: androidx.media3.transformer.Composition,
+                            result: androidx.media3.transformer.ExportResult,
+                        ) {
+                            state.completedSegments.add(nextSegment.index)
+                            exportNextSegment(nextSegment.index + 1)
+                        }
+
+                        override fun onError(
+                            composition: androidx.media3.transformer.Composition,
+                            result: androidx.media3.transformer.ExportResult,
+                            exception: androidx.media3.transformer.ExportException,
+                        ) {
+                            transformerListener.onError(composition, result, exception)
+                        }
+                    }
+                )
+                .build()
+            transformer!!.start(editedMediaItem, segmentFilePath(state, nextSegment.index))
+        }
+
+        exportNextSegment(0)
+    }
+
     @SuppressLint("Recycle")
     fun export(
         context: Context,
@@ -445,6 +707,35 @@ class TransformManager {
         // exportSettings.log()
         player.release()
         val outputPath = exportSettings.outputPath
+        val totalDurationMs = getExportDurationMs(context)
+        if (shouldUseSegmentedExport(context, exportSettings)) {
+            val state = resolveSegmentExportState(context, exportSettings, totalDurationMs)
+            val segments = buildSegmentRanges(totalDurationMs, exportSettings.segmentDurationMs)
+            val filteredSegments = segments.filter { it.durationMs > 0 }
+            if (filteredSegments.isEmpty()) {
+                onFFmpegError()
+                return
+            }
+            if (canUseLosslessSegmentCopy(exportSettings)) {
+                startSegmentedExportWithFfmpeg(
+                    context,
+                    exportSettings,
+                    onFFmpegError,
+                    filteredSegments,
+                    state,
+                )
+            } else {
+                startSegmentedExportWithTransformer(
+                    context,
+                    exportSettings,
+                    transformerListener,
+                    onFFmpegError,
+                    filteredSegments,
+                    state,
+                )
+            }
+            return
+        }
         if (exportSettings.losslessCut) {
             val trim = getMergedTrim()
             if (trim != null) {
