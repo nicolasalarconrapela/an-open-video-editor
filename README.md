@@ -5,6 +5,15 @@
 Open Video Editor is an Android video editor focused on fast, offline edits with a simple workflow for trimming, filters, and exports.
 
 ## Install
+### Recommended
+- Google Play: https://play.google.com/store/apps/details?id=io.github.devhyper.openvideoeditor
+- F-Droid: https://f-droid.org/en/packages/io.github.devhyper.openvideoeditor
+
+### Alternative stores
+- GitHub Releases (APK): https://github.com/devhyper/open-video-editor/releases/latest
+- IzzyOnDroid: https://apt.izzysoft.de/fdroid/index/apk/io.github.devhyper.openvideoeditor
+
+### Store badges
 [<img src="./assets/get-it-on-github.png" alt='Get it on GitHub' height="80">](https://github.com/devhyper/open-video-editor/releases/latest)
 [<img src="./assets/IzzyOnDroid.png" alt='Get it on IzzyOnDroid' height="80">](https://apt.izzysoft.de/fdroid/index/apk/io.github.devhyper.openvideoeditor)
 [<img src="./assets/google-play-badge.png" alt='Get it on Google Play' height="80">](https://play.google.com/store/apps/details?id=io.github.devhyper.openvideoeditor)
