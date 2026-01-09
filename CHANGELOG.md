@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.1.7] - 2026-01-09
+### Añadido
+- README ampliado con instalación para desarrolladores.
+
 ## [1.1.6] - 2026-01-09
 ### Añadido
 - README ampliado con detalles de instalación.

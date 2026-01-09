@@ -19,6 +19,13 @@ Open Video Editor is an Android video editor focused on fast, offline edits with
 [<img src="./assets/google-play-badge.png" alt='Get it on Google Play' height="80">](https://play.google.com/store/apps/details?id=io.github.devhyper.openvideoeditor)
 [<img src="./assets/get-it-on-fdroid.png" alt='Get it on F-Droid' height="80">](https://f-droid.org/en/packages/io.github.devhyper.openvideoeditor)
 
+## Developer install (from source)
+```bash
+git clone https://github.com/devhyper/open-video-editor.git
+cd open-video-editor
+./gradlew assembleDebug
+```
+
 ## Features
 - Trim
 - Grayscale
