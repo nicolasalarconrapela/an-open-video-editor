@@ -26,6 +26,12 @@ cd open-video-editor
 ./gradlew assembleDebug
 ```
 
+## Codespaces
+This repository includes a devcontainer configuration. Create a new Codespace and run:
+```bash
+./gradlew assembleDebug
+```
+
 ## Features
 - Trim
 - Grayscale

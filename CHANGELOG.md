@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.1.8] - 2026-01-09
+### Añadido
+- Configuración de Codespaces con devcontainer.
+
 ## [1.1.7] - 2026-01-09
 ### Añadido
 - README ampliado con instalación para desarrolladores.
