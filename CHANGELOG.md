@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.2.3] - 2026-01-09
+### Añadido
+- Workflow de APK debug en ubuntu-latest.
+
 ## [1.2.2] - 2026-01-09
 ### Añadido
 - Workflow de APK debug para todas las ramas usando runner codex.
