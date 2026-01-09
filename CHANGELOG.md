@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.2.5] - 2026-01-09
+### Añadido
+- Ajuste de DNS en workflow para resolver Maven de FFmpegKit.
+
 ## [1.2.4] - 2026-01-09
 ### Añadido
 - Opción manual para reintentar el workflow de APK debug.
