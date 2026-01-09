@@ -1,11 +1,36 @@
 # Open Video Editor
 <img src="./metadata/en-US/images/featureGraphicDark.png" alt="Feature graphic" width="500">
 
+## About
+Open Video Editor is an Android video editor focused on fast, offline edits with a simple workflow for trimming, filters, and exports.
+
 ## Install
+### Recommended
+- Google Play: https://play.google.com/store/apps/details?id=io.github.devhyper.openvideoeditor
+- F-Droid: https://f-droid.org/en/packages/io.github.devhyper.openvideoeditor
+
+### Alternative stores
+- GitHub Releases (APK): https://github.com/devhyper/open-video-editor/releases/latest
+- IzzyOnDroid: https://apt.izzysoft.de/fdroid/index/apk/io.github.devhyper.openvideoeditor
+
+### Store badges
 [<img src="./assets/get-it-on-github.png" alt='Get it on GitHub' height="80">](https://github.com/devhyper/open-video-editor/releases/latest)
 [<img src="./assets/IzzyOnDroid.png" alt='Get it on IzzyOnDroid' height="80">](https://apt.izzysoft.de/fdroid/index/apk/io.github.devhyper.openvideoeditor)
 [<img src="./assets/google-play-badge.png" alt='Get it on Google Play' height="80">](https://play.google.com/store/apps/details?id=io.github.devhyper.openvideoeditor)
 [<img src="./assets/get-it-on-fdroid.png" alt='Get it on F-Droid' height="80">](https://f-droid.org/en/packages/io.github.devhyper.openvideoeditor)
+
+## Developer install (from source)
+```bash
+git clone https://github.com/devhyper/open-video-editor.git
+cd open-video-editor
+./gradlew assembleDebug
+```
+
+## Codespaces
+This repository includes a devcontainer configuration. Create a new Codespace and run:
+```bash
+./gradlew assembleDebug
+```
 
 ## Features
 - Trim
@@ -13,6 +38,17 @@
 - Resolution
 - Scale
 - Rotate
+- Export with configurable quality options
+- Automatic segmented export for long videos (resume-friendly)
+
+## Build from source
+```bash
+./gradlew assembleDebug
+```
+
+## Contributing
+- Please open an issue for major changes before creating a pull request.
+- Translations are managed via Weblate.
 
 ## Translations
 https://hosted.weblate.org/engage/open-video-editor
