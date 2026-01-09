@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.2.6] - 2026-01-09
+### Añadido
+- Preparación del Android SDK y aceptación de licencias en el workflow.
+
 ## [1.2.5] - 2026-01-09
 ### Añadido
 - Ajuste de DNS en workflow para resolver Maven de FFmpegKit.
