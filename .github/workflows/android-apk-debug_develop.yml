@@ -3,6 +3,7 @@ name: Android APK (Debug) - codex
 on:
   push:
     branches: ["**"]
+  workflow_dispatch:
 
 concurrency:
   group: apk-debug-develop

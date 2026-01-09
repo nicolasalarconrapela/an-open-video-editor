@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.2.4] - 2026-01-09
+### Añadido
+- Opción manual para reintentar el workflow de APK debug.
+
 ## [1.2.3] - 2026-01-09
 ### Añadido
 - Workflow de APK debug en ubuntu-latest.
