@@ -241,6 +241,21 @@ data class SegmentRange(
     val durationMs: Long,
 )
 
+internal fun buildSegmentRanges(
+    totalDurationMs: Long,
+    segmentDurationMs: Long,
+): List<SegmentRange> {
+    if (segmentDurationMs <= 0 || totalDurationMs <= 0) {
+        return emptyList()
+    }
+    val segmentCount = ceil(totalDurationMs.toDouble() / segmentDurationMs.toDouble()).toInt()
+    return (0 until segmentCount).map { index ->
+        val startMs = segmentDurationMs * index
+        val durationMs = minOf(segmentDurationMs, totalDurationMs - startMs)
+        SegmentRange(index, startMs, durationMs)
+    }
+}
+
 class TransformManager {
     lateinit var player: ExoPlayer
 
@@ -495,21 +510,6 @@ class TransformManager {
             segmentDirectory.mkdirs()
         }
         return segmentDirectory
-    }
-
-    private fun buildSegmentRanges(
-        totalDurationMs: Long,
-        segmentDurationMs: Long,
-    ): List<SegmentRange> {
-        if (segmentDurationMs <= 0 || totalDurationMs <= 0) {
-            return emptyList()
-        }
-        val segmentCount = ceil(totalDurationMs.toDouble() / segmentDurationMs.toDouble()).toInt()
-        return (0 until segmentCount).map { index ->
-            val startMs = segmentDurationMs * index
-            val durationMs = minOf(segmentDurationMs, totalDurationMs - startMs)
-            SegmentRange(index, startMs, durationMs)
-        }
     }
 
     private fun resolveSegmentExportState(
