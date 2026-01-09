@@ -1,6 +1,9 @@
 # Open Video Editor
 <img src="./metadata/en-US/images/featureGraphicDark.png" alt="Feature graphic" width="500">
 
+## About
+Open Video Editor is an Android video editor focused on fast, offline edits with a simple workflow for trimming, filters, and exports.
+
 ## Install
 [<img src="./assets/get-it-on-github.png" alt='Get it on GitHub' height="80">](https://github.com/devhyper/open-video-editor/releases/latest)
 [<img src="./assets/IzzyOnDroid.png" alt='Get it on IzzyOnDroid' height="80">](https://apt.izzysoft.de/fdroid/index/apk/io.github.devhyper.openvideoeditor)
@@ -13,6 +16,17 @@
 - Resolution
 - Scale
 - Rotate
+- Export with configurable quality options
+- Automatic segmented export for long videos (resume-friendly)
+
+## Build from source
+```bash
+./gradlew assembleDebug
+```
+
+## Contributing
+- Please open an issue for major changes before creating a pull request.
+- Translations are managed via Weblate.
 
 ## Translations
 https://hosted.weblate.org/engage/open-video-editor
