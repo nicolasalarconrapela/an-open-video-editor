@@ -922,7 +922,7 @@ private enum class ProxyQuality(
 
     companion object {
         fun fromKey(key: String?): ProxyQuality {
-            return entries.firstOrNull { it.key == key } ?: MEDIUM
+            return values().firstOrNull { it.key == key } ?: MEDIUM
         }
     }
 }

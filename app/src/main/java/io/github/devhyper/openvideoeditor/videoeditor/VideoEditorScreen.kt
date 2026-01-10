@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -68,6 +69,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.material3.RangeSlider
@@ -214,7 +216,7 @@ fun VideoEditorScreen(
         Surface(
             modifier = Modifier
                 .fillMaxSize(),
-            color = MaterialTheme.colorScheme.background
+            color = colorScheme.background
         ) {
             Box {
                 DisposableEffect(key1 = Unit) {
@@ -422,7 +424,7 @@ private fun PlayerControls(
         Box(
             modifier = Modifier
                 .background(
-                    brush = SolidColor(MaterialTheme.colorScheme.scrim),
+                    brush = SolidColor(colorScheme.scrim),
                     alpha = 0.5F
                 )
         ) {
@@ -687,7 +689,7 @@ private fun BottomControls(
                         viewModel.setFilterDurationEditorSliderPosition(range)
                     },
                     colors = SliderDefaults.colors(
-                        inactiveTrackColor = MaterialTheme.colorScheme.inversePrimary
+                        inactiveTrackColor = colorScheme.inversePrimary
                     ),
                     valueRange = 0f..duration.toFloat(),
                 )
@@ -698,7 +700,7 @@ private fun BottomControls(
                     value = videoTime.toFloat(),
                     onValueChange = onSeekChanged,
                     colors = SliderDefaults.colors(
-                        inactiveTrackColor = MaterialTheme.colorScheme.inversePrimary
+                        inactiveTrackColor = colorScheme.inversePrimary
                     ),
                     valueRange = 0f..duration.toFloat(),
                 )
@@ -724,7 +726,8 @@ private fun BottomControls(
                 IconButton(
                     modifier = Modifier
                         .weight(1f, false)
-                        .repeatingClickable(remember { MutableInteractionSource() },
+                        .repeatingClickable(
+                            remember { MutableInteractionSource() },
                             true,
                             onClick = {
                                 onSeekChanged((videoTime.toFloat() - (1F / videoFpm)) + 1F)
@@ -746,7 +749,8 @@ private fun BottomControls(
                 IconButton(
                     modifier = Modifier
                         .weight(1f, false)
-                        .repeatingClickable(remember { MutableInteractionSource() },
+                        .repeatingClickable(
+                            remember { MutableInteractionSource() },
                             true,
                             onClick = {
                                 onSeekChanged((videoTime.toFloat() + (1F / videoFpm)) + 1F)
@@ -872,6 +876,7 @@ private fun BottomControls(
             }
         )
     }
+}
 @Composable
 private fun MiniPreviewStrip(
     modifier: Modifier = Modifier,
@@ -920,9 +925,9 @@ private fun MiniPreviewStrip(
     Box(
         modifier = modifier
             .padding(vertical = 8.dp)
-            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
+            .border(1.dp, colorScheme.outline, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .background(colorScheme.surfaceVariant)
     ) {
         if (previewFrames.isNotEmpty()) {
             LazyRow(
@@ -940,10 +945,11 @@ private fun MiniPreviewStrip(
                 }
             }
         }
+        val progressColor = colorScheme.primary
         Canvas(modifier = Modifier.fillMaxSize()) {
             val xPos = size.width * progress
             drawLine(
-                color = MaterialTheme.colorScheme.primary,
+                color = progressColor,
                 start = Offset(xPos, 0f),
                 end = Offset(xPos, size.height),
                 strokeWidth = 3f
@@ -1444,7 +1450,7 @@ fun ExportProgressDialog(
                     LinearProgressIndicator(
                         progress = { animatedProgress },
                         modifier = Modifier.padding(vertical = 4.dp),
-                        trackColor = MaterialTheme.colorScheme.inversePrimary,
+                        trackColor = colorScheme.inversePrimary,
                     )
                     Text(
                         modifier = Modifier.padding(vertical = 4.dp),
