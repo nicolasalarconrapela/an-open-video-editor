@@ -1,23 +1,14 @@
-# Open Video Editor
 <img src="./metadata/en-US/images/featureGraphicDark.png" alt="Feature graphic" width="500">
+
+# Open Video Editor
+
+[![GitHub Release](https://img.shields.io/github/v/release/devhyper/open-video-editor?style=for-the-badge&logo=github&label=GitHub)](https://github.com/devhyper/open-video-editor/releases/latest)
+[![IzzyOnDroid](https://img.shields.io/badge/IzzyOnDroid-Repo-blue?style=for-the-badge&logo=android)](https://apt.izzysoft.de/fdroid/index/apk/io.github.devhyper.openvideoeditor)
+[![Google Play](https://img.shields.io/badge/Google_Play-Store-green?style=for-the-badge&logo=google-play)](https://play.google.com/store/apps/details?id=io.github.devhyper.openvideoeditor)
+[![F-Droid](https://img.shields.io/f-droid/v/io.github.devhyper.openvideoeditor?style=for-the-badge&logo=f-droid&logoColor=white)](https://f-droid.org/en/packages/io.github.devhyper.openvideoeditor)
 
 ## About
 Open Video Editor is an Android video editor focused on fast, offline edits with a simple workflow for trimming, filters, and exports.
-
-## Install
-### Recommended
-- Google Play: https://play.google.com/store/apps/details?id=io.github.devhyper.openvideoeditor
-- F-Droid: https://f-droid.org/en/packages/io.github.devhyper.openvideoeditor
-
-### Alternative stores
-- GitHub Releases (APK): https://github.com/devhyper/open-video-editor/releases/latest
-- IzzyOnDroid: https://apt.izzysoft.de/fdroid/index/apk/io.github.devhyper.openvideoeditor
-
-### Store badges
-[<img src="./assets/get-it-on-github.png" alt='Get it on GitHub' height="80">](https://github.com/devhyper/open-video-editor/releases/latest)
-[<img src="./assets/IzzyOnDroid.png" alt='Get it on IzzyOnDroid' height="80">](https://apt.izzysoft.de/fdroid/index/apk/io.github.devhyper.openvideoeditor)
-[<img src="./assets/google-play-badge.png" alt='Get it on Google Play' height="80">](https://play.google.com/store/apps/details?id=io.github.devhyper.openvideoeditor)
-[<img src="./assets/get-it-on-fdroid.png" alt='Get it on F-Droid' height="80">](https://f-droid.org/en/packages/io.github.devhyper.openvideoeditor)
 
 ## Developer install (from source)
 ```bash
@@ -42,6 +33,7 @@ This repository includes a devcontainer configuration. Create a new Codespace an
 - Automatic segmented export for long videos (resume-friendly)
 
 ## Build from source
+
 ```bash
 ./gradlew assembleDebug
 ```
@@ -51,19 +43,8 @@ This repository includes a devcontainer configuration. Create a new Codespace an
 - Translations are managed via Weblate.
 
 ## Translations
-https://hosted.weblate.org/engage/open-video-editor
+[![Translations](https://img.shields.io/badge/Translations-Weblate-brightgreen?style=for-the-badge&logo=weblate)](https://hosted.weblate.org/engage/open-video-editor)
 
 ## Roadmap
-https://github.com/devhyper/open-video-editor/milestones
+[![Roadmap](https://img.shields.io/badge/Roadmap-Milestones-blue?style=for-the-badge&logo=github)](https://github.com/devhyper/open-video-editor/milestones)
 
-## Screenshots
-<p float="left">
-    <img src="./metadata/en-US/images/phoneScreenshots/1.png" alt="Phone screenshot 1" width="150">
-    <img src="./metadata/en-US/images/phoneScreenshots/2.png" alt="Phone screenshot 2" width="150">
-    <img src="./metadata/en-US/images/phoneScreenshots/3.png" alt="Phone screenshot 3" width="150">
-    <img src="./metadata/en-US/images/phoneScreenshots/4.png" alt="Phone screenshot 4" width="150">
-    <img src="./metadata/en-US/images/phoneScreenshots/5.png" alt="Phone screenshot 5" width="150">
-    <img src="./metadata/en-US/images/phoneScreenshots/6.png" alt="Phone screenshot 6" width="150">
-    <img src="./metadata/en-US/images/phoneScreenshots/7.png" alt="Phone screenshot 7" width="150">
-    <img src="./metadata/en-US/images/phoneScreenshots/8.png" alt="Phone screenshot 8" width="150">
-</p>
