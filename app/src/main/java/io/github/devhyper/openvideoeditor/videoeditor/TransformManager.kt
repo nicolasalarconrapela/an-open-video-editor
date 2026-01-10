@@ -37,6 +37,7 @@ import com.arthenica.ffmpegkit.SessionState
 import io.github.devhyper.openvideoeditor.misc.PROJECT_FILE_EXT
 import io.github.devhyper.openvideoeditor.misc.getFileNameFromUri
 import io.github.devhyper.openvideoeditor.misc.getVideoFileDuration
+import io.github.devhyper.openvideoeditor.settings.SettingsDataStore
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
@@ -205,6 +206,8 @@ data class ProjectData(
     val audioProcessors: MutableList<AudioProcessor> = mutableListOf(),
     val mediaTrims: MutableList<Trim> = mutableListOf(),
     var segmentExportState: SegmentExportState? = null,
+    var proxyPath: String? = null,
+    var proxyQuality: String? = null,
 ) : java.io.Serializable {
     companion object {
         fun read(uri: String, context: Context): ProjectData? {
@@ -265,7 +268,11 @@ class TransformManager {
 
     private lateinit var originalMedia: MediaItem
 
-    private lateinit var trimmedMedia: MediaItem
+    private lateinit var previewMedia: MediaItem
+
+    private lateinit var trimmedExportMedia: MediaItem
+
+    private lateinit var trimmedPreviewMedia: MediaItem
 
     lateinit var projectData: ProjectData
 
@@ -307,13 +314,38 @@ class TransformManager {
             hasInitialized = true
         }
         originalMedia = MediaItem.fromUri(projectData.uri)
-        trimmedMedia = MediaItem.fromUri(projectData.uri)
+        previewMedia = MediaItem.fromUri(resolvePreviewUri(context))
         rebuildMediaTrims()
         player.apply {
             stop()
-            setMediaItem(trimmedMedia)
+            setMediaItem(trimmedPreviewMedia)
             setVideoEffects(getEffectArray())
             prepare()
+        }
+    }
+
+    fun getPreviewSource(context: Context): String {
+        return resolvePreviewUri(context)
+    }
+
+    private fun resolvePreviewUri(context: Context): String {
+        val dataStore = SettingsDataStore(context)
+        val proxyEnabled = dataStore.getProxyEnabledBlocking()
+        val proxyQuality = dataStore.getProxyQualityBlocking()
+        val existingProxy = projectData.proxyPath?.takeIf { path ->
+            projectData.proxyQuality == proxyQuality && File(path).exists() && File(path).length() > 0L
+        }
+        if (proxyEnabled) {
+            generateProxyIfNeeded(context, proxyQuality) { proxyPath ->
+                if (proxyPath != existingProxy && hasInitialized) {
+                    updatePreviewMedia(proxyPath)
+                }
+            }
+        }
+        return if (proxyEnabled) {
+            existingProxy ?: projectData.uri
+        } else {
+            projectData.uri
         }
     }
 
@@ -421,12 +453,19 @@ class TransformManager {
 
     private fun rebuildMediaTrims() {
         val trim = getMergedTrim()
-        trimmedMedia = if (trim != null) {
+        trimmedExportMedia = if (trim != null) {
             val clipConfig = ClippingConfiguration.Builder().setStartPositionMs(trim.first)
                 .setEndPositionMs(trim.second).build()
             originalMedia.buildUpon().setClippingConfiguration(clipConfig).build()
         } else {
             originalMedia
+        }
+        trimmedPreviewMedia = if (trim != null) {
+            val clipConfig = ClippingConfiguration.Builder().setStartPositionMs(trim.first)
+                .setEndPositionMs(trim.second).build()
+            previewMedia.buildUpon().setClippingConfiguration(clipConfig).build()
+        } else {
+            previewMedia
         }
     }
 
@@ -435,9 +474,74 @@ class TransformManager {
 
         player.apply {
             stop()
-            setMediaItem(trimmedMedia)
+            setMediaItem(trimmedPreviewMedia)
             setVideoEffects(getEffectArray())
             prepare()
+        }
+    }
+
+    private fun updatePreviewMedia(uri: String) {
+        val currentPosition = player.currentPosition
+        previewMedia = MediaItem.fromUri(uri)
+        rebuildMediaTrims()
+        player.apply {
+            stop()
+            setMediaItem(trimmedPreviewMedia)
+            setVideoEffects(getEffectArray())
+            prepare()
+            if (currentPosition > 0) {
+                seekTo(currentPosition)
+            }
+        }
+    }
+
+    private fun getProxyFile(context: Context, qualityKey: String): File {
+        val proxyDirectory = File(context.cacheDir, "proxies")
+        if (!proxyDirectory.exists()) {
+            proxyDirectory.mkdirs()
+        }
+        return File(proxyDirectory, "${projectData.uri.hashCode()}_${qualityKey}.mp4")
+    }
+
+    private fun generateProxyIfNeeded(
+        context: Context,
+        qualityKey: String,
+        onProxyReady: (String) -> Unit,
+    ) {
+        val quality = ProxyQuality.fromKey(qualityKey)
+        val existingProxy = projectData.proxyPath?.takeIf { path ->
+            projectData.proxyQuality == quality.key && File(path).exists() && File(path).length() > 0L
+        }
+        if (existingProxy != null) {
+            onProxyReady(existingProxy)
+            return
+        }
+        val proxyFile = getProxyFile(context, quality.key)
+        val ffmpegInputPath =
+            FFmpegKitConfig.getSafParameterForRead(context, projectData.uri.toUri())
+        val command = buildString {
+            append("-i ")
+            append(ffmpegInputPath)
+            append(" -vf scale=-2:")
+            append(quality.height)
+            append(" -c:v libx264 -preset veryfast -b:v ")
+            append(quality.videoBitrateKbps)
+            append("k -maxrate ")
+            append(quality.videoBitrateKbps)
+            append("k -bufsize ")
+            append(quality.videoBitrateKbps * 2)
+            append("k -c:a aac -b:a ")
+            append(quality.audioBitrateKbps)
+            append("k -movflags +faststart -y ")
+            append(proxyFile.absolutePath)
+        }
+        FFmpegKit.executeAsync(command) { session ->
+            val completed = session.state == SessionState.COMPLETED
+            if (completed && proxyFile.exists() && proxyFile.length() > 0L) {
+                projectData.proxyPath = proxyFile.absolutePath
+                projectData.proxyQuality = quality.key
+                onProxyReady(proxyFile.absolutePath)
+            }
         }
     }
 
@@ -756,7 +860,7 @@ class TransformManager {
                     add(FrameDropEffect.createDefaultFrameDropEffect(exportSettings.framerate))
                 }
             }
-            val editedMediaItem = EditedMediaItem.Builder(trimmedMedia)
+            val editedMediaItem = EditedMediaItem.Builder(trimmedExportMedia)
                 .setEffects(Effects(projectData.audioProcessors, effectArray))
                 .setRemoveAudio(!exportSettings.exportAudio)
                 .setRemoveVideo(!exportSettings.exportVideo)
@@ -802,6 +906,23 @@ class TransformManager {
                 PROGRESS_STATE_NOT_STARTED -> 1F
                 else -> progressHolder.progress.toFloat() / 100F
             }
+        }
+    }
+}
+
+private enum class ProxyQuality(
+    val key: String,
+    val height: Int,
+    val videoBitrateKbps: Int,
+    val audioBitrateKbps: Int,
+) {
+    LOW("low", 360, 800, 96),
+    MEDIUM("medium", 480, 1200, 96),
+    HIGH("high", 720, 2500, 128);
+
+    companion object {
+        fun fromKey(key: String?): ProxyQuality {
+            return entries.firstOrNull { it.key == key } ?: MEDIUM
         }
     }
 }

@@ -20,6 +20,8 @@ class SettingsDataStore(private val context: Context) {
         val LEGACY_FILE_PICKER = booleanPreferencesKey("legacy_file_picker")
         val UI_CASCADING_EFFECT = booleanPreferencesKey("ui_cascading_effect")
         val AMOLED_DARK_THEME = booleanPreferencesKey("amoled_dark_theme")
+        val PROXY_ENABLED = booleanPreferencesKey("proxy_enabled")
+        val PROXY_QUALITY = stringPreferencesKey("proxy_quality")
     }
 
     fun getThemeBlocking(): String {
@@ -94,4 +96,31 @@ class SettingsDataStore(private val context: Context) {
             preferences[UI_CASCADING_EFFECT] = value
         }
     }
+
+    fun getProxyEnabledBlocking(): Boolean {
+        return runBlocking {
+            val preferences = context.dataStore.data.first()
+            preferences[PROXY_ENABLED] ?: false
+        }
+    }
+
+    suspend fun setProxyEnabled(value: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PROXY_ENABLED] = value
+        }
+    }
+
+    fun getProxyQualityBlocking(): String {
+        return runBlocking {
+            val preferences = context.dataStore.data.first()
+            preferences[PROXY_QUALITY] ?: "medium"
+        }
+    }
+
+    suspend fun setProxyQuality(value: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PROXY_QUALITY] = value
+        }
+    }
+
 }
