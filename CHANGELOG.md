@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.1] - 2026-01-09
+### Añadido
+- Exportación en segundo plano con WorkManager en primer plano, seguimiento de progreso y persistencia del estado.
+### Corregido
+- Cancelación con limpieza de exportaciones segmentadas.
+
 ## [1.3.0] - 2026-01-09
 ### Añadido
 - Mini previsualización del vídeo en la barra de controles con miniaturas y marcador de progreso.

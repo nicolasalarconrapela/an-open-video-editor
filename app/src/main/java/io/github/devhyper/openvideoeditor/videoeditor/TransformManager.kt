@@ -43,6 +43,8 @@ import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
 import kotlin.math.ceil
@@ -219,6 +221,19 @@ data class ProjectData(
             }
             return projectData
         }
+
+        fun readFromFile(file: File): ProjectData? {
+            if (!file.exists()) {
+                return null
+            }
+            var projectData: ProjectData? = null
+            FileInputStream(file).use { inputStream ->
+                ObjectInputStream(inputStream).use { input ->
+                    projectData = input.readObject() as ProjectData?
+                }
+            }
+            return projectData
+        }
     }
 
     fun write(uri: String, context: Context) {
@@ -226,6 +241,19 @@ data class ProjectData(
             val output = ObjectOutputStream(it)
             output.writeObject(this)
             output.close()
+        }
+    }
+
+    fun writeToFile(file: File) {
+        file.parentFile?.let { parent ->
+            if (!parent.exists()) {
+                parent.mkdirs()
+            }
+        }
+        FileOutputStream(file).use { outputStream ->
+            ObjectOutputStream(outputStream).use { output ->
+                output.writeObject(this)
+            }
         }
     }
 }
@@ -275,6 +303,13 @@ class TransformManager {
     private lateinit var trimmedPreviewMedia: MediaItem
 
     lateinit var projectData: ProjectData
+
+    fun initForExport(context: Context, projectData: ProjectData) {
+        this.projectData = projectData
+        originalMedia = MediaItem.fromUri(projectData.uri)
+        previewMedia = MediaItem.fromUri(projectData.uri)
+        rebuildMediaTrims()
+    }
 
     fun init(
         exoPlayer: ExoPlayer,
@@ -550,7 +585,8 @@ class TransformManager {
         trim: Trim,
         outputPath: String,
         audioFallback: Boolean,
-        onFFmpegError: () -> Unit
+        onFFmpegError: () -> Unit,
+        onExportCompleted: (() -> Unit)?,
     ) {
         val ffmpegInputPath =
             FFmpegKitConfig.getSafParameterForRead(context, projectData.uri.toUri())
@@ -564,13 +600,14 @@ class TransformManager {
                 val fileSize = fd.length
                 fd.close()
                 if (fileSize != 0L) {
+                    onExportCompleted?.invoke()
                     return@executeAsync
                 }
             }
             if (audioFallback) {
                 onFFmpegError()
             } else {
-                ffmpegLosslessCut(context, trim, outputPath, true, onFFmpegError)
+                ffmpegLosslessCut(context, trim, outputPath, true, onFFmpegError, onExportCompleted)
             }
         }
     }
@@ -654,6 +691,7 @@ class TransformManager {
         state: SegmentExportState,
         segments: List<SegmentRange>,
         onFFmpegError: () -> Unit,
+        onExportCompleted: (() -> Unit)?,
     ) {
         val listFile = File(state.segmentDirectoryPath, "concat_list.txt")
         listFile.bufferedWriter().use { writer ->
@@ -670,6 +708,7 @@ class TransformManager {
             val completed = session.state == SessionState.COMPLETED
             if (completed) {
                 clearSegmentExportState()
+                onExportCompleted?.invoke()
             } else {
                 onFFmpegError()
             }
@@ -689,6 +728,7 @@ class TransformManager {
         context: Context,
         exportSettings: ExportSettings,
         onFFmpegError: () -> Unit,
+        onExportCompleted: (() -> Unit)?,
         segments: List<SegmentRange>,
         state: SegmentExportState,
     ) {
@@ -703,7 +743,7 @@ class TransformManager {
             val nextSegment =
                 segments.drop(startIndex).firstOrNull { !state.completedSegments.contains(it.index) }
             if (nextSegment == null) {
-                runConcat(context, state, segments, onFFmpegError)
+                runConcat(context, state, segments, onFFmpegError, onExportCompleted)
                 return
             }
             val segmentPath = segmentFilePath(state, nextSegment.index)
@@ -731,6 +771,7 @@ class TransformManager {
         exportSettings: ExportSettings,
         transformerListener: Transformer.Listener,
         onFFmpegError: () -> Unit,
+        onExportCompleted: (() -> Unit)?,
         segments: List<SegmentRange>,
         state: SegmentExportState,
     ) {
@@ -754,7 +795,7 @@ class TransformManager {
             val nextSegment =
                 segments.drop(startIndex).firstOrNull { !state.completedSegments.contains(it.index) }
             if (nextSegment == null) {
-                runConcat(context, state, segments, onFFmpegError)
+                runConcat(context, state, segments, onFFmpegError, onExportCompleted)
                 return
             }
             val startMs = baseOffsetMs + nextSegment.startMs
@@ -806,10 +847,13 @@ class TransformManager {
         context: Context,
         exportSettings: ExportSettings,
         transformerListener: Transformer.Listener,
-        onFFmpegError: () -> Unit
+        onFFmpegError: () -> Unit,
+        onExportCompleted: (() -> Unit)? = null,
     ) {
         // exportSettings.log()
-        player.release()
+        if (this::player.isInitialized && player.isCommandAvailable(Player.COMMAND_RELEASE)) {
+            player.release()
+        }
         val outputPath = exportSettings.outputPath
         val totalDurationMs = getExportDurationMs(context)
         if (shouldUseSegmentedExport(context, exportSettings)) {
@@ -825,6 +869,7 @@ class TransformManager {
                     context,
                     exportSettings,
                     onFFmpegError,
+                    onExportCompleted,
                     filteredSegments,
                     state,
                 )
@@ -834,6 +879,7 @@ class TransformManager {
                     exportSettings,
                     transformerListener,
                     onFFmpegError,
+                    onExportCompleted,
                     filteredSegments,
                     state,
                 )
@@ -843,7 +889,7 @@ class TransformManager {
         if (exportSettings.losslessCut) {
             val trim = getMergedTrim()
             if (trim != null) {
-                ffmpegLosslessCut(context, trim, outputPath, false, onFFmpegError)
+                ffmpegLosslessCut(context, trim, outputPath, false, onFFmpegError, onExportCompleted)
             }
         } else {
             val fd =
@@ -874,7 +920,25 @@ class TransformManager {
                         .build()
                 )
                 .setMuxerFactory(CustomMuxer.Factory(fd))
-                .addListener(transformerListener)
+                .addListener(
+                    object : Transformer.Listener {
+                        override fun onCompleted(
+                            composition: androidx.media3.transformer.Composition,
+                            result: androidx.media3.transformer.ExportResult,
+                        ) {
+                            transformerListener.onCompleted(composition, result)
+                            onExportCompleted?.invoke()
+                        }
+
+                        override fun onError(
+                            composition: androidx.media3.transformer.Composition,
+                            result: androidx.media3.transformer.ExportResult,
+                            exception: androidx.media3.transformer.ExportException,
+                        ) {
+                            transformerListener.onError(composition, result, exception)
+                        }
+                    }
+                )
                 .build()
             if (fd != null) {
                 transformer!!.start(editedMediaItem, "")
@@ -887,6 +951,22 @@ class TransformManager {
     fun cancel() {
         FFmpegKit.cancel()
         transformer?.cancel()
+        cleanupExportArtifacts()
+    }
+
+    fun cleanupExportArtifacts() {
+        if (!this::projectData.isInitialized) {
+            return
+        }
+        val state = projectData.segmentExportState ?: return
+        val directory = File(state.segmentDirectoryPath)
+        if (directory.exists()) {
+            directory.listFiles()?.forEach { file ->
+                file.delete()
+            }
+            directory.delete()
+        }
+        clearSegmentExportState()
     }
 
     fun getProgress(): Float {

@@ -21,6 +21,12 @@
     <string name="video_type">Video Type</string>
     <string name="exported">Exported</string>
     <string name="exporting">Exporting</string>
+    <string name="export_notification_channel">Exports</string>
+    <string name="export_notification_title">Exporting video</string>
+    <string name="export_notification_body">Export in progress.</string>
+    <string name="export_notification_complete">Export complete</string>
+    <string name="export_notification_failed">Export failed</string>
+    <string name="export_error_missing_input">Unable to load export data.</string>
     <string name="dismiss">Dismiss</string>
     <string name="error">Error</string>
     <string name="select_a_file_to_edit">Select a file to edit</string>

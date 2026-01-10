@@ -3,7 +3,6 @@ package io.github.devhyper.openvideoeditor.videoeditor
 import android.app.Activity
 import android.content.Intent
 import android.media.MediaMetadataRetriever
-import android.media.MediaScannerConnection
 import android.os.Handler
 import android.os.Looper.getMainLooper
 import android.view.TextureView
@@ -81,6 +80,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -116,10 +116,6 @@ import androidx.media3.common.Player
 import androidx.media3.common.Player.COMMAND_GET_CURRENT_MEDIA_ITEM
 import androidx.media3.common.Player.Commands
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.transformer.Composition
-import androidx.media3.transformer.ExportException
-import androidx.media3.transformer.ExportResult
-import androidx.media3.transformer.Transformer.Listener
 import io.github.devhyper.openvideoeditor.R
 import io.github.devhyper.openvideoeditor.misc.AcceptDeclineRow
 import io.github.devhyper.openvideoeditor.misc.DropdownSetting
@@ -1234,50 +1230,61 @@ private fun ExportDialog(
 ) {
     val viewModel = viewModel { VideoEditorViewModel() }
     val outputPath by viewModel.outputPath.collectAsState()
-    var isExporting by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
+    val dataStore = remember { SettingsDataStore(context) }
+    val exportState by dataStore.getExportStateAsync()
+        .collectAsState(initial = ExportState.IDLE)
+    val exportProgress by dataStore.getExportProgressAsync()
+        .collectAsState(initial = 0F)
+    val exportError by dataStore.getExportErrorAsync().collectAsState(initial = null)
+    val coroutineScope = rememberCoroutineScope()
+    val exportSettings: ExportSettings by remember { mutableStateOf(ExportSettings()) }
+    var infoDialogText by remember { mutableStateOf("") }
     val exportDismissRequest = {
-        isExporting = false
-        onDismissRequest()
+        coroutineScope.launch {
+            ExportWorkManager.clearExportState(context)
+        }
         viewModel.setOutputPath("")
+        onDismissRequest()
         activity.recreate()
     }
-    if (isExporting) {
-        ExportProgressDialog(transformManager, outputPath) { exportDismissRequest() }
+    val displayExportState =
+        if (exportState == ExportState.IDLE && outputPath.isNotEmpty()) {
+            ExportState.RUNNING
+        } else {
+            exportState
+        }
+    LaunchedEffect(outputPath, exportState) {
+        if (outputPath.isNotEmpty() && exportState != ExportState.RUNNING) {
+            exportSettings.outputPath = outputPath
+            ExportWorkManager.enqueueExport(context, exportSettings, transformManager.projectData)
+            viewModel.setOutputPath("")
+        }
+    }
+    if (displayExportState == ExportState.RUNNING || displayExportState == ExportState.COMPLETED) {
+        ExportProgressDialog(
+            exportProgress = exportProgress,
+            exportState = displayExportState,
+            onCancel = {
+                coroutineScope.launch {
+                    ExportWorkManager.cancelExport(context)
+                    ExportWorkManager.clearExportState(context)
+                }
+                onDismissRequest()
+            },
+            onDismissRequest = {
+                exportDismissRequest()
+            }
+        )
         return
     }
-    val context = LocalContext.current
-    val exportSettings: ExportSettings by remember { mutableStateOf(ExportSettings()) }
-    var exportString: String? by remember { mutableStateOf(null) }
-    var infoDialogText by remember { mutableStateOf("") }
-    if (outputPath.isNotEmpty()) {
-        exportSettings.outputPath = outputPath
-        if (exportString != null) {
-            ExportFailedAlertDialog(exportString!!) {
-                exportString = null; exportDismissRequest()
-            }
-        } else {
-            val transformerListener: Listener =
-                object : Listener {
-                    override fun onError(
-                        composition: Composition, result: ExportResult,
-                        exception: ExportException
-                    ) {
-                        exportString = exception.toString()
-                        // Log.e("open-video-editor", "Export exception: ", exception)
-                    }
-                }
-            val onFFmpegError: () -> Unit = {
-                exportString = context.getString(R.string.ffmpeg_error)
-            }
-            transformManager.export(
-                context,
-                exportSettings,
-                transformerListener,
-                onFFmpegError
-            )
-            isExporting = true
+    if (exportState == ExportState.FAILED) {
+        ExportFailedAlertDialog(exportError ?: context.getString(R.string.ffmpeg_error)) {
+            exportDismissRequest()
         }
-    } else {
+        return
+    }
+    if (outputPath.isEmpty()) {
         ListDialog(
             title = stringResource(R.string.export),
             dismissText = stringResource(R.string.cancel),
@@ -1391,36 +1398,18 @@ private fun ExportDialog(
 
 @Composable
 fun ExportProgressDialog(
-    transformManager: TransformManager,
-    outputPath: String,
-    onDismissRequest: () -> Unit
+    exportProgress: Float,
+    exportState: ExportState,
+    onCancel: () -> Unit,
+    onDismissRequest: () -> Unit,
 ) {
-    val context = LocalContext.current
-    var exportProgress by rememberSaveable { mutableFloatStateOf(0F) }
+    val progressValue = if (exportProgress < 0F) 0F else exportProgress.coerceIn(0F, 1F)
     val animatedProgress = animateFloatAsState(
-        targetValue = exportProgress,
+        targetValue = progressValue,
         animationSpec = ProgressIndicatorDefaults.ProgressAnimationSpec,
         label = "export_progress_animation"
     ).value
-    val exportComplete = exportProgress == 1F
-    val progressHandler = Handler(getMainLooper())
-    progressHandler.postDelayed(
-        object : Runnable {
-            override fun run() {
-                exportProgress = transformManager.getProgress()
-                if (exportProgress != 1F && exportProgress != -1F) {
-                    progressHandler.postDelayed(this, REFRESH_RATE)
-                }
-
-                if (exportComplete) {
-                    MediaScannerConnection.scanFile(
-                        context, arrayOf(outputPath),
-                        null
-                    ) { _, _ -> }
-                }
-            }
-        }, REFRESH_RATE
-    )
+    val exportComplete = exportState == ExportState.COMPLETED
     Dialog(onDismissRequest = {
         if (exportComplete) {
             onDismissRequest()
@@ -1454,13 +1443,13 @@ fun ExportProgressDialog(
                     )
                     Text(
                         modifier = Modifier.padding(vertical = 4.dp),
-                        text = "${(exportProgress * 100).toInt()}%"
+                        text = "${(progressValue * 100).toInt()}%"
                     )
                 }
                 TextButton(
                     onClick = {
                         if (!exportComplete) {
-                            transformManager.cancel()
+                            onCancel()
                         }
                         onDismissRequest()
                     },

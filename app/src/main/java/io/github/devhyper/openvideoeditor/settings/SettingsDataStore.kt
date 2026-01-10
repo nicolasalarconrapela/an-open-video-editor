@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
+import androidx.datastore.preferences.core.floatPreferencesKey
 
 class SettingsDataStore(private val context: Context) {
 
@@ -22,6 +23,11 @@ class SettingsDataStore(private val context: Context) {
         val AMOLED_DARK_THEME = booleanPreferencesKey("amoled_dark_theme")
         val PROXY_ENABLED = booleanPreferencesKey("proxy_enabled")
         val PROXY_QUALITY = stringPreferencesKey("proxy_quality")
+        val EXPORT_STATE = stringPreferencesKey("export_state")
+        val EXPORT_PROGRESS = floatPreferencesKey("export_progress")
+        val EXPORT_OUTPUT_PATH = stringPreferencesKey("export_output_path")
+        val EXPORT_WORK_ID = stringPreferencesKey("export_work_id")
+        val EXPORT_ERROR = stringPreferencesKey("export_error")
     }
 
     fun getThemeBlocking(): String {
@@ -120,6 +126,85 @@ class SettingsDataStore(private val context: Context) {
     suspend fun setProxyQuality(value: String) {
         context.dataStore.edit { preferences ->
             preferences[PROXY_QUALITY] = value
+        }
+    }
+
+    fun getExportStateAsync(): Flow<io.github.devhyper.openvideoeditor.videoeditor.ExportState> {
+        return context.dataStore.data.map { preferences ->
+            io.github.devhyper.openvideoeditor.videoeditor.ExportState.fromValue(preferences[EXPORT_STATE])
+        }
+    }
+
+    fun getExportStateBlocking(): io.github.devhyper.openvideoeditor.videoeditor.ExportState {
+        return runBlocking {
+            val preferences = context.dataStore.data.first()
+            io.github.devhyper.openvideoeditor.videoeditor.ExportState.fromValue(preferences[EXPORT_STATE])
+        }
+    }
+
+    fun getExportProgressAsync(): Flow<Float> {
+        return context.dataStore.data.map { preferences ->
+            preferences[EXPORT_PROGRESS] ?: 0F
+        }
+    }
+
+    fun getExportOutputPathAsync(): Flow<String> {
+        return context.dataStore.data.map { preferences ->
+            preferences[EXPORT_OUTPUT_PATH] ?: ""
+        }
+    }
+
+    fun getExportErrorAsync(): Flow<String?> {
+        return context.dataStore.data.map { preferences ->
+            preferences[EXPORT_ERROR]
+        }
+    }
+
+    suspend fun setExportState(state: io.github.devhyper.openvideoeditor.videoeditor.ExportState) {
+        context.dataStore.edit { preferences ->
+            preferences[EXPORT_STATE] = state.value
+        }
+    }
+
+    suspend fun setExportProgress(progress: Float) {
+        context.dataStore.edit { preferences ->
+            preferences[EXPORT_PROGRESS] = progress
+        }
+    }
+
+    suspend fun setExportOutputPath(path: String) {
+        context.dataStore.edit { preferences ->
+            preferences[EXPORT_OUTPUT_PATH] = path
+        }
+    }
+
+    suspend fun setExportWorkId(id: String?) {
+        context.dataStore.edit { preferences ->
+            if (id == null) {
+                preferences.remove(EXPORT_WORK_ID)
+            } else {
+                preferences[EXPORT_WORK_ID] = id
+            }
+        }
+    }
+
+    suspend fun setExportError(error: String?) {
+        context.dataStore.edit { preferences ->
+            if (error == null) {
+                preferences.remove(EXPORT_ERROR)
+            } else {
+                preferences[EXPORT_ERROR] = error
+            }
+        }
+    }
+
+    suspend fun clearExportState() {
+        context.dataStore.edit { preferences ->
+            preferences[EXPORT_STATE] = io.github.devhyper.openvideoeditor.videoeditor.ExportState.IDLE.value
+            preferences[EXPORT_PROGRESS] = 0F
+            preferences.remove(EXPORT_OUTPUT_PATH)
+            preferences.remove(EXPORT_WORK_ID)
+            preferences.remove(EXPORT_ERROR)
         }
     }
 
