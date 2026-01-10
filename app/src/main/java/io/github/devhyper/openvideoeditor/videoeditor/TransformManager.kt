@@ -324,6 +324,10 @@ class TransformManager {
         }
     }
 
+    fun getPreviewSource(context: Context): String {
+        return resolvePreviewUri(context)
+    }
+
     private fun resolvePreviewUri(context: Context): String {
         val dataStore = SettingsDataStore(context)
         val proxyEnabled = dataStore.getProxyEnabledBlocking()

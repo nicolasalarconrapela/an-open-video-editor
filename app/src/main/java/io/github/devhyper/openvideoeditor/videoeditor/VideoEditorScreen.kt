@@ -2,6 +2,7 @@ package io.github.devhyper.openvideoeditor.videoeditor
 
 import android.app.Activity
 import android.content.Intent
+import android.media.MediaMetadataRetriever
 import android.media.MediaScannerConnection
 import android.os.Handler
 import android.os.Looper.getMainLooper
@@ -16,7 +17,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +32,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.size
@@ -83,10 +88,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -130,7 +139,9 @@ import io.github.devhyper.openvideoeditor.settings.SettingsDataStore
 import io.github.devhyper.openvideoeditor.ui.theme.OpenVideoEditorTheme
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -645,6 +656,15 @@ private fun BottomControls(
             .padding(horizontal = 16.dp)
             .padding(bottom = 16.dp)
     ) {
+        MiniPreviewStrip(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp),
+            transformManager = transformManager,
+            durationMs = duration,
+            currentTimeMs = videoTime
+        )
+
         Box(modifier = Modifier.fillMaxWidth()) {
             if (filterDurationEditorEnabled) {
                 RangeSlider(
@@ -851,6 +871,84 @@ private fun BottomControls(
                 }
             }
         )
+    }
+@Composable
+private fun MiniPreviewStrip(
+    modifier: Modifier = Modifier,
+    transformManager: TransformManager,
+    durationMs: Long,
+    currentTimeMs: Long,
+) {
+    val context = LocalContext.current
+    val previewSource = remember(durationMs) { transformManager.getPreviewSource(context) }
+    val previewFrames by produceState(initialValue = emptyList<androidx.compose.ui.graphics.ImageBitmap>(), previewSource, durationMs) {
+        value = withContext(Dispatchers.IO) {
+            if (durationMs <= 0L) {
+                emptyList()
+            } else {
+                val retriever = MediaMetadataRetriever()
+                try {
+                    if (previewSource.startsWith("content://") || previewSource.startsWith("file://")) {
+                        retriever.setDataSource(context, previewSource.toUri())
+                    } else {
+                        retriever.setDataSource(previewSource)
+                    }
+                    val frameCount = 8
+                    val stepMs = (durationMs / frameCount).coerceAtLeast(1L)
+                    val frames = mutableListOf<androidx.compose.ui.graphics.ImageBitmap>()
+                    for (index in 0 until frameCount) {
+                        val timeUs = (index * stepMs) * 1000L
+                        val bitmap = retriever.getFrameAtTime(
+                            timeUs,
+                            MediaMetadataRetriever.OPTION_CLOSEST_SYNC
+                        )
+                        if (bitmap != null) {
+                            frames.add(bitmap.asImageBitmap())
+                        }
+                    }
+                    frames
+                } catch (_: Exception) {
+                    emptyList()
+                } finally {
+                    retriever.release()
+                }
+            }
+        }
+    }
+    val progress =
+        if (durationMs > 0L) (currentTimeMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f
+    Box(
+        modifier = modifier
+            .padding(vertical = 8.dp)
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        if (previewFrames.isNotEmpty()) {
+            LazyRow(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                items(previewFrames.size) { index ->
+                    Image(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(72.dp),
+                        bitmap = previewFrames[index],
+                        contentDescription = null
+                    )
+                }
+            }
+        }
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val xPos = size.width * progress
+            drawLine(
+                color = MaterialTheme.colorScheme.primary,
+                start = Offset(xPos, 0f),
+                end = Offset(xPos, size.height),
+                strokeWidth = 3f
+            )
+        }
     }
 }
 

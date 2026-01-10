@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.0] - 2026-01-09
+### Añadido
+- Mini previsualización del vídeo en la barra de controles con miniaturas y marcador de progreso.
+
 ## [1.2.9] - 2026-01-09
 ### Añadido
 - Generación de proxies de previsualización con FFmpegKit, guardados en los proyectos para edición.
