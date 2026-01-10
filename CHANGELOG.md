@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.2.7] - 2026-01-09
+### Añadido
+- Cambio de dependencia FFmpegKit a io.github.maitrungduc1410:ffmpeg-kit-min:6.0.1.
+
 ## [1.2.6] - 2026-01-09
 ### Añadido
 - Preparación del Android SDK y aceptación de licencias en el workflow.
