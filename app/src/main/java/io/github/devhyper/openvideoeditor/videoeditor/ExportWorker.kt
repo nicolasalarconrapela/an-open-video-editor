@@ -106,6 +106,7 @@ class ExportWorker(
                 dataStore.setExportProgress(progressForUi)
                 setProgress(workDataOf(KEY_PROGRESS to progressForUi))
                 updateNotification(progressForUi)
+                setForeground(createForegroundInfo(progressForUi))
                 delay(500)
             }
         }

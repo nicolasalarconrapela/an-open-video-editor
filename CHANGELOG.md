@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.3] - 2026-01-09
+### Añadido
+- Actualización continua de la notificación de exportación en primer plano mientras se procesa el vídeo.
+
 ## [1.3.2] - 2026-01-09
 ### Corregido
 - Evitar duplicados al reanudar exportaciones activas con WorkManager.
