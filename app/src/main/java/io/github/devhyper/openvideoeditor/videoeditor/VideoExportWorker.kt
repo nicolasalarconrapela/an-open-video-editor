@@ -2,9 +2,12 @@ package io.github.devhyper.openvideoeditor.videoeditor
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.core.net.toUri
 import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
@@ -32,6 +35,9 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
         const val KEY_EXPORT_SETTINGS_PATH = "exportSettingsPath"
         const val KEY_ERROR = "error"
         const val KEY_PROGRESS = "progress"
+        const val KEY_OUTPUT_PATH = "outputPath"
+        const val NOTIFICATION_ID = 1
+        const val COMPLETION_NOTIFICATION_ID = 2
     }
 
     override suspend fun doWork(): Result {
@@ -43,8 +49,7 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
 
         if (projectData == null || exportSettings == null) return Result.failure()
 
-        // Cleanup temp files if desired? Or let system handle cache.
-        // We will leave them for now.
+        val outputPath = exportSettings.outputPath
 
         setForeground(createForegroundInfo(0f))
         startTimeMs = System.currentTimeMillis()
@@ -70,8 +75,9 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
                         exportSettings,
                         onCompleted = {
                             progressJob.cancel()
+                            showCompletionNotification(outputPath)
                             if (continuation.isActive) {
-                                continuation.resume(Result.success())
+                                continuation.resume(Result.success(workDataOf(KEY_OUTPUT_PATH to outputPath)))
                             }
                         },
                         onError = { error ->
@@ -94,7 +100,6 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
     }
 
     private var startTimeMs: Long = 0L
-    private var estimatedDurationMs: Long = 0L
     
     private fun createForegroundInfo(progress: Float): ForegroundInfo {
         val channelId = "export_channel"
@@ -130,9 +135,56 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
             .build()
         
         if (Build.VERSION.SDK_INT >= 34) {
-            return ForegroundInfo(1, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            return ForegroundInfo(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         }
-        return ForegroundInfo(1, notification)
+        return ForegroundInfo(NOTIFICATION_ID, notification)
+    }
+    
+    private fun showCompletionNotification(outputPath: String) {
+        val channelId = "export_complete_channel"
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(channelId, "Export Complete", NotificationManager.IMPORTANCE_DEFAULT)
+            notificationManager.createNotificationChannel(channel)
+        }
+        
+        // Extract filename from URI
+        // TODO : mejorar
+        val videoName = try {
+            val uri = outputPath.toUri()
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex >= 0) cursor.getString(nameIndex) else null
+                } else null
+            } ?: uri.lastPathSegment ?: "unknown.mp4"
+        } catch (e: Exception) {
+            "unknown.mp4"
+        }
+        
+        // Create intent to open the video
+        val openVideoIntent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(outputPath.toUri(), "video/*")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            openVideoIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        
+        val notification = NotificationCompat.Builder(context, channelId)
+            .setContentTitle(context.getString(R.string.export_complete))
+            .setContentText(videoName)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .build()
+        
+        notificationManager.notify(COMPLETION_NOTIFICATION_ID, notification)
     }
 
     @Suppress("UNCHECKED_CAST")

@@ -20,6 +20,7 @@
     <string name="audio_type">Audio Type</string>
     <string name="video_type">Video Type</string>
     <string name="exported">Exported</string>
+    <string name="export_complete">Se ha exportado</string>
     <string name="exporting">Exporting</string>
     <string name="dismiss">Dismiss</string>
     <string name="error">Error</string>
