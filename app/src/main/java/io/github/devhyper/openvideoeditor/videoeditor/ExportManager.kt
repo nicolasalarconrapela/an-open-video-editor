@@ -137,24 +137,20 @@ class ExportManager(private val context: Context, private val projectData: Proje
         transformer?.cancel()
     }
 
+    private var currentProgress: Float = 0f
+    
     fun getProgress(): Float {
-        val ffmpegSessions = FFmpegKit.listSessions()
-        return if (ffmpegSessions.isNotEmpty()) {
-            val sessionState = ffmpegSessions.last().state
-            return when (sessionState) {
-                SessionState.COMPLETED -> 1F
-                SessionState.RUNNING -> 0.5F
-                SessionState.CREATED -> 0F
-                else -> -1F
-            }
-        } else {
+        // If transformer is active, use its progress (polling)
+        if (transformer != null) {
             val progressHolder = ProgressHolder()
-            when (transformer?.getProgress(progressHolder)) {
+            return when (transformer?.getProgress(progressHolder)) {
                 PROGRESS_STATE_UNAVAILABLE -> -1F
                 PROGRESS_STATE_NOT_STARTED -> 1F
                 else -> progressHolder.progress.toFloat() / 100F
             }
         }
+        // Otherwise return the progress tracked from FFmpeg stats
+        return currentProgress
     }
     
     private fun getTrimmedExportMedia(): MediaItem {
@@ -286,12 +282,21 @@ class ExportManager(private val context: Context, private val projectData: Proje
         }
         val outputSafPath =
             FFmpegKitConfig.getSafParameterForWrite(context, state.outputPath.toUri())
+        
+        FFmpegKitConfig.enableStatisticsCallback { stats ->
+            // Concat is fast, but we can try to estimate if we knew total size or duration.
+            // For now, let's just leave it near 100% or indeterminate?
+            // Actually, concat is the final step. We can map it from 95% to 100%?
+            // Or just leave it. The loop handles segments progress.
+        }
+            
         FFmpegKit.executeAsync(
             "-f concat -safe 0 -i ${listFile.absolutePath} -c copy $outputSafPath"
         ) { session ->
             val completed = session.state == SessionState.COMPLETED
             if (completed) {
                 clearSegmentExportState()
+                currentProgress = 1f
                 onCompleted()
             } else {
                 onFFmpegError()
@@ -334,6 +339,21 @@ class ExportManager(private val context: Context, private val projectData: Proje
             val ffmpegInputPath =
                 FFmpegKitConfig.getSafParameterForRead(context, inputUri.toUri())
             val segmentStartMs = baseOffsetMs + nextSegment.startMs
+            // We can track progress based on completed segments + current segment progress
+            val totalSegments = segments.count { it.durationMs > 0 }
+            // simple progress:
+            // currentProgress = (completedSegments / total) + (currentSegmentProgress / total)
+            
+            FFmpegKitConfig.enableStatisticsCallback { stats ->
+                val segmentDuration = nextSegment.durationMs
+                val timeInSegment = stats.time
+                val segmentProgress = (timeInSegment / segmentDuration.toDouble()).coerceIn(0.0, 1.0)
+                
+                val completedCount = state.completedSegments.size
+                val totalProgress = (completedCount + segmentProgress) / totalSegments.toDouble()
+                currentProgress = totalProgress.toFloat()
+            }
+
             FFmpegKit.executeAsync(
                 "-ss ${segmentStartMs}ms -t ${nextSegment.durationMs}ms -i $ffmpegInputPath -c copy $segmentPath"
             ) { session ->
@@ -438,6 +458,13 @@ class ExportManager(private val context: Context, private val projectData: Proje
             FFmpegKitConfig.getSafParameterForRead(context, projectData.uri.toUri())
         val ffmpegOutputPath = FFmpegKitConfig.getSafParameterForWrite(context, outputPath.toUri())
         val audioCodec = if (audioFallback) "aac" else "copy"
+        val durationMs = trim.second - trim.first
+        
+        FFmpegKitConfig.enableStatisticsCallback { stats ->
+             val time = stats.time
+             currentProgress = (time / durationMs.toDouble()).toFloat().coerceIn(0f, 1f)
+        }
+
         FFmpegKit.executeAsync(
             "-i $ffmpegInputPath -ss ${trim.first}ms -to ${trim.second}ms -c:v copy -c:a $audioCodec $ffmpegOutputPath"
         ) {
@@ -446,6 +473,7 @@ class ExportManager(private val context: Context, private val projectData: Proje
                 val fileSize = fd.length
                 fd.close()
                 if (fileSize != 0L) {
+                    currentProgress = 1f
                     onCompleted()
                     return@executeAsync
                 }

@@ -218,13 +218,27 @@ fun VideoEditorScreen(
 
     val startFilterSelected by viewModel.startFilterSelected.collectAsState()
 
-    val workManager = remember { WorkManager.getInstance(context) }
-    val exportWorkInfos by workManager.getWorkInfosByTagFlow("video_export").collectAsState(initial = emptyList())
-    val activeExport = exportWorkInfos.firstOrNull { !it.state.isFinished }
+    val videoTitle = remember(uri) { getFileNameFromUri(context, uri.toUri()) }
     
-    if (activeExport != null) {
-        ExportProgressDialog(activeExport) {
-            workManager.cancelWorkById(activeExport.id)
+    val workManager = remember { WorkManager.getInstance(context) }
+    // We observe all video_export works
+    val exportWorkInfos by workManager.getWorkInfosByTagFlow("video_export").collectAsState(initial = emptyList())
+    // We are interested in the latest one that is running OR the latest one that succeeded and hasn't been dismissed by user
+    // We can use a local state to track "last dismissed work id".
+    var lastDismissedWorkId by remember { mutableStateOf<java.util.UUID?>(null) }
+    
+    val activeOrRecentExport = exportWorkInfos
+        .sortedByDescending { it.generation } // or timestamp if available, generation usually increases
+        .firstOrNull() 
+
+    if (activeOrRecentExport != null && activeOrRecentExport.id != lastDismissedWorkId) {
+        if (!activeOrRecentExport.state.isFinished || activeOrRecentExport.state == WorkInfo.State.SUCCEEDED) {
+             ExportProgressDialog(activeOrRecentExport, videoTitle) {
+                lastDismissedWorkId = activeOrRecentExport.id
+                if (!activeOrRecentExport.state.isFinished) {
+                     workManager.cancelWorkById(activeOrRecentExport.id)
+                }
+            }
         }
     }
 
@@ -1390,11 +1404,14 @@ private fun ExportDialog(
 @Composable
 fun ExportProgressDialog(
     workInfo: WorkInfo,
-    onCancel: () -> Unit
+    videoTitle: String,
+    onDismissOrCancel: () -> Unit
 ) {
     val progress = workInfo.progress.getFloat(VideoExportWorker.KEY_PROGRESS, 0f)
+    val isFinished = workInfo.state == WorkInfo.State.SUCCEEDED
+    
     val animatedProgress = animateFloatAsState(
-        targetValue = progress,
+        targetValue = if (isFinished) 1f else progress,
         animationSpec = ProgressIndicatorDefaults.ProgressAnimationSpec,
         label = "export_progress_animation"
     ).value
@@ -1414,10 +1431,19 @@ fun ExportProgressDialog(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = stringResource(R.string.exporting),
+                    text = if (isFinished) stringResource(R.string.exported) else stringResource(R.string.exporting),
                     style = MaterialTheme.typography.headlineLarge,
                     modifier = Modifier.padding(16.dp)
                 )
+                
+                if (isFinished) {
+                     Text(
+                        text = videoTitle, // Showing title as "Name"
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(8.dp)
+                    )
+                }
+                
                 Column(verticalArrangement = Arrangement.SpaceBetween) {
                     LinearProgressIndicator(
                         progress = { animatedProgress },
@@ -1426,11 +1452,11 @@ fun ExportProgressDialog(
                     )
                     Text(
                         modifier = Modifier.padding(vertical = 4.dp),
-                        text = "${(progress * 100).toInt()}%"
+                        text = "${((if(isFinished) 1f else progress) * 100).toInt()}%"
                     )
                 }
-                TextButton(onClick = onCancel) {
-                    Text(stringResource(R.string.cancel))
+                TextButton(onClick = onDismissOrCancel) {
+                    Text(if (isFinished) stringResource(R.string.dismiss) else stringResource(R.string.cancel))
                 }
             }
         }
