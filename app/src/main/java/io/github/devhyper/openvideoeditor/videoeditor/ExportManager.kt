@@ -338,6 +338,11 @@ class ExportManager(private val context: Context, private val projectData: Proje
         }
 
         fun exportNextSegment(startIndex: Int) {
+            // Wait if paused
+            while (VideoExportWorker.isPausedFlow.value) {
+                Thread.sleep(1000)
+            }
+            
             val nextSegment =
                 segments.drop(startIndex).firstOrNull { !state.completedSegments.contains(it.index) }
             if (nextSegment == null) {
@@ -414,6 +419,11 @@ class ExportManager(private val context: Context, private val projectData: Proje
         }
 
         fun exportNextSegment(startIndex: Int) {
+            // Wait if paused
+            while (VideoExportWorker.isPausedFlow.value) {
+                Thread.sleep(1000)
+            }
+            
             val nextSegment =
                 segments.drop(startIndex).firstOrNull { !state.completedSegments.contains(it.index) }
             if (nextSegment == null) {

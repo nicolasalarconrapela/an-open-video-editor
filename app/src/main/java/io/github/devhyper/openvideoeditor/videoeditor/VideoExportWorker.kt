@@ -23,6 +23,11 @@ import android.content.pm.ServiceInfo
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.takeWhile
+import kotlinx.coroutines.flow.asStateFlow
 
 class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
     CoroutineWorker(context, parameters) {
@@ -38,6 +43,14 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
         const val KEY_OUTPUT_PATH = "outputPath"
         const val NOTIFICATION_ID = 1
         const val COMPLETION_NOTIFICATION_ID = 2
+        
+        // Global state for pause/resume of exports
+        private val _isPaused = MutableStateFlow(false)
+        val isPausedFlow = _isPaused.asStateFlow()
+        
+        fun setPaused(paused: Boolean) {
+            _isPaused.value = paused
+        }
     }
 
     override suspend fun doWork(): Result {
@@ -51,7 +64,7 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
 
         val outputPath = exportSettings.outputPath
 
-        setForeground(createForegroundInfo(0f))
+        setForeground(createForegroundInfo(0f, false))
         startTimeMs = System.currentTimeMillis()
 
         val exportManager = ExportManager(context, projectData)
@@ -61,9 +74,15 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
                 // Launch progress poller
                 val progressJob = launch {
                     while (isActive) {
+                        // Wait if paused
+                        while (_isPaused.value && isActive) {
+                            setForeground(createForegroundInfo(exportManager.getProgress(), true))
+                            delay(1000)
+                        }
+                        
                         val progress = exportManager.getProgress()
                         if (progress >= 0) {
-                            setForeground(createForegroundInfo(progress))
+                            setForeground(createForegroundInfo(progress, false))
                             setProgress(workDataOf(KEY_PROGRESS to progress))
                         }
                         delay(500)
@@ -75,13 +94,14 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
                         exportSettings,
                         onCompleted = {
                             progressJob.cancel()
-                            showCompletionNotification(outputPath)
+                            showCompletionNotification(outputPath, Status.SUCCESS)
                             if (continuation.isActive) {
                                 continuation.resume(Result.success(workDataOf(KEY_OUTPUT_PATH to outputPath)))
                             }
                         },
                         onError = { error ->
                             progressJob.cancel()
+                            showCompletionNotification(outputPath, Status.FAILED, error)
                             if (continuation.isActive) {
                                 continuation.resume(Result.failure(workDataOf(KEY_ERROR to error)))
                             }
@@ -91,19 +111,29 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
                     continuation.invokeOnCancellation {
                         exportManager.cancel()
                         progressJob.cancel()
+                        showCompletionNotification(outputPath, Status.CANCELLED)
                     }
                 }
             }
         } catch (e: Exception) {
+            showCompletionNotification(outputPath, Status.FAILED, e.toString())
             Result.failure(workDataOf(KEY_ERROR to e.toString()))
+        } finally {
+            // Cleanup temp files
+            try {
+                File(projectDataPath).delete()
+                File(exportSettingsPath).delete()
+            } catch (ignored: Exception) {}
         }
     }
 
+    enum class Status { SUCCESS, FAILED, CANCELLED }
+
     private var startTimeMs: Long = 0L
     
-    private fun createForegroundInfo(progress: Float): ForegroundInfo {
+    private fun createForegroundInfo(progress: Float, paused: Boolean): ForegroundInfo {
         val channelId = "export_channel"
-        val title = context.getString(R.string.exporting)
+        val title = if (paused) "Pausado" else context.getString(R.string.exporting)
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(channelId, "Export", NotificationManager.IMPORTANCE_LOW)
@@ -114,7 +144,7 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
         val progressInt = (progress * 100).toInt()
         var timeText = "$progressInt%"
         
-        if (progress > 0.01f && startTimeMs > 0) {
+        if (!paused && progress > 0.01f && startTimeMs > 0) {
             val elapsedMs = System.currentTimeMillis() - startTimeMs
             val estimatedTotalMs = (elapsedMs / progress).toLong()
             val remainingMs = estimatedTotalMs - elapsedMs
@@ -122,9 +152,18 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
             val mins = remainingSec / 60
             val secs = remainingSec % 60
             timeText = "$progressInt%  ${String.format("%02d:%02d", mins, secs)}"
+        } else if (paused) {
+            timeText = "$progressInt% (Pausado)"
         }
 
-        val notification = NotificationCompat.Builder(context, channelId)
+        val pauseResumeIntent = Intent(context, ExportActionReceiver::class.java).apply {
+            action = if (paused) "RESUME" else "PAUSE"
+        }
+        val pauseResumePendingIntent = PendingIntent.getBroadcast(
+            context, 0, pauseResumeIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val builder = NotificationCompat.Builder(context, channelId)
             .setContentTitle(title)
             .setContentText(timeText)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
@@ -132,7 +171,13 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
             .setOnlyAlertOnce(true)
             .setProgress(100, progressInt, false)
             .addAction(android.R.drawable.ic_delete, context.getString(R.string.cancel), androidx.work.WorkManager.getInstance(context).createCancelPendingIntent(id))
-            .build()
+            .addAction(
+                if (paused) android.R.drawable.ic_media_play else android.R.drawable.ic_media_pause,
+                if (paused) context.getString(R.string.resume) else context.getString(R.string.pause),
+                pauseResumePendingIntent
+            )
+
+        val notification = builder.build()
         
         if (Build.VERSION.SDK_INT >= 34) {
             return ForegroundInfo(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
@@ -140,7 +185,7 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
         return ForegroundInfo(NOTIFICATION_ID, notification)
     }
     
-    private fun showCompletionNotification(outputPath: String) {
+    private fun showCompletionNotification(outputPath: String, status: Status, errorMsg: String? = null) {
         val channelId = "export_complete_channel"
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -176,12 +221,28 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         
+        val notificationTitle = when (status) {
+            Status.SUCCESS -> context.getString(R.string.export_complete)
+            Status.FAILED -> context.getString(R.string.export_failed)
+            Status.CANCELLED -> context.getString(R.string.export_cancelled)
+        }
+        
+        val notificationText = if (status == Status.FAILED && errorMsg != null) {
+            errorMsg
+        } else {
+            videoName
+        }
+
         val notification = NotificationCompat.Builder(context, channelId)
-            .setContentTitle(context.getString(R.string.export_complete))
-            .setContentText(videoName)
+            .setContentTitle(notificationTitle)
+            .setContentText(notificationText)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
+            .apply {
+                if (status == Status.SUCCESS) {
+                    setContentIntent(pendingIntent)
+                }
+            }
             .build()
         
         notificationManager.notify(COMPLETION_NOTIFICATION_ID, notification)

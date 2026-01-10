@@ -78,6 +78,13 @@
             android:name="androidx.work.impl.foreground.SystemForegroundService"
             android:foregroundServiceType="dataSync"
             tools:node="merge" />
+
+        <receiver android:name=".videoeditor.ExportActionReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="PAUSE" />
+                <action android:name="RESUME" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

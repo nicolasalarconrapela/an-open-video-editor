@@ -1440,43 +1440,72 @@ fun ExportProgressDialog(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(215.dp)
                 .padding(16.dp),
             shape = RoundedCornerShape(16.dp),
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxSize(),
-                verticalArrangement = Arrangement.SpaceBetween,
+                    .fillMaxWidth()
+                    .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     text = if (isFinished) stringResource(R.string.exported) else stringResource(R.string.exporting),
-                    style = MaterialTheme.typography.headlineLarge,
-                    modifier = Modifier.padding(16.dp)
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(bottom = 16.dp)
                 )
                 
                 if (isFinished) {
                      Text(
-                        text = videoTitle, // Showing title as "Name"
+                        text = videoTitle,
                         style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(8.dp)
+                        modifier = Modifier.padding(bottom = 8.dp)
                     )
                 }
                 
-                Column(verticalArrangement = Arrangement.SpaceBetween) {
-                    LinearProgressIndicator(
-                        progress = { animatedProgress },
-                        modifier = Modifier.padding(vertical = 4.dp),
-                        trackColor = colorScheme.inversePrimary,
-                    )
-                    Text(
-                        modifier = Modifier.padding(vertical = 4.dp),
-                        text = "${((if(isFinished) 1f else progress) * 100).toInt()}%"
-                    )
-                }
-                TextButton(onClick = onDismissOrCancel) {
-                    Text(if (isFinished) stringResource(R.string.dismiss) else stringResource(R.string.cancel))
+                LinearProgressIndicator(
+                    progress = { animatedProgress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    trackColor = colorScheme.inversePrimary,
+                )
+                
+                Text(
+                    text = "${((if(isFinished) 1f else progress) * 100).toInt()}%",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .padding(bottom = 16.dp)
+                )
+                
+                if (isFinished) {
+                    TextButton(
+                        onClick = onDismissOrCancel,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(stringResource(R.string.dismiss))
+                    }
+                } else {
+                    val globalPaused by VideoExportWorker.isPausedFlow.collectAsState()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        TextButton(
+                            onClick = onDismissOrCancel,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(stringResource(R.string.cancel))
+                        }
+                        
+                        TextButton(
+                            onClick = { VideoExportWorker.setPaused(!globalPaused) },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(if (globalPaused) stringResource(R.string.resume) else stringResource(R.string.pause))
+                        }
+                    }
                 }
             }
         }
