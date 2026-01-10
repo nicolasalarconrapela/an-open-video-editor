@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.2.8] - 2026-01-09
+### Añadido
+- Workflow de APK debug limitado a la rama develop.
+
+## [1.2.7] - 2026-01-09
+### Añadido
+- Cambio de dependencia FFmpegKit a io.github.maitrungduc1410:ffmpeg-kit-min:6.0.1.
+
+## [1.2.6] - 2026-01-09
+### Añadido
+- Preparación del Android SDK y aceptación de licencias en el workflow.
+
+## [1.2.5] - 2026-01-09
+### Añadido
+- Ajuste de DNS en workflow para resolver Maven de FFmpegKit.
+
+## [1.2.4] - 2026-01-09
+### Añadido
+- Opción manual para reintentar el workflow de APK debug.
+
+## [1.2.3] - 2026-01-09
+### Añadido
+- Workflow de APK debug en ubuntu-latest.
+
+## [1.2.2] - 2026-01-09
+### Añadido
+- Workflow de APK debug para todas las ramas usando runner codex.
+
+## [1.2.1] - 2026-01-09
+### Añadido
+- Repositorio Maven de FFmpegKit para resolver dependencias en CI.
+
 ## [1.2.0] - 2026-01-09
 ### Añadido
 - Workflow de GitHub Actions para generar APK debug en la rama develop.

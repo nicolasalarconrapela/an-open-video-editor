@@ -3,6 +3,7 @@ name: Android APK (Debug) - develop
 on:
   push:
     branches: ["develop"]
+  workflow_dispatch:
 
 concurrency:
   group: apk-debug-develop
@@ -22,6 +23,16 @@ jobs:
           distribution: temurin
           java-version: "17"
           cache: gradle
+
+      - name: Fix DNS for Maven repositories
+        run: |
+          sudo bash -c 'printf "nameserver 1.1.1.1\nnameserver 8.8.8.8\n" > /etc/resolv.conf'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses
 
       # Caché extra (más agresiva) para Gradle:
       - name: Cache Gradle (wrapper + caches)
