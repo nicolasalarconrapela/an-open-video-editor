@@ -131,12 +131,68 @@ fun SettingsScreen() {
                                     }
                                 })
                         }
+                        item {
+                            val proxyEnabled = dataStore.getProxyEnabledBlocking()
+                            SwitchSetting(
+                                name = stringResource(R.string.use_proxy_media),
+                                startChecked = proxyEnabled,
+                                onCheckChanged = {
+                                    if (it != proxyEnabled) {
+                                        scope.launch {
+                                            dataStore.setProxyEnabled(it)
+                                        }
+                                    }
+                                })
+                        }
+                        item {
+                            val proxyQuality = dataStore.getProxyQualityBlocking()
+                            val proxyOptions = listOf(
+                                ProxyQualityOption(
+                                    "low",
+                                    stringResource(R.string.proxy_quality_low)
+                                ),
+                                ProxyQualityOption(
+                                    "medium",
+                                    stringResource(R.string.proxy_quality_medium)
+                                ),
+                                ProxyQualityOption(
+                                    "high",
+                                    stringResource(R.string.proxy_quality_high)
+                                )
+                            )
+                            val selectedOption =
+                                proxyOptions.firstOrNull { it.key == proxyQuality }
+                                    ?: proxyOptions[1]
+                            val options = proxyOptions.map { it.label }.toMutableList()
+                            options.move(selectedOption.label, 0)
+                            SettingRow(
+                                name = stringResource(R.string.proxy_quality)
+                            ) {
+                                DropdownSetting(
+                                    name = stringResource(R.string.proxy_quality),
+                                    options = options.toImmutableList(),
+                                    onSelectionChanged = { label ->
+                                        val selectedKey =
+                                            proxyOptions.first { it.label == label }.key
+                                        if (selectedKey != proxyQuality) {
+                                            scope.launch {
+                                                dataStore.setProxyQuality(selectedKey)
+                                            }
+                                        }
+                                    })
+                            }
+                        }
                     }
                 }
             )
         }
     }
 }
+
+private data class ProxyQualityOption(
+    val key: String,
+    val label: String,
+)
 
 @Composable
 fun SettingRow(name: String, value: @Composable () -> Unit) {

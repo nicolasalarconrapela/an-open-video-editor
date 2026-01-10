@@ -67,5 +67,10 @@
     <string name="default_text">Default</string>
     <string name="font">Font</string>
     <string name="amoled_dark_theme">AMOLED dark theme</string>
+    <string name="use_proxy_media">Use proxy for preview</string>
+    <string name="proxy_quality">Proxy quality</string>
+    <string name="proxy_quality_low">Low</string>
+    <string name="proxy_quality_medium">Medium</string>
+    <string name="proxy_quality_high">High</string>
     <string name="permission_denied_grant_video_permissions">Permission denied, grant video permissions</string>
 </resources>
