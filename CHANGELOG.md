@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.2.8] - 2026-01-09
+### Añadido
+- Workflow de APK debug limitado a la rama develop.
+
 ## [1.2.7] - 2026-01-09
 ### Añadido
 - Cambio de dependencia FFmpegKit a io.github.maitrungduc1410:ffmpeg-kit-min:6.0.1.
