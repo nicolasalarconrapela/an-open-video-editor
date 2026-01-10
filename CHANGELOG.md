@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.2] - 2026-01-09
+### Corregido
+- Evitar duplicados al reanudar exportaciones activas con WorkManager.
+
 ## [1.3.1] - 2026-01-09
 ### Añadido
 - Exportación en segundo plano con WorkManager en primer plano, seguimiento de progreso y persistencia del estado.

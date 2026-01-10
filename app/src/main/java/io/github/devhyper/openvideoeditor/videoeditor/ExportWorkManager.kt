@@ -3,9 +3,11 @@ package io.github.devhyper.openvideoeditor.videoeditor
 import android.content.Context
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import io.github.devhyper.openvideoeditor.settings.SettingsDataStore
+import kotlinx.coroutines.guava.await
 import java.io.File
 import java.util.UUID
 
@@ -18,6 +20,20 @@ object ExportWorkManager {
         exportSettings: ExportSettings,
         projectData: ProjectData,
     ): UUID {
+        val workManager = WorkManager.getInstance(context)
+        val existingWork = workManager.getWorkInfosForUniqueWork(EXPORT_WORK_NAME).await()
+        val activeWork = existingWork.firstOrNull { workInfo ->
+            workInfo.state == WorkInfo.State.RUNNING ||
+                workInfo.state == WorkInfo.State.ENQUEUED ||
+                workInfo.state == WorkInfo.State.BLOCKED
+        }
+        if (activeWork != null) {
+            val dataStore = SettingsDataStore(context)
+            dataStore.setExportState(ExportState.RUNNING)
+            dataStore.setExportWorkId(activeWork.id.toString())
+            return activeWork.id
+        }
+
         val snapshotFile = createSnapshotFile(context)
         projectData.writeToFile(snapshotFile)
 
@@ -42,9 +58,9 @@ object ExportWorkManager {
             .addTag(EXPORT_WORK_NAME)
             .build()
 
-        WorkManager.getInstance(context).enqueueUniqueWork(
+        workManager.enqueueUniqueWork(
             EXPORT_WORK_NAME,
-            ExistingWorkPolicy.KEEP,
+            ExistingWorkPolicy.REPLACE,
             request,
         )
 
