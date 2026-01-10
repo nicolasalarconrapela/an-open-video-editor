@@ -223,22 +223,39 @@ fun VideoEditorScreen(
     val workManager = remember { WorkManager.getInstance(context) }
     // We observe all video_export works
     val exportWorkInfos by workManager.getWorkInfosByTagFlow("video_export").collectAsState(initial = emptyList())
-    // We are interested in the latest one that is running OR the latest one that succeeded and hasn't been dismissed by user
-    // We can use a local state to track "last dismissed work id".
-    var lastDismissedWorkId by remember { mutableStateOf<java.util.UUID?>(null) }
     
-    val activeOrRecentExport = exportWorkInfos
-        .sortedByDescending { it.generation } // or timestamp if available, generation usually increases
-        .firstOrNull() 
-
-    if (activeOrRecentExport != null && activeOrRecentExport.id != lastDismissedWorkId) {
-        if (!activeOrRecentExport.state.isFinished || activeOrRecentExport.state == WorkInfo.State.SUCCEEDED) {
-             ExportProgressDialog(activeOrRecentExport, videoTitle) {
-                lastDismissedWorkId = activeOrRecentExport.id
-                if (!activeOrRecentExport.state.isFinished) {
-                     workManager.cancelWorkById(activeOrRecentExport.id)
-                }
-            }
+    // Track work ID from ViewModel (persists across recompositions)
+    val currentExportWorkId by viewModel.currentExportWorkId.collectAsState()
+    var showCompletionDialog by rememberSaveable { mutableStateOf(false) }
+    
+    // Find active export (RUNNING or ENQUEUED)
+    val activeExport = exportWorkInfos.firstOrNull { 
+        it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED 
+    }
+    
+    // Check if our session's export just finished
+    val sessionExport = if (currentExportWorkId != null) {
+        exportWorkInfos.firstOrNull { it.id.toString() == currentExportWorkId }
+    } else null
+    
+    // Trigger completion dialog when our export finishes successfully
+    if (sessionExport?.state == WorkInfo.State.SUCCEEDED && !showCompletionDialog) {
+        showCompletionDialog = true
+    }
+    
+    // Show progress dialog only for active exports
+    if (activeExport != null) {
+        ExportProgressDialog(activeExport, videoTitle, isFinished = false) {
+            workManager.cancelWorkById(activeExport.id)
+            viewModel.setCurrentExportWorkId(null)
+        }
+    } else if (showCompletionDialog && sessionExport != null) {
+        // Show completion dialog
+        ExportProgressDialog(sessionExport, videoTitle, isFinished = true) {
+            showCompletionDialog = false
+            viewModel.setCurrentExportWorkId(null)
+            // Prune old completed works
+            workManager.pruneWork()
         }
     }
 
@@ -1285,7 +1302,10 @@ private fun ExportDialog(
         } else {
              // Trigger WorkManager
              SideEffect {
-                 startExportWork(context, transformManager, exportSettings)
+                 val workId = startExportWork(context, transformManager, exportSettings)
+                 if (workId != null) {
+                     viewModel.setCurrentExportWorkId(workId)
+                 }
                  onDismissRequest() // Close the settings dialog
              }
         }
@@ -1405,10 +1425,10 @@ private fun ExportDialog(
 fun ExportProgressDialog(
     workInfo: WorkInfo,
     videoTitle: String,
+    isFinished: Boolean,
     onDismissOrCancel: () -> Unit
 ) {
     val progress = workInfo.progress.getFloat(VideoExportWorker.KEY_PROGRESS, 0f)
-    val isFinished = workInfo.state == WorkInfo.State.SUCCEEDED
     
     val animatedProgress = animateFloatAsState(
         targetValue = if (isFinished) 1f else progress,
@@ -1463,7 +1483,7 @@ fun ExportProgressDialog(
     }
 }
 
-private fun startExportWork(context: Context, transformManager: TransformManager, exportSettings: ExportSettings) {
+private fun startExportWork(context: Context, transformManager: TransformManager, exportSettings: ExportSettings): String? {
     val projectDataFile = File(context.cacheDir, "project_data.tmp")
     val settingsFile = File(context.cacheDir, "export_settings.tmp")
     
@@ -1482,8 +1502,10 @@ private fun startExportWork(context: Context, transformManager: TransformManager
             .build()
 
         WorkManager.getInstance(context).enqueue(request)
+        return request.id.toString()
     } catch (e: Exception) {
         e.printStackTrace()
+        return null
     }
 }
 

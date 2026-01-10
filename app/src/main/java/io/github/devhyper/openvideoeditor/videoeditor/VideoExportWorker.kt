@@ -47,6 +47,7 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
         // We will leave them for now.
 
         setForeground(createForegroundInfo(0f))
+        startTimeMs = System.currentTimeMillis()
 
         val exportManager = ExportManager(context, projectData)
 
@@ -92,6 +93,9 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
         }
     }
 
+    private var startTimeMs: Long = 0L
+    private var estimatedDurationMs: Long = 0L
+    
     private fun createForegroundInfo(progress: Float): ForegroundInfo {
         val channelId = "export_channel"
         val title = context.getString(R.string.exporting)
@@ -100,31 +104,33 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
             val channel = NotificationChannel(channelId, "Export", NotificationManager.IMPORTANCE_LOW)
             notificationManager.createNotificationChannel(channel)
         }
+        
+        // Calculate remaining time estimate
+        val progressInt = (progress * 100).toInt()
+        var timeText = "$progressInt%"
+        
+        if (progress > 0.01f && startTimeMs > 0) {
+            val elapsedMs = System.currentTimeMillis() - startTimeMs
+            val estimatedTotalMs = (elapsedMs / progress).toLong()
+            val remainingMs = estimatedTotalMs - elapsedMs
+            val remainingSec = (remainingMs / 1000).coerceAtLeast(0)
+            val mins = remainingSec / 60
+            val secs = remainingSec % 60
+            timeText = "$progressInt%  ${String.format("%02d:%02d", mins, secs)}"
+        }
 
         val notification = NotificationCompat.Builder(context, channelId)
             .setContentTitle(title)
-            .setTicker(title)
-            .setContentText("${(progress * 100).toInt()}%")
+            .setContentText(timeText)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setOngoing(true)
-            .setProgress(100, (progress * 100).toInt(), false)
-            // Add Cancel action?
+            .setOnlyAlertOnce(true)
+            .setProgress(100, progressInt, false)
             .addAction(android.R.drawable.ic_delete, context.getString(R.string.cancel), androidx.work.WorkManager.getInstance(context).createCancelPendingIntent(id))
             .build()
         
-        if (Build.VERSION.SDK_INT >= 29) { // Build.VERSION_CODES.Q
-             var type = 0
-             if(Build.VERSION.SDK_INT >= 34) {
-                 type = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-             } else {
-                 type = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-             } 
-             // Actually, if we don't declare data sync in manifest for < 34, we might crash if we use it?
-             // Android 14 requires explicit type. < 14 matches manifest or default.
-             // Best to use specific type if we declared it.
-             if (Build.VERSION.SDK_INT >= 34) {
-                  return ForegroundInfo(1, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-             }
+        if (Build.VERSION.SDK_INT >= 34) {
+            return ForegroundInfo(1, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         }
         return ForegroundInfo(1, notification)
     }

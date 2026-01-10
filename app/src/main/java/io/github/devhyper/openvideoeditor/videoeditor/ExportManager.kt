@@ -323,6 +323,15 @@ class ExportManager(private val context: Context, private val projectData: Proje
     ) {
         val trim = getMergedTrim()
         val baseOffsetMs = trim?.first ?: 0L
+        
+        // Restore state from disk: Check which segments already exist
+        segments.forEach { segment ->
+            val path = segmentFilePath(state, segment.index)
+            if (File(path).exists() && !state.completedSegments.contains(segment.index)) {
+                state.completedSegments.add(segment.index)
+            }
+        }
+
         state.completedSegments.removeIf { index ->
             val segmentPath = segmentFilePath(state, index)
             !File(segmentPath).exists()
@@ -381,6 +390,15 @@ class ExportManager(private val context: Context, private val projectData: Proje
     ) {
         val trim = getMergedTrim()
         val baseOffsetMs = trim?.first ?: 0L
+        
+        // Restore state from disk
+        segments.forEach { segment ->
+            val path = segmentFilePath(state, segment.index)
+            if (File(path).exists() && !state.completedSegments.contains(segment.index)) {
+                state.completedSegments.add(segment.index)
+            }
+        }
+        
         state.completedSegments.removeIf { index ->
             val segmentPath = segmentFilePath(state, index)
             !File(segmentPath).exists()
