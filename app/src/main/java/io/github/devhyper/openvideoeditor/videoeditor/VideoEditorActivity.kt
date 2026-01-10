@@ -65,6 +65,14 @@ class VideoEditorActivity : ComponentActivity() {
                 }
             }
 
+        // Request notification permission for Android 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val requestNotificationPermission = registerForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { /* Result not critical for app function */ }
+            requestNotificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+
         var uri: String? = null
         if (intent.action == Intent.ACTION_EDIT || intent.action == Intent.ACTION_VIEW) {
             intent.dataString?.let {
