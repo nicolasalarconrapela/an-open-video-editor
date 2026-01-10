@@ -34,12 +34,14 @@ class ExportManager(private val context: Context, private val projectData: Proje
 
     private var transformer: Transformer? = null
     private val originalMedia: MediaItem = MediaItem.fromUri(projectData.uri)
+    private var isCancelled = false
 
     fun export(
         exportSettings: ExportSettings,
         onCompleted: () -> Unit,
         onError: (String) -> Unit
     ) {
+        android.util.Log.d("ExportDebug", "🚀 ExportManager.export called. Output: ${exportSettings.outputPath}")
         val outputPath = exportSettings.outputPath
         val totalDurationMs = getExportDurationMs(context)
         
@@ -133,8 +135,24 @@ class ExportManager(private val context: Context, private val projectData: Proje
     }
 
     fun cancel() {
+        android.util.Log.d("ExportDebug", "🛑 ExportManager.cancel called")
+        isCancelled = true
+        // Cancel all FFmpeg sessions
         FFmpegKit.cancel()
+        // Cancel transformer if active
         transformer?.cancel()
+    }
+
+    fun cleanupSegments(context: Context, outputPath: String) {
+        try {
+            val segmentDirectory = getSegmentExportDirectory(context, outputPath)
+            if (segmentDirectory.exists()) {
+                segmentDirectory.deleteRecursively()
+            }
+            projectData.segmentExportState = null
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     private var currentProgress: Float = 0f
@@ -273,6 +291,8 @@ class ExportManager(private val context: Context, private val projectData: Proje
         onFFmpegError: () -> Unit,
         onCompleted: () -> Unit
     ) {
+        if (isCancelled) return
+
         val listFile = File(state.segmentDirectoryPath, "concat_list.txt")
         listFile.bufferedWriter().use { writer ->
             segments.forEach { segment ->
@@ -293,12 +313,19 @@ class ExportManager(private val context: Context, private val projectData: Proje
         FFmpegKit.executeAsync(
             "-f concat -safe 0 -i ${listFile.absolutePath} -c copy $outputSafPath"
         ) { session ->
+            if (isCancelled || VideoExportWorker.isPausedFlow.value) {
+                android.util.Log.d("ExportDebug", "🛑 Concat aborted (Cancelled or Paused)")
+                return@executeAsync
+            }
+
             val completed = session.state == SessionState.COMPLETED
             if (completed) {
+                android.util.Log.d("ExportDebug", "✅ Concat completed successfully")
                 clearSegmentExportState()
                 currentProgress = 1f
                 onCompleted()
             } else {
+                android.util.Log.e("ExportDebug", "❌ Concat failed or cancelled")
                 onFFmpegError()
             }
         }
@@ -338,11 +365,11 @@ class ExportManager(private val context: Context, private val projectData: Proje
         }
 
         fun exportNextSegment(startIndex: Int) {
-            // Wait if paused
-            while (VideoExportWorker.isPausedFlow.value) {
-                Thread.sleep(1000)
+            if (isCancelled || VideoExportWorker.isPausedFlow.value) {
+                android.util.Log.d("ExportDebug", "🛑 exportNextSegment (FFmpeg) aborted (Cancelled or Paused)")
+                return
             }
-            
+
             val nextSegment =
                 segments.drop(startIndex).firstOrNull { !state.completedSegments.contains(it.index) }
             if (nextSegment == null) {
@@ -371,6 +398,8 @@ class ExportManager(private val context: Context, private val projectData: Proje
             FFmpegKit.executeAsync(
                 "-ss ${segmentStartMs}ms -t ${nextSegment.durationMs}ms -i $ffmpegInputPath -c copy $segmentPath"
             ) { session ->
+                if (isCancelled || VideoExportWorker.isPausedFlow.value) return@executeAsync
+
                 val file = File(segmentPath)
                 if (session.state == SessionState.COMPLETED && file.exists() && file.length() > 0L) {
                     state.completedSegments.add(nextSegment.index)
@@ -419,11 +448,11 @@ class ExportManager(private val context: Context, private val projectData: Proje
         }
 
         fun exportNextSegment(startIndex: Int) {
-            // Wait if paused
-            while (VideoExportWorker.isPausedFlow.value) {
-                Thread.sleep(1000)
+            if (isCancelled || VideoExportWorker.isPausedFlow.value) {
+                android.util.Log.d("ExportDebug", "🛑 exportNextSegment (Transformer) aborted (Cancelled or Paused)")
+                return
             }
-            
+
             val nextSegment =
                 segments.drop(startIndex).firstOrNull { !state.completedSegments.contains(it.index) }
             if (nextSegment == null) {
@@ -454,6 +483,8 @@ class ExportManager(private val context: Context, private val projectData: Proje
                             composition: androidx.media3.transformer.Composition,
                             result: androidx.media3.transformer.ExportResult,
                         ) {
+                            if (isCancelled || VideoExportWorker.isPausedFlow.value) return
+
                             state.completedSegments.add(nextSegment.index)
                             exportNextSegment(nextSegment.index + 1)
                         }
@@ -496,6 +527,8 @@ class ExportManager(private val context: Context, private val projectData: Proje
         FFmpegKit.executeAsync(
             "-i $ffmpegInputPath -ss ${trim.first}ms -to ${trim.second}ms -c:v copy -c:a $audioCodec $ffmpegOutputPath"
         ) {
+            if (isCancelled || VideoExportWorker.isPausedFlow.value) return@executeAsync
+
             val fd = context.contentResolver.openAssetFileDescriptor(outputPath.toUri(), "r")
             if (fd != null) {
                 val fileSize = fd.length
