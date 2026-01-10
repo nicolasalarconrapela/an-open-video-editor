@@ -115,7 +115,7 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
         if (Build.VERSION.SDK_INT >= 29) { // Build.VERSION_CODES.Q
              var type = 0
              if(Build.VERSION.SDK_INT >= 34) {
-                 type = 8192
+                 type = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
              } else {
                  type = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
              } 
@@ -123,8 +123,7 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
              // Android 14 requires explicit type. < 14 matches manifest or default.
              // Best to use specific type if we declared it.
              if (Build.VERSION.SDK_INT >= 34) {
-                 // FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING = 8192
-                  return ForegroundInfo(1, notification, 8192)
+                  return ForegroundInfo(1, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
              }
         }
         return ForegroundInfo(1, notification)
