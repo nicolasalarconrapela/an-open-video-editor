@@ -62,7 +62,7 @@ class EffectDialogSetting(
     var selection = ""
 }
 
-class ExportSettings {
+class ExportSettings : java.io.Serializable {
     var exportAudio = true
     var exportVideo = true
     var hdrMode: Int = HDR_MODE_KEEP_HDR

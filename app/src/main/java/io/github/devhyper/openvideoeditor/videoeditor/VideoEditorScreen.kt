@@ -143,7 +143,15 @@ import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import android.content.Context
+import androidx.compose.runtime.SideEffect
 import kotlinx.coroutines.withContext
+import androidx.work.WorkManager
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.workDataOf
+import androidx.work.WorkInfo
+import java.io.File
+import java.io.ObjectOutputStream
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -209,6 +217,16 @@ fun VideoEditorScreen(
     val filterDurationEditorSliderPosition by viewModel.filterDurationEditorSliderPosition.collectAsState()
 
     val startFilterSelected by viewModel.startFilterSelected.collectAsState()
+
+    val workManager = remember { WorkManager.getInstance(context) }
+    val exportWorkInfos by workManager.getWorkInfosByTagFlow("video_export").collectAsState(initial = emptyList())
+    val activeExport = exportWorkInfos.firstOrNull { !it.state.isFinished }
+    
+    if (activeExport != null) {
+        ExportProgressDialog(activeExport) {
+            workManager.cancelWorkById(activeExport.id)
+        }
+    }
 
     var textureView: TextureView? = null
 
@@ -1234,17 +1252,12 @@ private fun ExportDialog(
 ) {
     val viewModel = viewModel { VideoEditorViewModel() }
     val outputPath by viewModel.outputPath.collectAsState()
-    var isExporting by rememberSaveable { mutableStateOf(false) }
     val exportDismissRequest = {
-        isExporting = false
         onDismissRequest()
         viewModel.setOutputPath("")
         activity.recreate()
     }
-    if (isExporting) {
-        ExportProgressDialog(transformManager, outputPath) { exportDismissRequest() }
-        return
-    }
+    
     val context = LocalContext.current
     val exportSettings: ExportSettings by remember { mutableStateOf(ExportSettings()) }
     var exportString: String? by remember { mutableStateOf(null) }
@@ -1256,26 +1269,11 @@ private fun ExportDialog(
                 exportString = null; exportDismissRequest()
             }
         } else {
-            val transformerListener: Listener =
-                object : Listener {
-                    override fun onError(
-                        composition: Composition, result: ExportResult,
-                        exception: ExportException
-                    ) {
-                        exportString = exception.toString()
-                        // Log.e("open-video-editor", "Export exception: ", exception)
-                    }
-                }
-            val onFFmpegError: () -> Unit = {
-                exportString = context.getString(R.string.ffmpeg_error)
-            }
-            transformManager.export(
-                context,
-                exportSettings,
-                transformerListener,
-                onFFmpegError
-            )
-            isExporting = true
+             // Trigger WorkManager
+             SideEffect {
+                 startExportWork(context, transformManager, exportSettings)
+                 onDismissRequest() // Close the settings dialog
+             }
         }
     } else {
         ListDialog(
@@ -1391,41 +1389,17 @@ private fun ExportDialog(
 
 @Composable
 fun ExportProgressDialog(
-    transformManager: TransformManager,
-    outputPath: String,
-    onDismissRequest: () -> Unit
+    workInfo: WorkInfo,
+    onCancel: () -> Unit
 ) {
-    val context = LocalContext.current
-    var exportProgress by rememberSaveable { mutableFloatStateOf(0F) }
+    val progress = workInfo.progress.getFloat(VideoExportWorker.KEY_PROGRESS, 0f)
     val animatedProgress = animateFloatAsState(
-        targetValue = exportProgress,
+        targetValue = progress,
         animationSpec = ProgressIndicatorDefaults.ProgressAnimationSpec,
         label = "export_progress_animation"
     ).value
-    val exportComplete = exportProgress == 1F
-    val progressHandler = Handler(getMainLooper())
-    progressHandler.postDelayed(
-        object : Runnable {
-            override fun run() {
-                exportProgress = transformManager.getProgress()
-                if (exportProgress != 1F && exportProgress != -1F) {
-                    progressHandler.postDelayed(this, REFRESH_RATE)
-                }
 
-                if (exportComplete) {
-                    MediaScannerConnection.scanFile(
-                        context, arrayOf(outputPath),
-                        null
-                    ) { _, _ -> }
-                }
-            }
-        }, REFRESH_RATE
-    )
-    Dialog(onDismissRequest = {
-        if (exportComplete) {
-            onDismissRequest()
-        }
-    }) {
+    Dialog(onDismissRequest = {}) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1440,9 +1414,7 @@ fun ExportProgressDialog(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = if (exportComplete) stringResource(R.string.exported) else stringResource(
-                        R.string.exporting
-                    ),
+                    text = stringResource(R.string.exporting),
                     style = MaterialTheme.typography.headlineLarge,
                     modifier = Modifier.padding(16.dp)
                 )
@@ -1454,21 +1426,38 @@ fun ExportProgressDialog(
                     )
                     Text(
                         modifier = Modifier.padding(vertical = 4.dp),
-                        text = "${(exportProgress * 100).toInt()}%"
+                        text = "${(progress * 100).toInt()}%"
                     )
                 }
-                TextButton(
-                    onClick = {
-                        if (!exportComplete) {
-                            transformManager.cancel()
-                        }
-                        onDismissRequest()
-                    },
-                ) {
-                    Text(if (exportComplete) stringResource(R.string.dismiss) else stringResource(R.string.cancel))
+                TextButton(onClick = onCancel) {
+                    Text(stringResource(R.string.cancel))
                 }
             }
         }
+    }
+}
+
+private fun startExportWork(context: Context, transformManager: TransformManager, exportSettings: ExportSettings) {
+    val projectDataFile = File(context.cacheDir, "project_data.tmp")
+    val settingsFile = File(context.cacheDir, "export_settings.tmp")
+    
+    try {
+        ObjectOutputStream(projectDataFile.outputStream()).use { it.writeObject(transformManager.projectData) }
+        ObjectOutputStream(settingsFile.outputStream()).use { it.writeObject(exportSettings) }
+        
+        val inputData = workDataOf(
+            VideoExportWorker.KEY_PROJECT_DATA_PATH to projectDataFile.absolutePath,
+            VideoExportWorker.KEY_EXPORT_SETTINGS_PATH to settingsFile.absolutePath
+        )
+
+        val request = OneTimeWorkRequestBuilder<VideoExportWorker>()
+            .setInputData(inputData)
+            .addTag("video_export")
+            .build()
+
+        WorkManager.getInstance(context).enqueue(request)
+    } catch (e: Exception) {
+        e.printStackTrace()
     }
 }
 
