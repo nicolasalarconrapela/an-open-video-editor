@@ -421,7 +421,10 @@ class ExportManager(private val context: Context, private val projectData: Proje
             FFmpegKit.executeAsync(
                 "-ss ${segmentStartMs}ms -t ${nextSegment.durationMs}ms -i $ffmpegInputPath -c copy $segmentPath"
             ) { session ->
-                if (isCancelled || VideoExportWorker.isPausedFlow.value) return@executeAsync
+                if (isCancelled || VideoExportWorker.isPausedFlow.value) {
+                    android.util.Log.d("ExportDebug", "⏭️ Skipping FFmpeg callback (paused/cancelled). Session state: ${session.state}")
+                    return@executeAsync
+                }
 
                 val file = File(segmentPath)
                 if (session.state == SessionState.COMPLETED && file.exists() && file.length() > 0L) {
@@ -559,8 +562,11 @@ class ExportManager(private val context: Context, private val projectData: Proje
 
         FFmpegKit.executeAsync(
             "-i $ffmpegInputPath -ss ${trim.first}ms -to ${trim.second}ms -c:v copy -c:a $audioCodec $ffmpegOutputPath"
-        ) {
-            if (isCancelled || VideoExportWorker.isPausedFlow.value) return@executeAsync
+        ) { session ->
+            if (isCancelled || VideoExportWorker.isPausedFlow.value) {
+                android.util.Log.d("ExportDebug", "⏭️ Skipping lossless cut callback (paused/cancelled)")
+                return@executeAsync
+            }
 
             val fd = context.contentResolver.openAssetFileDescriptor(outputPath.toUri(), "r")
             if (fd != null) {

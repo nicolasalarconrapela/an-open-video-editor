@@ -100,6 +100,12 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
                 // Launch progress poller
                 val progressJob = launch {
                     while (isActive) {
+                        // Stop polling if export is paused
+                        if (_isPaused.value) {
+                            android.util.Log.d("ExportDebug", "⏸️ Progress poller stopped (paused)")
+                            break
+                        }
+                        
                         val progress = exportManager.getProgress()
                         if (progress >= 0) {
                             // 3. Mantenemos esta llamada para ACTUALIZAR la notificación existente.
@@ -132,13 +138,22 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
                     
 
                     
-                    continuation.invokeOnCancellation {
-                        android.util.Log.d("ExportDebug", "🚱 VideoExportWorker cancelled. Paused: ${_isPaused.value}")
+                    continuation.invokeOnCancellation { cause ->
+                        android.util.Log.d("ExportDebug", "🚱 VideoExportWorker invokeOnCancellation triggered!")
+                        android.util.Log.d("ExportDebug", "🚱 Cancellation cause: $cause")
+                        android.util.Log.d("ExportDebug", "🚱 isPaused: ${_isPaused.value}")
+                        android.util.Log.d("ExportDebug", "🚱 projectDataPath: $projectDataPath")
+                        android.util.Log.d("ExportDebug", "🚱 exportSettingsPath: $exportSettingsPath")
+                        
                         exportManager.cancel()
                         progressJob.cancel()
+                        
                         if (_isPaused.value) {
+                            android.util.Log.d("ExportDebug", "⏸️ Showing paused notification...")
                             showPausedNotification(projectDataPath, exportSettingsPath, exportManager.getProgress())
+                            android.util.Log.d("ExportDebug", "⏸️ Paused notification shown!")
                         } else {
+                            android.util.Log.d("ExportDebug", "🛑 Cancelling (not paused), cleaning up...")
                             // Cleanup segments if cancelled and NOT paused
                             exportManager.cleanupSegments(context, outputPath)
                             showCompletionNotification(outputPath, Status.CANCELLED)

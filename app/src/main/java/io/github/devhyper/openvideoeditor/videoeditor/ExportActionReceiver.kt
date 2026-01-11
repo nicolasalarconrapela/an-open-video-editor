@@ -19,21 +19,50 @@ class ExportActionReceiver : BroadcastReceiver() {
 
         when (intent?.action) {
             "PAUSE" -> {
+                android.util.Log.d("ExportDebug", "⏸️ PAUSE action received")
                 val workerId = intent.getStringExtra("workerId")
+                android.util.Log.d("ExportDebug", "⏸️ workerId from intent: $workerId")
+                
                 VideoExportWorker.setPaused(true)
                 // Force stop FFmpeg immediately to free resources without waiting for Worker cancellation
                 com.arthenica.ffmpegkit.FFmpegKit.cancel()
+                
                 if (workerId != null) {
+                    android.util.Log.d("ExportDebug", "⏸️ Cancelling worker by ID: $workerId")
                     workManager.cancelWorkById(UUID.fromString(workerId))
+                    android.util.Log.d("ExportDebug", "⏸️ Worker cancellation requested")
+                } else {
+                    android.util.Log.e("ExportDebug", "❌ PAUSE failed: workerId is null! Cannot cancel worker.")
+                    // Try to cancel by tag as fallback
+                    android.util.Log.d("ExportDebug", "⏸️ Attempting to cancel by tag 'video_export'")
+                    workManager.cancelAllWorkByTag("video_export")
                 }
             }
             "RESUME" -> {
+                android.util.Log.d("ExportDebug", "▶️ RESUME action received")
                 VideoExportWorker.setPaused(false)
                 
                 val projectDataPath = intent.getStringExtra("projectDataPath")
                 val exportSettingsPath = intent.getStringExtra("exportSettingsPath")
                 
+                android.util.Log.d("ExportDebug", "▶️ Resume paths - projectData: $projectDataPath, settings: $exportSettingsPath")
+                
                 if (projectDataPath != null && exportSettingsPath != null) {
+                    // Verify files exist before attempting resume
+                    val projectDataFile = java.io.File(projectDataPath)
+                    val settingsFile = java.io.File(exportSettingsPath)
+                    
+                    if (!projectDataFile.exists()) {
+                        android.util.Log.e("ExportDebug", "❌ Project data file not found: $projectDataPath")
+                        return
+                    }
+                    if (!settingsFile.exists()) {
+                        android.util.Log.e("ExportDebug", "❌ Settings file not found: $exportSettingsPath")
+                        return
+                    }
+                    
+                    android.util.Log.d("ExportDebug", "✅ Resume files exist, creating worker...")
+                    
                     val inputData = workDataOf(
                         VideoExportWorker.KEY_PROJECT_DATA_PATH to projectDataPath,
                         VideoExportWorker.KEY_EXPORT_SETTINGS_PATH to exportSettingsPath,
@@ -44,27 +73,17 @@ class ExportActionReceiver : BroadcastReceiver() {
                         .addTag("video_export")
                         .build()
 
-                    // Use enqueueUniqueWork with KEEP policy. 
-                    // If a "video_export" is already RUNNING or ENQUEUED, this new request is IGNORED directly.
-                    // This perfectly handles the double-tap resume case. 
-                    // However, we must ensure the old worker is fully DEAD before this (which it should be if paused/cancelled).
-                    // If we use KEEP, and the old "video_export" is still in CANCELLED state... wait.
-                    // If previous work was cancelled, it's finished.
-                    // KEEP: "If there is existing pending (uncompleted) work with the same unique name, do nothing."
-                    // REPLACE: "If there is existing pending (uncompleted) work with the same unique name, cancel and delete it."
-                    // APPEND: "If there is existing pending (uncompleted) work with the same unique name, append."
-                    // Since "PAUSE" cancels the work, the previous work should be marked as CANCELLED (completed).
-                    // So "KEEP" would see no *pending* work and execute this one.
-                    // BUT: If the user taps resume twice very fast:
-                    // 1st tap: Enqueues. Work is now RUNNING.
-                    // 2nd tap: Enqueues. Work is RUNNING. "KEEP" sees it running -> DOES NOTHING.
-                    // Result: Only ONE resume worker runs. CORRECT!
+                    // Use enqueueUniqueWork with REPLACE to ensure the resume worker starts
+                    // REPLACE will cancel any existing work with this name and start fresh
+                    android.util.Log.d("ExportDebug", "📤 Enqueuing resume worker with ID: ${request.id}")
                     workManager.enqueueUniqueWork(
-                        "video_export_unique_resume", // Use a unique name for the resume operation specifically
-                        androidx.work.ExistingWorkPolicy.KEEP,
+                        "video_export_unique_resume",
+                        androidx.work.ExistingWorkPolicy.REPLACE, // Changed from KEEP to REPLACE
                         request
                     )
-                    // The worker will replace the "Paused" notification with its foreground one
+                    android.util.Log.d("ExportDebug", "✅ Resume worker enqueued successfully")
+                } else {
+                    android.util.Log.e("ExportDebug", "❌ Resume failed: missing paths in intent")
                 }
             }
             "CANCEL_PAUSED" -> {
