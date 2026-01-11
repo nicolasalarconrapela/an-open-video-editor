@@ -239,11 +239,12 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
             .setOnlyAlertOnce(true)
             .setProgress(100, progressInt, false)
             .addAction(android.R.drawable.ic_delete, context.getString(R.string.cancel), androidx.work.WorkManager.getInstance(context).createCancelPendingIntent(id))
-            .addAction(
-                if (paused) android.R.drawable.ic_media_play else android.R.drawable.ic_media_pause,
-                if (paused) context.getString(R.string.resume) else context.getString(R.string.pause),
-                pauseResumePendingIntent
-            )
+            // TODO: Re-enable pause functionality when properly implemented
+            // .addAction(
+            //     if (paused) android.R.drawable.ic_media_play else android.R.drawable.ic_media_pause,
+            //     if (paused) context.getString(R.string.resume) else context.getString(R.string.pause),
+            //     pauseResumePendingIntent
+            // )
 
         val notification = builder.build()
         
