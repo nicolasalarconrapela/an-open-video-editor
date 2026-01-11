@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.13] - 2026-01-09
+### Ajustado
+- Limpieza de estado duplicado en VideoEditorScreen.
+
+## [1.3.12] - 2026-01-09
+### Ajustado
+- Integración de EditorState en VideoEditorScreen.
+
+## [1.3.11] - 2026-01-09
+### Añadido
+- Estado del editor con eventos, zoom derivado y sincronización de tiempo.
+
 ## [1.3.10] - 2026-01-09
 ### Ajustado
 - Modelos del editor con modo BLOCKS/PRECISION y clips de precisión con placeholders.

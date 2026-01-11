@@ -184,6 +184,7 @@ fun VideoEditorScreen(
     requestVideoPermission: ActivityResultLauncher<String>
 ) {
     val viewModel = viewModel { VideoEditorViewModel() }
+    val editorState by viewModel.state.collectAsState()
     val screenScope = rememberCoroutineScope()
 
     val context = LocalContext.current
@@ -808,7 +809,8 @@ private fun BottomControls(
     val filterDurationCallback by viewModel.filterDurationCallback.collectAsState()
     val filterDurationEditorSliderPosition by viewModel.filterDurationEditorSliderPosition.collectAsState()
     val timelineListState = rememberLazyListState()
-    var pixelsPerSecond by rememberSaveable { mutableFloatStateOf(80f) }
+    val basePixelsPerSecond = 80f
+    val pixelsPerSecond = (basePixelsPerSecond * editorState.zoomLevel).coerceIn(20f, 200f)
     val videoTrackLabel = stringResource(R.string.timeline_track_video)
     val audioTrackLabel = stringResource(R.string.timeline_track_audio)
     val overlayTrackLabel = stringResource(R.string.timeline_track_overlay)
@@ -921,6 +923,9 @@ private fun BottomControls(
         val offsetPx = ((remainingMs / 1000f) * pixelsPerSecond).roundToInt()
         timelineListState.scrollToItem(targetIndex.coerceIn(0, masterClips.lastIndex), offsetPx)
     }
+    LaunchedEffect(currentTime()) {
+        viewModel.onEvent(VideoEditorViewModel.EditorEvent.Seek(currentTime()))
+    }
 
     Column(
         modifier = modifier
@@ -936,7 +941,10 @@ private fun BottomControls(
             modifier = Modifier
                 .fillMaxWidth(),
             value = pixelsPerSecond,
-            onValueChange = { pixelsPerSecond = it },
+            onValueChange = { value ->
+                val zoomLevel = (value / basePixelsPerSecond).coerceIn(0.5f, 4f)
+                viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomChanged(zoomLevel))
+            },
             valueRange = 20f..200f,
             colors = SliderDefaults.colors(
                 inactiveTrackColor = colorScheme.inversePrimary
@@ -950,7 +958,8 @@ private fun BottomControls(
             pixelsPerSecond = pixelsPerSecond,
             listState = timelineListState,
             onZoomChange = { zoomDelta ->
-                pixelsPerSecond = (pixelsPerSecond * zoomDelta).coerceIn(20f, 200f)
+                val zoomLevel = (editorState.zoomLevel * zoomDelta).coerceIn(0.5f, 4f)
+                viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomChanged(zoomLevel))
             },
             onClipSelected = { _, clip ->
                 timelineTracks.forEachIndexed { trackIndex, track ->
