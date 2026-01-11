@@ -131,7 +131,9 @@ import androidx.media3.transformer.Composition
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer.Listener
+import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineClipType
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineUiClip
+import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineUiTrack
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineView
 import io.github.devhyper.openvideoeditor.R
 import io.github.devhyper.openvideoeditor.misc.AcceptDeclineRow
@@ -806,12 +808,101 @@ private fun BottomControls(
     val filterDurationEditorSliderPosition by viewModel.filterDurationEditorSliderPosition.collectAsState()
     val timelineListState = rememberLazyListState()
     var pixelsPerSecond by rememberSaveable { mutableFloatStateOf(80f) }
-    val timelineClips = remember {
+    val videoTrackLabel = stringResource(R.string.timeline_track_video)
+    val audioTrackLabel = stringResource(R.string.timeline_track_audio)
+    val overlayTrackLabel = stringResource(R.string.timeline_track_overlay)
+    val timelineTracks = remember(videoTrackLabel, audioTrackLabel, overlayTrackLabel) {
         mutableStateListOf(
-            TimelineUiClip(id = "clip-1", durationMs = 3_000L, label = "Intro"),
-            TimelineUiClip(id = "clip-2", durationMs = 6_500L, label = "Entrevista"),
-            TimelineUiClip(id = "clip-3", durationMs = 4_000L, label = "B-roll"),
-            TimelineUiClip(id = "clip-4", durationMs = 2_500L, label = "Outro")
+            TimelineUiTrack(
+                id = "track-video",
+                label = videoTrackLabel,
+                clips = listOf(
+                    TimelineUiClip(
+                        id = "clip-1",
+                        durationMs = 3_000L,
+                        label = "Intro",
+                        type = TimelineClipType.Video
+                    ),
+                    TimelineUiClip(
+                        id = "clip-2",
+                        durationMs = 6_500L,
+                        label = "Entrevista",
+                        type = TimelineClipType.Video
+                    ),
+                    TimelineUiClip(
+                        id = "clip-3",
+                        durationMs = 4_000L,
+                        label = "B-roll",
+                        type = TimelineClipType.Video
+                    ),
+                    TimelineUiClip(
+                        id = "clip-4",
+                        durationMs = 2_500L,
+                        label = "Outro",
+                        type = TimelineClipType.Video
+                    )
+                )
+            ),
+            TimelineUiTrack(
+                id = "track-audio",
+                label = audioTrackLabel,
+                clips = listOf(
+                    TimelineUiClip(
+                        id = "clip-5",
+                        durationMs = 3_000L,
+                        label = "Música",
+                        type = TimelineClipType.Audio
+                    ),
+                    TimelineUiClip(
+                        id = "clip-6",
+                        durationMs = 6_500L,
+                        label = "Ambiente",
+                        type = TimelineClipType.Audio
+                    ),
+                    TimelineUiClip(
+                        id = "clip-7",
+                        durationMs = 4_000L,
+                        label = "FX",
+                        type = TimelineClipType.Audio
+                    ),
+                    TimelineUiClip(
+                        id = "clip-8",
+                        durationMs = 2_500L,
+                        label = "Cierre",
+                        type = TimelineClipType.Audio
+                    )
+                )
+            ),
+            TimelineUiTrack(
+                id = "track-overlay",
+                label = overlayTrackLabel,
+                clips = listOf(
+                    TimelineUiClip(
+                        id = "clip-9",
+                        durationMs = 3_000L,
+                        label = "Texto",
+                        type = TimelineClipType.Overlay
+                    ),
+                    TimelineUiClip(
+                        id = "clip-10",
+                        durationMs = 6_500L,
+                        label = "Sticker",
+                        type = TimelineClipType.Overlay
+                    ),
+                    TimelineUiClip(
+                        id = "clip-11",
+                        durationMs = 4_000L,
+                        label = "Lower third",
+                        type = TimelineClipType.Overlay
+                    ),
+                    TimelineUiClip(
+                        id = "clip-12",
+                        durationMs = 2_500L,
+                        label = "Logo",
+                        type = TimelineClipType.Overlay
+                    )
+                )
+            )
         )
     }
 
@@ -839,25 +930,30 @@ private fun BottomControls(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 8.dp, bottom = 12.dp),
-            clips = timelineClips,
+            tracks = timelineTracks,
             pixelsPerSecond = pixelsPerSecond,
             listState = timelineListState,
-            onClipSelected = { clip ->
-                timelineClips.forEachIndexed { index, item ->
-                    val isSelected = item.id == clip.id
-                    if (item.isSelected != isSelected) {
-                        timelineClips[index] = item.copy(isSelected = isSelected)
+            onClipSelected = { _, clip ->
+                timelineTracks.forEachIndexed { trackIndex, track ->
+                    val updatedClips = track.clips.map { item ->
+                        item.copy(isSelected = item.id == clip.id)
                     }
+                    timelineTracks[trackIndex] = track.copy(clips = updatedClips)
                 }
             },
-            onClipMoved = { fromId, toIndex ->
-                val fromIndex = timelineClips.indexOfFirst { it.id == fromId }
+            onClipMoved = { trackId, fromId, toIndex ->
+                val trackIndex = timelineTracks.indexOfFirst { it.id == trackId }
+                if (trackIndex == -1) return@TimelineView
+                val track = timelineTracks[trackIndex]
+                val fromIndex = track.clips.indexOfFirst { it.id == fromId }
                 if (fromIndex == -1) return@TimelineView
-                val boundedIndex = toIndex.coerceIn(0, timelineClips.lastIndex)
+                val boundedIndex = toIndex.coerceIn(0, track.clips.lastIndex)
                 if (fromIndex == boundedIndex) return@TimelineView
-                val clip = timelineClips.removeAt(fromIndex)
+                val updatedClips = track.clips.toMutableList()
+                val clipToMove = updatedClips.removeAt(fromIndex)
                 val insertIndex = if (fromIndex < boundedIndex) boundedIndex - 1 else boundedIndex
-                timelineClips.add(insertIndex, clip)
+                updatedClips.add(insertIndex, clipToMove)
+                timelineTracks[trackIndex] = track.copy(clips = updatedClips)
             }
         )
 

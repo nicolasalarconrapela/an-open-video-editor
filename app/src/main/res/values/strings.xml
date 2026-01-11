@@ -82,4 +82,7 @@
     <string name="timeline_zoom">Zoom temporal</string>
     <string name="timeline_current_time">Tiempo actual: %1$ss</string>
     <string name="timeline_clip_item">Clip: %1$s</string>
+    <string name="timeline_track_video">Pista de vídeo</string>
+    <string name="timeline_track_audio">Pista de audio</string>
+    <string name="timeline_track_overlay">Pista de overlays</string>
 </resources>
