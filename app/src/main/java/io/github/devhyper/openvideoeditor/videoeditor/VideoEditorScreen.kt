@@ -1306,6 +1306,8 @@ private fun ExportDialog(
                  if (workId != null) {
                      viewModel.setCurrentExportWorkId(workId)
                  }
+                 // Clear outputPath so the settings dialog shows again on next export
+                 viewModel.setOutputPath("")
                  onDismissRequest() // Close the settings dialog
              }
         }
