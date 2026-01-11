@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.2] - 2026-01-09
+### Añadido
+- Texto localizado para el control de zoom temporal del timeline.
+
+## [1.3.1] - 2026-01-09
+### Añadido
+- Vista de timeline con clips dummy, playhead centrado y control de zoom temporal.
+
 ## [1.3.0] - 2026-01-09
 ### Añadido
 - Mini previsualización del vídeo en la barra de controles con miniaturas y marcador de progreso.

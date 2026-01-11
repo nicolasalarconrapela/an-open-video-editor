@@ -79,4 +79,5 @@
     <string name="proxy_quality_high">High</string>
     <string name="permission_denied_grant_video_permissions">Permission denied, grant video permissions</string>
     <string name="imported">Imported</string>
+    <string name="timeline_zoom">Zoom temporal</string>
 </resources>

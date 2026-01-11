@@ -41,6 +41,7 @@ import androidx.compose.foundation.layout.systemBarsIgnoringVisibility
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -129,6 +130,8 @@ import androidx.media3.transformer.Composition
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer.Listener
+import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineUiClip
+import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineView
 import io.github.devhyper.openvideoeditor.R
 import io.github.devhyper.openvideoeditor.misc.AcceptDeclineRow
 import io.github.devhyper.openvideoeditor.misc.DropdownSetting
@@ -800,12 +803,46 @@ private fun BottomControls(
     val filterDurationEditorEnabled by viewModel.filterDurationEditorEnabled.collectAsState()
     val filterDurationCallback by viewModel.filterDurationCallback.collectAsState()
     val filterDurationEditorSliderPosition by viewModel.filterDurationEditorSliderPosition.collectAsState()
+    val timelineListState = rememberLazyListState()
+    var pixelsPerSecond by rememberSaveable { mutableFloatStateOf(80f) }
+    val timelineClips = remember {
+        listOf(
+            TimelineUiClip(id = "clip-1", durationMs = 3_000L, label = "Intro"),
+            TimelineUiClip(id = "clip-2", durationMs = 6_500L, label = "Entrevista"),
+            TimelineUiClip(id = "clip-3", durationMs = 4_000L, label = "B-roll"),
+            TimelineUiClip(id = "clip-4", durationMs = 2_500L, label = "Outro")
+        )
+    }
 
     Column(
         modifier = modifier
             .padding(horizontal = 16.dp)
             .padding(bottom = 16.dp)
     ) {
+        Text(
+            text = stringResource(R.string.timeline_zoom),
+            style = MaterialTheme.typography.labelMedium,
+            color = colorScheme.onBackground
+        )
+        Slider(
+            modifier = Modifier
+                .fillMaxWidth(),
+            value = pixelsPerSecond,
+            onValueChange = { pixelsPerSecond = it },
+            valueRange = 20f..200f,
+            colors = SliderDefaults.colors(
+                inactiveTrackColor = colorScheme.inversePrimary
+            )
+        )
+        TimelineView(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp, bottom = 12.dp),
+            clips = timelineClips,
+            pixelsPerSecond = pixelsPerSecond,
+            listState = timelineListState
+        )
+
         MiniPreviewStrip(
             modifier = Modifier
                 .fillMaxWidth()
