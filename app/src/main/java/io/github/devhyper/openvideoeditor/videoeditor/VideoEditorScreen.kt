@@ -116,6 +116,14 @@ import androidx.media3.common.Player
 import androidx.media3.common.Player.COMMAND_GET_CURRENT_MEDIA_ITEM
 import androidx.media3.common.Player.Commands
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.media3.common.PlaybackParameters
+import androidx.compose.ui.graphics.Color
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
@@ -205,6 +213,8 @@ fun VideoEditorScreen(
 
     var playbackState by remember { mutableIntStateOf(player.playbackState) }
 
+    var playbackSpeed by remember { mutableFloatStateOf(1f) }
+
     var playerViewSet by remember { mutableStateOf(false) }
 
     val currentEditingEffect by viewModel.currentEditingEffect.collectAsState()
@@ -259,7 +269,7 @@ fun VideoEditorScreen(
         }
     }
 
-    var textureView: TextureView? = null
+    var textureView by remember { mutableStateOf<TextureView?>(null) }
 
     OpenVideoEditorTheme(forceDarkTheme = true, forceBlackStatusBar = true) {
         Surface(
@@ -272,13 +282,18 @@ fun VideoEditorScreen(
                     val listenerHandler = Handler(getMainLooper())
                     val listener =
                         object : Player.Listener {
+                            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                                android.util.Log.e("VideoEditor", "Player error: ${error.message}", error)
+                            }
+
                             override fun onAvailableCommandsChanged(
                                 availableCommands: Commands
                             ) {
                                 super.onAvailableCommandsChanged(availableCommands)
 
-                                if (!playerViewSet && availableCommands.contains(Player.COMMAND_SET_VIDEO_SURFACE) && textureView != null) {
-                                    player.setVideoTextureView(textureView)
+                                val currentTextureView = textureView
+                                if (!playerViewSet && availableCommands.contains(Player.COMMAND_SET_VIDEO_SURFACE) && currentTextureView != null) {
+                                    player.setVideoTextureView(currentTextureView)
                                     playerViewSet = true
                                 }
 
@@ -346,14 +361,31 @@ fun VideoEditorScreen(
                     }
                 }
 
-                val androidViewModifier = if (useUiCascadingEffect) {
-                    Modifier.clickable { viewModel.setControlsVisible(!controlsVisible) }
-                } else {
-                    Modifier.clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { viewModel.setControlsVisible(!controlsVisible) }
-                }
+                var scale by remember { mutableFloatStateOf(1f) }
+                var offset by remember { mutableStateOf(Offset.Zero) }
+
+                val androidViewModifier = Modifier
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        translationX = offset.x
+                        translationY = offset.y
+                    }
+                    .pointerInput(Unit) {
+                        detectTransformGestures { _, pan, zoom, _ ->
+                            scale = (scale * zoom).coerceIn(1f, 10f)
+                            if (scale > 1f) {
+                                offset += pan
+                            } else {
+                                offset = Offset.Zero
+                            }
+                        }
+                    }
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onTap = { viewModel.setControlsVisible(!controlsVisible) }
+                        )
+                    }
 
                 Box(modifier = Modifier.windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility)) {
                     AndroidView(
@@ -418,7 +450,12 @@ fun VideoEditorScreen(
                     totalDuration = { totalDuration },
                     totalDurationFrames = { totalDurationFrames },
                     currentTime = { currentTime },
-                    currentTimeFrames = { currentTimeFrames }
+                    currentTimeFrames = { currentTimeFrames },
+                    playbackSpeed = { playbackSpeed },
+                    onPlaybackSpeedChange = { speed ->
+                        playbackSpeed = speed
+                        player.playbackParameters = PlaybackParameters(speed)
+                    }
                 ) { timeMs: Float ->
                     if (filterDurationEditorEnabled) {
                         var range: ClosedFloatingPointRange<Float>? = null
@@ -459,6 +496,8 @@ private fun PlayerControls(
     currentTime: () -> Long,
     currentTimeFrames: () -> Long,
     playbackState: () -> Int,
+    playbackSpeed: () -> Float,
+    onPlaybackSpeedChange: (Float) -> Unit,
     onSeekChanged: (timeMs: Float) -> Unit
 ) {
 
@@ -500,7 +539,9 @@ private fun PlayerControls(
                     onReplayClick = onReplayClick,
                     onForwardClick = onForwardClick,
                     onPauseToggle = onPauseToggle,
-                    playbackState = playbackState
+                    playbackState = playbackState,
+                    playbackSpeed = playbackSpeed,
+                    onPlaybackSpeedChange = onPlaybackSpeedChange
                 )
 
                 BottomControls(
@@ -622,7 +663,9 @@ private fun CenterControls(
     playbackState: () -> Int,
     onReplayClick: () -> Unit,
     onPauseToggle: () -> Unit,
-    onForwardClick: () -> Unit
+    onForwardClick: () -> Unit,
+    playbackSpeed: () -> Float,
+    onPlaybackSpeedChange: (Float) -> Unit
 ) {
     val isVideoPlaying = remember(isPlaying()) { isPlaying() }
 
@@ -664,6 +707,32 @@ private fun CenterControls(
                 imageVector = Icons.Filled.Forward10,
                 contentDescription = stringResource(R.string.forward_10_seconds),
             )
+        }
+
+        Box {
+            var expanded by remember { mutableStateOf(false) }
+            TextButton(onClick = { expanded = true }) {
+                Text(
+                    text = "${playbackSpeed()}x",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                val speeds = listOf(0.1f, 0.2f, 0.25f, 0.5f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f)
+                speeds.forEach { speed ->
+                    DropdownMenuItem(
+                        text = { Text("${speed}x") },
+                        onClick = {
+                            onPlaybackSpeedChange(speed)
+                            expanded = false
+                        }
+                    )
+                }
+            }
         }
     }
 }
