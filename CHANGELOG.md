@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.3] - 2026-01-09
+### Añadido
+- Selección de clips y etiqueta de tiempo actual en el timeline.
+
 ## [1.3.2] - 2026-01-09
 ### Añadido
 - Texto localizado para el control de zoom temporal del timeline.

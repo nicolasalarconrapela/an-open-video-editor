@@ -80,4 +80,6 @@
     <string name="permission_denied_grant_video_permissions">Permission denied, grant video permissions</string>
     <string name="imported">Imported</string>
     <string name="timeline_zoom">Zoom temporal</string>
+    <string name="timeline_current_time">Tiempo actual: %1$ss</string>
+    <string name="timeline_clip_item">Clip: %1$s</string>
 </resources>

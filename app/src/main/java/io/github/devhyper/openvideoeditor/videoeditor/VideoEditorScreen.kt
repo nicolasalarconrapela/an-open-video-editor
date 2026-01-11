@@ -805,6 +805,7 @@ private fun BottomControls(
     val filterDurationEditorSliderPosition by viewModel.filterDurationEditorSliderPosition.collectAsState()
     val timelineListState = rememberLazyListState()
     var pixelsPerSecond by rememberSaveable { mutableFloatStateOf(80f) }
+    var selectedClipId by rememberSaveable { mutableStateOf<String?>(null) }
     val timelineClips = remember {
         listOf(
             TimelineUiClip(id = "clip-1", durationMs = 3_000L, label = "Intro"),
@@ -840,7 +841,9 @@ private fun BottomControls(
                 .padding(top = 8.dp, bottom = 12.dp),
             clips = timelineClips,
             pixelsPerSecond = pixelsPerSecond,
-            listState = timelineListState
+            listState = timelineListState,
+            selectedClipId = selectedClipId,
+            onClipSelected = { clip -> selectedClipId = clip.id }
         )
 
         MiniPreviewStrip(
