@@ -400,7 +400,15 @@ class ExportManager(private val context: Context, private val projectData: Proje
             // simple progress:
             // currentProgress = (completedSegments / total) + (currentSegmentProgress / total)
             
+            
             FFmpegKitConfig.enableStatisticsCallback { stats ->
+                // Check if export was cancelled or paused DURING segment processing
+                if (isCancelled || VideoExportWorker.isPausedFlow.value) {
+                    android.util.Log.d("ExportDebug", "🛑 Aborting FFmpeg segment mid-execution (paused/cancelled)")
+                    FFmpegKit.cancel()
+                    return@enableStatisticsCallback
+                }
+                
                 val segmentDuration = nextSegment.durationMs
                 val timeInSegment = stats.time
                 val segmentProgress = (timeInSegment / segmentDuration.toDouble()).coerceIn(0.0, 1.0)
@@ -536,7 +544,15 @@ class ExportManager(private val context: Context, private val projectData: Proje
         val audioCodec = if (audioFallback) "aac" else "copy"
         val durationMs = trim.second - trim.first
         
+        
         FFmpegKitConfig.enableStatisticsCallback { stats ->
+             // Check if export was cancelled or paused
+             if (isCancelled || VideoExportWorker.isPausedFlow.value) {
+                 android.util.Log.d("ExportDebug", "🛑 Aborting lossless cut mid-execution")
+                 FFmpegKit.cancel()
+                 return@enableStatisticsCallback
+             }
+             
              val time = stats.time
              currentProgress = (time / durationMs.toDouble()).toFloat().coerceIn(0f, 1f)
         }
