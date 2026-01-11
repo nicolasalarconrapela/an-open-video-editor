@@ -1,0 +1,61 @@
+name: Android APK (Debug) - codex
+
+on:
+  push:
+    branches: ["codex/2026-01-11/17-39-50/create-timelineview-composable"]
+  workflow_dispatch:
+
+concurrency:
+  group: apk-debug-codex
+  cancel-in-progress: true
+
+jobs:
+  apk-debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Fix DNS for Maven repositories
+        run: |
+          sudo bash -c 'printf "nameserver 1.1.1.1\nnameserver 8.8.8.8\n" > /etc/resolv.conf'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses
+
+      # Caché extra (más agresiva) para Gradle:
+      - name: Cache Gradle (wrapper + caches)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: >
+            ${{ runner.os }}-gradle-
+            ${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/settings.gradle*', '**/gradle.properties', '**/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # Recomendado para CI: evita daemon y reduce “ruido”
+      - name: Build Debug APK
+        run: ./gradlew :app:assembleDebug --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-video-editor-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
