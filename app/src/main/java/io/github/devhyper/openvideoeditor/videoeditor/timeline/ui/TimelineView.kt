@@ -19,10 +19,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -31,11 +35,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlin.math.max
 import io.github.devhyper.openvideoeditor.R
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlin.math.abs
 
 data class TimelineUiClip(
     val id: String,
     val durationMs: Long,
-    val label: String
+    val label: String,
+    val isSelected: Boolean = false
 )
 
 @Composable
@@ -44,13 +52,15 @@ fun TimelineView(
     pixelsPerSecond: Float,
     listState: LazyListState,
     modifier: Modifier = Modifier,
-    selectedClipId: String? = null,
-    onClipSelected: (TimelineUiClip) -> Unit = {}
+    onClipSelected: (TimelineUiClip) -> Unit = {},
+    onClipMoved: (fromId: String, toIndex: Int) -> Unit = { _, _ -> }
 ) {
     val density = LocalDensity.current
     val clipMinWidthDp = 48.dp
     val clipHeight = 56.dp
     val spacingDp = 8.dp
+    var draggingClipId by remember { mutableStateOf<String?>(null) }
+    var dragOffsetPx by remember { mutableFloatStateOf(0f) }
     val currentTimeMs by remember(clips, pixelsPerSecond, listState) {
         derivedStateOf {
             val layoutInfo = listState.layoutInfo
@@ -98,15 +108,51 @@ fun TimelineView(
                 val widthPx = (clip.durationMs / 1000f) * pixelsPerSecond
                 val widthDp = with(density) { widthPx.toDp() }
                 val clipWidth = max(widthDp.value, clipMinWidthDp.value).dp
-                val isSelected = clip.id == selectedClipId
+                val isSelected = clip.isSelected
                 val clipContentDescription = stringResource(
                     R.string.timeline_clip_item,
                     clip.label
                 )
+                val isDragging = draggingClipId == clip.id
                 Box(
                     modifier = Modifier
                         .width(clipWidth)
                         .height(clipHeight)
+                        .graphicsLayer { translationX = if (isDragging) dragOffsetPx else 0f }
+                        .pointerInput(clip.id, listState.layoutInfo) {
+                            detectDragGestures(
+                                onDragStart = {
+                                    draggingClipId = clip.id
+                                    dragOffsetPx = 0f
+                                },
+                                onDragEnd = {
+                                    val layoutInfo = listState.layoutInfo
+                                    val currentIndex = clips.indexOfFirst { it.id == clip.id }
+                                    val itemInfo = layoutInfo.visibleItemsInfo.firstOrNull { info ->
+                                        info.index == currentIndex
+                                    }
+                                    if (itemInfo != null) {
+                                        val dragCenter = itemInfo.offset + (itemInfo.size / 2) + dragOffsetPx
+                                        val targetInfo = layoutInfo.visibleItemsInfo.minByOrNull { info ->
+                                            abs((info.offset + (info.size / 2)) - dragCenter)
+                                        }
+                                        if (targetInfo != null && targetInfo.index != currentIndex) {
+                                            onClipMoved(clip.id, targetInfo.index)
+                                        }
+                                    }
+                                    draggingClipId = null
+                                    dragOffsetPx = 0f
+                                },
+                                onDragCancel = {
+                                    draggingClipId = null
+                                    dragOffsetPx = 0f
+                                },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    dragOffsetPx += dragAmount.x
+                                }
+                            )
+                        }
                         .clickable { onClipSelected(clip) }
                         .background(
                             color = if (isSelected) {

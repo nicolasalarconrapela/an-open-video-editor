@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.4] - 2026-01-09
+### Añadido
+- Reordenamiento de clips por arrastre y selección persistente en el timeline.
+
 ## [1.3.3] - 2026-01-09
 ### Añadido
 - Selección de clips y etiqueta de tiempo actual en el timeline.

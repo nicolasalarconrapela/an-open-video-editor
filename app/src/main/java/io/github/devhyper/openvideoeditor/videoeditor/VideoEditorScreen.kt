@@ -85,6 +85,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -805,9 +806,8 @@ private fun BottomControls(
     val filterDurationEditorSliderPosition by viewModel.filterDurationEditorSliderPosition.collectAsState()
     val timelineListState = rememberLazyListState()
     var pixelsPerSecond by rememberSaveable { mutableFloatStateOf(80f) }
-    var selectedClipId by rememberSaveable { mutableStateOf<String?>(null) }
     val timelineClips = remember {
-        listOf(
+        mutableStateListOf(
             TimelineUiClip(id = "clip-1", durationMs = 3_000L, label = "Intro"),
             TimelineUiClip(id = "clip-2", durationMs = 6_500L, label = "Entrevista"),
             TimelineUiClip(id = "clip-3", durationMs = 4_000L, label = "B-roll"),
@@ -842,8 +842,23 @@ private fun BottomControls(
             clips = timelineClips,
             pixelsPerSecond = pixelsPerSecond,
             listState = timelineListState,
-            selectedClipId = selectedClipId,
-            onClipSelected = { clip -> selectedClipId = clip.id }
+            onClipSelected = { clip ->
+                timelineClips.forEachIndexed { index, item ->
+                    val isSelected = item.id == clip.id
+                    if (item.isSelected != isSelected) {
+                        timelineClips[index] = item.copy(isSelected = isSelected)
+                    }
+                }
+            },
+            onClipMoved = { fromId, toIndex ->
+                val fromIndex = timelineClips.indexOfFirst { it.id == fromId }
+                if (fromIndex == -1) return@TimelineView
+                val boundedIndex = toIndex.coerceIn(0, timelineClips.lastIndex)
+                if (fromIndex == boundedIndex) return@TimelineView
+                val clip = timelineClips.removeAt(fromIndex)
+                val insertIndex = if (fromIndex < boundedIndex) boundedIndex - 1 else boundedIndex
+                timelineClips.add(insertIndex, clip)
+            }
         )
 
         MiniPreviewStrip(
