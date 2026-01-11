@@ -47,6 +47,9 @@ class VideoEditorViewModel : ViewModel() {
     val currentEditingEffect: StateFlow<OnVideoUserEffect?> =
         _currentEditingEffect.asStateFlow()
 
+    private val _currentExportWorkId = MutableStateFlow<String?>(null)
+    val currentExportWorkId: StateFlow<String?> = _currentExportWorkId.asStateFlow()
+
     fun setOutputPath(path: String) {
         _outputPath.update { path }
     }
@@ -85,5 +88,9 @@ class VideoEditorViewModel : ViewModel() {
 
     fun setCurrentEditingEffect(value: OnVideoUserEffect?) {
         _currentEditingEffect.update { value }
+    }
+
+    fun setCurrentExportWorkId(value: String?) {
+        _currentExportWorkId.update { value }
     }
 }

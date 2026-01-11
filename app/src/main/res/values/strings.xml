@@ -14,13 +14,18 @@
     <string name="video_filters">Video Filters</string>
     <string name="trim">Trim</string>
     <string name="cancel">Cancel</string>
+    <string name="pause">Pause</string>
+    <string name="resume">Resume</string>
     <string name="add">Add</string>
     <string name="media_to_export">Media to Export</string>
     <string name="hdr_mode">HDR Mode</string>
     <string name="audio_type">Audio Type</string>
     <string name="video_type">Video Type</string>
     <string name="exported">Exported</string>
+    <string name="export_complete">Se ha exportado</string>
     <string name="exporting">Exporting</string>
+    <string name="export_cancelled">Export cancelled</string>
+    <string name="export_failed">Export failed</string>
     <string name="dismiss">Dismiss</string>
     <string name="error">Error</string>
     <string name="select_a_file_to_edit">Select a file to edit</string>
@@ -73,4 +78,5 @@
     <string name="proxy_quality_medium">Medium</string>
     <string name="proxy_quality_high">High</string>
     <string name="permission_denied_grant_video_permissions">Permission denied, grant video permissions</string>
+    <string name="imported">Imported</string>
 </resources>

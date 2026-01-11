@@ -143,7 +143,15 @@ import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import android.content.Context
+import androidx.compose.runtime.SideEffect
 import kotlinx.coroutines.withContext
+import androidx.work.WorkManager
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.workDataOf
+import androidx.work.WorkInfo
+import java.io.File
+import java.io.ObjectOutputStream
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -209,6 +217,47 @@ fun VideoEditorScreen(
     val filterDurationEditorSliderPosition by viewModel.filterDurationEditorSliderPosition.collectAsState()
 
     val startFilterSelected by viewModel.startFilterSelected.collectAsState()
+
+    val videoTitle = remember(uri) { getFileNameFromUri(context, uri.toUri()) }
+    
+    val workManager = remember { WorkManager.getInstance(context) }
+    // We observe all video_export works
+    val exportWorkInfos by workManager.getWorkInfosByTagFlow("video_export").collectAsState(initial = emptyList())
+    
+    // Track work ID from ViewModel (persists across recompositions)
+    val currentExportWorkId by viewModel.currentExportWorkId.collectAsState()
+    var showCompletionDialog by rememberSaveable { mutableStateOf(false) }
+    
+    // Find active export (RUNNING or ENQUEUED)
+    val activeExport = exportWorkInfos.firstOrNull { 
+        it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED 
+    }
+    
+    // Check if our session's export just finished
+    val sessionExport = if (currentExportWorkId != null) {
+        exportWorkInfos.firstOrNull { it.id.toString() == currentExportWorkId }
+    } else null
+    
+    // Trigger completion dialog when our export finishes successfully
+    if (sessionExport?.state == WorkInfo.State.SUCCEEDED && !showCompletionDialog) {
+        showCompletionDialog = true
+    }
+    
+    // Show progress dialog only for active exports
+    if (activeExport != null) {
+        ExportProgressDialog(activeExport, videoTitle, isFinished = false) {
+            workManager.cancelWorkById(activeExport.id)
+            viewModel.setCurrentExportWorkId(null)
+        }
+    } else if (showCompletionDialog && sessionExport != null) {
+        // Show completion dialog
+        ExportProgressDialog(sessionExport, videoTitle, isFinished = true) {
+            showCompletionDialog = false
+            viewModel.setCurrentExportWorkId(null)
+            // Prune old completed works
+            workManager.pruneWork()
+        }
+    }
 
     var textureView: TextureView? = null
 
@@ -1234,17 +1283,12 @@ private fun ExportDialog(
 ) {
     val viewModel = viewModel { VideoEditorViewModel() }
     val outputPath by viewModel.outputPath.collectAsState()
-    var isExporting by rememberSaveable { mutableStateOf(false) }
     val exportDismissRequest = {
-        isExporting = false
         onDismissRequest()
         viewModel.setOutputPath("")
         activity.recreate()
     }
-    if (isExporting) {
-        ExportProgressDialog(transformManager, outputPath) { exportDismissRequest() }
-        return
-    }
+    
     val context = LocalContext.current
     val exportSettings: ExportSettings by remember { mutableStateOf(ExportSettings()) }
     var exportString: String? by remember { mutableStateOf(null) }
@@ -1256,26 +1300,14 @@ private fun ExportDialog(
                 exportString = null; exportDismissRequest()
             }
         } else {
-            val transformerListener: Listener =
-                object : Listener {
-                    override fun onError(
-                        composition: Composition, result: ExportResult,
-                        exception: ExportException
-                    ) {
-                        exportString = exception.toString()
-                        // Log.e("open-video-editor", "Export exception: ", exception)
-                    }
-                }
-            val onFFmpegError: () -> Unit = {
-                exportString = context.getString(R.string.ffmpeg_error)
-            }
-            transformManager.export(
-                context,
-                exportSettings,
-                transformerListener,
-                onFFmpegError
-            )
-            isExporting = true
+             // Trigger WorkManager
+             SideEffect {
+                 val workId = startExportWork(context, transformManager, exportSettings)
+                 if (workId != null) {
+                     viewModel.setCurrentExportWorkId(workId)
+                 }
+                 onDismissRequest() // Close the settings dialog
+             }
         }
     } else {
         ListDialog(
@@ -1391,84 +1423,126 @@ private fun ExportDialog(
 
 @Composable
 fun ExportProgressDialog(
-    transformManager: TransformManager,
-    outputPath: String,
-    onDismissRequest: () -> Unit
+    workInfo: WorkInfo,
+    videoTitle: String,
+    isFinished: Boolean,
+    onDismissOrCancel: () -> Unit
 ) {
-    val context = LocalContext.current
-    var exportProgress by rememberSaveable { mutableFloatStateOf(0F) }
+    val progress = workInfo.progress.getFloat(VideoExportWorker.KEY_PROGRESS, 0f)
+    
     val animatedProgress = animateFloatAsState(
-        targetValue = exportProgress,
+        targetValue = if (isFinished) 1f else progress,
         animationSpec = ProgressIndicatorDefaults.ProgressAnimationSpec,
         label = "export_progress_animation"
     ).value
-    val exportComplete = exportProgress == 1F
-    val progressHandler = Handler(getMainLooper())
-    progressHandler.postDelayed(
-        object : Runnable {
-            override fun run() {
-                exportProgress = transformManager.getProgress()
-                if (exportProgress != 1F && exportProgress != -1F) {
-                    progressHandler.postDelayed(this, REFRESH_RATE)
-                }
 
-                if (exportComplete) {
-                    MediaScannerConnection.scanFile(
-                        context, arrayOf(outputPath),
-                        null
-                    ) { _, _ -> }
-                }
-            }
-        }, REFRESH_RATE
-    )
-    Dialog(onDismissRequest = {
-        if (exportComplete) {
-            onDismissRequest()
-        }
-    }) {
+    Dialog(onDismissRequest = {}) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(215.dp)
                 .padding(16.dp),
             shape = RoundedCornerShape(16.dp),
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxSize(),
-                verticalArrangement = Arrangement.SpaceBetween,
+                    .fillMaxWidth()
+                    .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = if (exportComplete) stringResource(R.string.exported) else stringResource(
-                        R.string.exporting
-                    ),
-                    style = MaterialTheme.typography.headlineLarge,
-                    modifier = Modifier.padding(16.dp)
+                    text = if (isFinished) stringResource(R.string.exported) else stringResource(R.string.exporting),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(bottom = 16.dp)
                 )
-                Column(verticalArrangement = Arrangement.SpaceBetween) {
-                    LinearProgressIndicator(
-                        progress = { animatedProgress },
-                        modifier = Modifier.padding(vertical = 4.dp),
-                        trackColor = colorScheme.inversePrimary,
-                    )
-                    Text(
-                        modifier = Modifier.padding(vertical = 4.dp),
-                        text = "${(exportProgress * 100).toInt()}%"
+                
+                if (isFinished) {
+                     Text(
+                        text = videoTitle,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(bottom = 8.dp)
                     )
                 }
-                TextButton(
-                    onClick = {
-                        if (!exportComplete) {
-                            transformManager.cancel()
+                
+                LinearProgressIndicator(
+                    progress = { animatedProgress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    trackColor = colorScheme.inversePrimary,
+                )
+                
+                Text(
+                    text = "${((if(isFinished) 1f else progress) * 100).toInt()}%",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .padding(bottom = 16.dp)
+                )
+                
+                if (isFinished) {
+                    TextButton(
+                        onClick = onDismissOrCancel,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(stringResource(R.string.dismiss))
+                    }
+                } else {
+                    val globalPaused by VideoExportWorker.isPausedFlow.collectAsState()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        TextButton(
+                            onClick = onDismissOrCancel,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(stringResource(R.string.cancel))
                         }
-                        onDismissRequest()
-                    },
-                ) {
-                    Text(if (exportComplete) stringResource(R.string.dismiss) else stringResource(R.string.cancel))
+                        
+                        TextButton(
+                            onClick = { VideoExportWorker.setPaused(!globalPaused) },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(if (globalPaused) stringResource(R.string.resume) else stringResource(R.string.pause))
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+private fun startExportWork(context: Context, transformManager: TransformManager, exportSettings: ExportSettings): String? {
+    // Use unique filenames to prevent conflicts if multiple exports are triggered
+    val uniqueId = java.util.UUID.randomUUID().toString()
+    val projectDataFile = File(context.cacheDir, "project_data_$uniqueId.tmp")
+    val settingsFile = File(context.cacheDir, "export_settings_$uniqueId.tmp")
+    
+    try {
+        ObjectOutputStream(projectDataFile.outputStream()).use { it.writeObject(transformManager.projectData) }
+        ObjectOutputStream(settingsFile.outputStream()).use { it.writeObject(exportSettings) }
+        
+        val inputData = workDataOf(
+            VideoExportWorker.KEY_PROJECT_DATA_PATH to projectDataFile.absolutePath,
+            VideoExportWorker.KEY_EXPORT_SETTINGS_PATH to settingsFile.absolutePath
+        )
+
+        val request = OneTimeWorkRequestBuilder<VideoExportWorker>()
+            .setInputData(inputData)
+            .addTag("video_export")
+            .build()
+
+        // Use enqueueUniqueWork with REPLACE to ensure only one export runs at a time
+        // If user clicks export again, the previous one is cancelled and replaced
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            "video_export_main",
+            androidx.work.ExistingWorkPolicy.REPLACE,
+            request
+        )
+        return request.id.toString()
+    } catch (e: Exception) {
+        e.printStackTrace()
+        return null
     }
 }
 

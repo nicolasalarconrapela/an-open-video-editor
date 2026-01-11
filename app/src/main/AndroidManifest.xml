@@ -13,6 +13,10 @@
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="false"
@@ -71,6 +75,18 @@
                 <data android:scheme="file" />
             </intent-filter>
         </activity>
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
+
+        <receiver android:name=".videoeditor.ExportActionReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="PAUSE" />
+                <action android:name="RESUME" />
+                <action android:name="CANCEL_PAUSED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>
