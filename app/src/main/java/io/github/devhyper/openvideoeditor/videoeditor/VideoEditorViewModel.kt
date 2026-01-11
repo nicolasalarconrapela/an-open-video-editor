@@ -25,6 +25,7 @@ class VideoEditorViewModel : ViewModel() {
         data class Split(val atMs: Long) : EditorEvent()
         data class MoveBlock(val from: Int, val to: Int) : EditorEvent()
         data class ZoomChanged(val zoomLevel: Float) : EditorEvent()
+        data class ZoomByDelta(val delta: Float) : EditorEvent()
     }
 
     private val _outputPath = MutableStateFlow("")
@@ -73,6 +74,10 @@ class VideoEditorViewModel : ViewModel() {
                 is EditorEvent.ToggleMode -> current.copy(mode = event.mode)
                 is EditorEvent.Seek -> current.copy(currentTimeMs = event.ms)
                 is EditorEvent.ZoomChanged -> current.copy(zoomLevel = event.zoomLevel)
+                is EditorEvent.ZoomByDelta -> {
+                    val next = (current.zoomLevel * event.delta).coerceIn(0.5f, 4f)
+                    current.copy(zoomLevel = next)
+                }
                 is EditorEvent.Trim -> trimSelectedBlock(current, event.inMs, event.outMs)
                 is EditorEvent.Split -> splitSelectedBlock(current, event.atMs)
                 is EditorEvent.MoveBlock -> moveBlock(current, event.from, event.to)

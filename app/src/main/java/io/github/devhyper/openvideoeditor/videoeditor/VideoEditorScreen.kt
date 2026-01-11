@@ -75,6 +75,7 @@ import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -130,9 +131,11 @@ import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer.Listener
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineClipType
+import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelinePrecisionView
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineUiClip
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineUiTrack
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineView
+import io.github.devhyper.openvideoeditor.videoeditor.state.EditorMode
 import io.github.devhyper.openvideoeditor.R
 import io.github.devhyper.openvideoeditor.misc.AcceptDeclineRow
 import io.github.devhyper.openvideoeditor.misc.DropdownSetting
@@ -918,6 +921,26 @@ private fun BottomControls(
             .padding(horizontal = 16.dp)
             .padding(bottom = 16.dp)
     ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = stringResource(R.string.timeline_mode_precision),
+                style = MaterialTheme.typography.labelMedium,
+                color = colorScheme.onBackground
+            )
+            Switch(
+                checked = editorState.mode == EditorMode.PRECISION,
+                onCheckedChange = { enabled ->
+                    val nextMode = if (enabled) EditorMode.PRECISION else EditorMode.BLOCKS
+                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.ToggleMode(nextMode))
+                }
+            )
+        }
         Text(
             text = stringResource(R.string.timeline_zoom),
             style = MaterialTheme.typography.labelMedium,
@@ -936,40 +959,60 @@ private fun BottomControls(
                 inactiveTrackColor = colorScheme.inversePrimary
             )
         )
-        TimelineView(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp, bottom = 12.dp),
-            tracks = timelineTracks,
-            pixelsPerSecond = pixelsPerSecond,
-            listState = timelineListState,
-            onZoomChange = { zoomDelta ->
-                val zoomLevel = (editorState.zoomLevel * zoomDelta).coerceIn(0.5f, 4f)
-                viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomChanged(zoomLevel))
-            },
-            onClipSelected = { _, clip ->
-                timelineTracks.forEachIndexed { trackIndex, track ->
-                    val updatedClips = track.clips.map { item ->
-                        item.copy(isSelected = item.id == clip.id)
+        if (editorState.mode == EditorMode.PRECISION) {
+            TimelinePrecisionView(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp, bottom = 12.dp),
+                tracks = timelineTracks,
+                zoomLevel = editorState.zoomLevel,
+                playheadOffset = 0.dp,
+                onZoom = { zoomDelta ->
+                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomByDelta(zoomDelta))
+                },
+                onTrim = { clipId, trimIn, trimOut ->
+                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.Trim(trimIn, trimOut))
+                },
+                onSeek = { timeMs ->
+                    player.seekTo(timeMs)
+                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.Seek(timeMs))
+                }
+            )
+        } else {
+            TimelineView(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp, bottom = 12.dp),
+                tracks = timelineTracks,
+                pixelsPerSecond = pixelsPerSecond,
+                listState = timelineListState,
+                onZoomChange = { zoomDelta ->
+                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomByDelta(zoomDelta))
+                },
+                onClipSelected = { _, clip ->
+                    timelineTracks.forEachIndexed { trackIndex, track ->
+                        val updatedClips = track.clips.map { item ->
+                            item.copy(isSelected = item.id == clip.id)
+                        }
+                        timelineTracks[trackIndex] = track.copy(clips = updatedClips)
                     }
+                },
+                onClipMoved = { trackId, fromId, toIndex ->
+                    val trackIndex = timelineTracks.indexOfFirst { it.id == trackId }
+                    if (trackIndex == -1) return@TimelineView
+                    val track = timelineTracks[trackIndex]
+                    val fromIndex = track.clips.indexOfFirst { it.id == fromId }
+                    if (fromIndex == -1) return@TimelineView
+                    val boundedIndex = toIndex.coerceIn(0, track.clips.lastIndex)
+                    if (fromIndex == boundedIndex) return@TimelineView
+                    val updatedClips = track.clips.toMutableList()
+                    val clipToMove = updatedClips.removeAt(fromIndex)
+                    val insertIndex = if (fromIndex < boundedIndex) boundedIndex - 1 else boundedIndex
+                    updatedClips.add(insertIndex, clipToMove)
                     timelineTracks[trackIndex] = track.copy(clips = updatedClips)
                 }
-            },
-            onClipMoved = { trackId, fromId, toIndex ->
-                val trackIndex = timelineTracks.indexOfFirst { it.id == trackId }
-                if (trackIndex == -1) return@TimelineView
-                val track = timelineTracks[trackIndex]
-                val fromIndex = track.clips.indexOfFirst { it.id == fromId }
-                if (fromIndex == -1) return@TimelineView
-                val boundedIndex = toIndex.coerceIn(0, track.clips.lastIndex)
-                if (fromIndex == boundedIndex) return@TimelineView
-                val updatedClips = track.clips.toMutableList()
-                val clipToMove = updatedClips.removeAt(fromIndex)
-                val insertIndex = if (fromIndex < boundedIndex) boundedIndex - 1 else boundedIndex
-                updatedClips.add(insertIndex, clipToMove)
-                timelineTracks[trackIndex] = track.copy(clips = updatedClips)
-            }
-        )
+            )
+        }
 
         MiniPreviewStrip(
             modifier = Modifier

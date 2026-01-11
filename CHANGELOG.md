@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.16] - 2026-01-09
+### Añadido
+- Selector de modo Bloques/Precisión y uso de TimelinePrecisionView.
+
 ## [1.3.15] - 2026-01-09
 ### Añadido
 - TimelinePrecisionView con regla temporal, placeholders y callbacks de interacción.

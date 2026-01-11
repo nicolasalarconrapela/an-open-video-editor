@@ -85,4 +85,5 @@
     <string name="timeline_track_video">Pista de vídeo</string>
     <string name="timeline_track_audio">Pista de audio</string>
     <string name="timeline_track_overlay">Pista de overlays</string>
+    <string name="timeline_mode_precision">Modo Precisión</string>
 </resources>
