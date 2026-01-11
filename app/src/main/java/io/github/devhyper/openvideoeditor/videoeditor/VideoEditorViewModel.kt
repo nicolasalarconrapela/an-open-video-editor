@@ -1,21 +1,29 @@
 package io.github.devhyper.openvideoeditor.videoeditor
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.media3.common.Player
 import io.github.devhyper.openvideoeditor.videoeditor.state.EditorMode
 import io.github.devhyper.openvideoeditor.videoeditor.state.EditorState
 import io.github.devhyper.openvideoeditor.videoeditor.state.TimelineBlock
+import io.github.devhyper.openvideoeditor.misc.REFRESH_RATE
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 class VideoEditorViewModel : ViewModel() {
     val transformManager = TransformManager()
 
     private val _state = MutableStateFlow(EditorState())
     val state: StateFlow<EditorState> = _state.asStateFlow()
+    private var playbackSyncJob: Job? = null
 
     sealed class EditorEvent {
         data class SelectBlock(val id: String) : EditorEvent()
@@ -81,6 +89,17 @@ class VideoEditorViewModel : ViewModel() {
                 is EditorEvent.Trim -> trimSelectedBlock(current, event.inMs, event.outMs)
                 is EditorEvent.Split -> splitSelectedBlock(current, event.atMs)
                 is EditorEvent.MoveBlock -> moveBlock(current, event.from, event.to)
+            }
+        }
+    }
+
+    fun startPlaybackSync(player: Player) {
+        playbackSyncJob?.cancel()
+        playbackSyncJob = viewModelScope.launch {
+            while (isActive) {
+                val position = player.currentPosition.coerceAtLeast(0L)
+                _state.update { it.copy(currentTimeMs = position) }
+                delay(REFRESH_RATE)
             }
         }
     }

@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.19] - 2026-01-09
+### Ajustado
+- Sincronización de reproducción en ViewModel y corrección de currentTime.
+
+## [1.3.18] - 2026-01-09
+### Ajustado
+- TimelinePrecisionView con scroll animado y playhead centrado.
+
 ## [1.3.17] - 2026-01-09
 ### Añadido
 - TimelineBlocksView con bloques semánticos seleccionables.

@@ -203,6 +203,10 @@ fun VideoEditorScreen(
             .build()
     }
 
+    LaunchedEffect(player) {
+        viewModel.startPlaybackSync(player)
+    }
+
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
         player.pause()
     }
@@ -787,7 +791,7 @@ private fun BottomControls(
     val videoFpm = remember(fpm()) { fpm() }
     val duration = remember(totalDuration()) { totalDuration() }
     val durationFrames = remember(totalDurationFrames()) { totalDurationFrames() }
-    val videoTime = remember(currentTime()) { currentTime() }
+    val videoTime = remember(currentTime) { currentTime }
     val videoTimeFrames = remember(currentTimeFrames()) { currentTimeFrames() }
 
     val viewModel = viewModel { VideoEditorViewModel() }
@@ -897,10 +901,10 @@ private fun BottomControls(
             )
         )
     }
-    LaunchedEffect(currentTime(), pixelsPerSecond, timelineTracks) {
+    LaunchedEffect(currentTime, pixelsPerSecond, timelineTracks) {
         val masterClips = timelineTracks.firstOrNull()?.clips.orEmpty()
         if (masterClips.isEmpty()) return@LaunchedEffect
-        var remainingMs = currentTime()
+        var remainingMs = currentTime
         var targetIndex = 0
         masterClips.forEachIndexed { index, clip ->
             if (remainingMs <= clip.durationMs) {
@@ -912,8 +916,8 @@ private fun BottomControls(
         val offsetPx = ((remainingMs / 1000f) * pixelsPerSecond).roundToInt()
         timelineListState.scrollToItem(targetIndex.coerceIn(0, masterClips.lastIndex), offsetPx)
     }
-    LaunchedEffect(currentTime()) {
-        viewModel.onEvent(VideoEditorViewModel.EditorEvent.Seek(currentTime()))
+    LaunchedEffect(currentTime) {
+        viewModel.onEvent(VideoEditorViewModel.EditorEvent.Seek(currentTime))
     }
 
     Column(
@@ -966,7 +970,8 @@ private fun BottomControls(
                     .padding(top = 8.dp, bottom = 12.dp),
                 tracks = timelineTracks,
                 zoomLevel = editorState.zoomLevel,
-                playheadOffset = 0.dp,
+                currentTimeMs = currentTime,
+                listState = timelineListState,
                 onZoom = { zoomDelta ->
                     viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomByDelta(zoomDelta))
                 },
