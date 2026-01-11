@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.17] - 2026-01-09
+### Añadido
+- TimelineBlocksView con bloques semánticos seleccionables.
+
 ## [1.3.16] - 2026-01-09
 ### Añadido
 - Selector de modo Bloques/Precisión y uso de TimelinePrecisionView.
