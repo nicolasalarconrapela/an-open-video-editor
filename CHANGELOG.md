@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.9] - 2026-01-09
+### Añadido
+- Modelos de estado del editor y bloques semánticos para timeline híbrida.
+
 ## [1.3.8] - 2026-01-09
 ### Corregido
 - Correcciones de sincronización y regla temporal del timeline para compilar en CI.
