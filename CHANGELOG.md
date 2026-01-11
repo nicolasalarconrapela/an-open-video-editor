@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.15] - 2026-01-09
+### Añadido
+- TimelinePrecisionView con regla temporal, placeholders y callbacks de interacción.
+
 ## [1.3.14] - 2026-01-09
 ### Ajustado
 - Separación de PreviewArea y TimelineArea con insets y clipToBounds.
