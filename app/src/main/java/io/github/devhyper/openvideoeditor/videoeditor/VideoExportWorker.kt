@@ -159,12 +159,20 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
                 Result.failure(workDataOf(KEY_ERROR to e.toString()))
             }
         } finally {
+            // Capture pause state at entry to finally block to avoid race conditions
+            val wasPausedAtFinally = _isPaused.value
+            
             // Cleanup temp files only if NOT paused
-            if (!_isPaused.value) {
+            if (!wasPausedAtFinally) {
                 try {
                     File(projectDataPath).delete()
                     File(exportSettingsPath).delete()
-                } catch (ignored: Exception) {}
+                    android.util.Log.d("ExportDebug", "🧹 Cleaned up temp files")
+                } catch (e: Exception) {
+                    android.util.Log.e("ExportDebug", "Failed to cleanup temp files", e)
+                }
+            } else {
+                android.util.Log.d("ExportDebug", "⏸️ Keeping temp files for resume (paused)")
             }
         }
     }

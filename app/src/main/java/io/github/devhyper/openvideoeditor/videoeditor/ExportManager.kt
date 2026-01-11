@@ -144,14 +144,26 @@ class ExportManager(private val context: Context, private val projectData: Proje
     }
 
     fun cleanupSegments(context: Context, outputPath: String) {
-        try {
-            val segmentDirectory = getSegmentExportDirectory(context, outputPath)
-            if (segmentDirectory.exists()) {
-                segmentDirectory.deleteRecursively()
+        cleanupSegmentsStatic(context, outputPath)
+        projectData.segmentExportState = null
+    }
+
+    companion object {
+        /**
+         * Static version of cleanupSegments that doesn't require a ProjectData instance.
+         * Use this when you only need to delete segment files without updating ProjectData state.
+         */
+        fun cleanupSegmentsStatic(context: Context, outputPath: String) {
+            try {
+                val baseDirectory = File(context.filesDir, "segmented_exports")
+                val segmentDirectory = File(baseDirectory, outputPath.hashCode().toString())
+                if (segmentDirectory.exists()) {
+                    segmentDirectory.deleteRecursively()
+                    android.util.Log.d("ExportDebug", "🗑️ Cleaned up segment directory: ${segmentDirectory.absolutePath}")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("ExportDebug", "Failed to cleanup segments", e)
             }
-            projectData.segmentExportState = null
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
     }
 
@@ -351,17 +363,20 @@ class ExportManager(private val context: Context, private val projectData: Proje
         val trim = getMergedTrim()
         val baseOffsetMs = trim?.first ?: 0L
         
-        // Restore state from disk: Check which segments already exist
+        // Restore state from disk: Check which segments already exist AND are valid (size > 0)
         segments.forEach { segment ->
             val path = segmentFilePath(state, segment.index)
-            if (File(path).exists() && !state.completedSegments.contains(segment.index)) {
+            val file = File(path)
+            // Only consider segment complete if file exists AND has content (not corrupted/partial)
+            if (file.exists() && file.length() > 0 && !state.completedSegments.contains(segment.index)) {
                 state.completedSegments.add(segment.index)
             }
         }
 
+        // Remove any "completed" segments that no longer exist or are empty (corrupted)
         state.completedSegments.removeIf { index ->
-            val segmentPath = segmentFilePath(state, index)
-            !File(segmentPath).exists()
+            val segmentFile = File(segmentFilePath(state, index))
+            !segmentFile.exists() || segmentFile.length() == 0L
         }
 
         fun exportNextSegment(startIndex: Int) {
@@ -425,17 +440,19 @@ class ExportManager(private val context: Context, private val projectData: Proje
         val trim = getMergedTrim()
         val baseOffsetMs = trim?.first ?: 0L
         
-        // Restore state from disk
+        // Restore state from disk: Check which segments already exist AND are valid
         segments.forEach { segment ->
             val path = segmentFilePath(state, segment.index)
-            if (File(path).exists() && !state.completedSegments.contains(segment.index)) {
+            val file = File(path)
+            if (file.exists() && file.length() > 0 && !state.completedSegments.contains(segment.index)) {
                 state.completedSegments.add(segment.index)
             }
         }
         
+        // Remove corrupted/missing segments
         state.completedSegments.removeIf { index ->
-            val segmentPath = segmentFilePath(state, index)
-            !File(segmentPath).exists()
+            val segmentFile = File(segmentFilePath(state, index))
+            !segmentFile.exists() || segmentFile.length() == 0L
         }
         val effectArray = getEffectArray()
         effectArray.apply {

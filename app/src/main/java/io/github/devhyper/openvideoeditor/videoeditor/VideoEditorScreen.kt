@@ -1513,8 +1513,10 @@ fun ExportProgressDialog(
 }
 
 private fun startExportWork(context: Context, transformManager: TransformManager, exportSettings: ExportSettings): String? {
-    val projectDataFile = File(context.cacheDir, "project_data.tmp")
-    val settingsFile = File(context.cacheDir, "export_settings.tmp")
+    // Use unique filenames to prevent conflicts if multiple exports are triggered
+    val uniqueId = java.util.UUID.randomUUID().toString()
+    val projectDataFile = File(context.cacheDir, "project_data_$uniqueId.tmp")
+    val settingsFile = File(context.cacheDir, "export_settings_$uniqueId.tmp")
     
     try {
         ObjectOutputStream(projectDataFile.outputStream()).use { it.writeObject(transformManager.projectData) }
@@ -1530,7 +1532,13 @@ private fun startExportWork(context: Context, transformManager: TransformManager
             .addTag("video_export")
             .build()
 
-        WorkManager.getInstance(context).enqueue(request)
+        // Use enqueueUniqueWork with REPLACE to ensure only one export runs at a time
+        // If user clicks export again, the previous one is cancelled and replaced
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            "video_export_main",
+            androidx.work.ExistingWorkPolicy.REPLACE,
+            request
+        )
         return request.id.toString()
     } catch (e: Exception) {
         e.printStackTrace()
