@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.10] - 2026-01-09
+### Ajustado
+- Modelos del editor con modo BLOCKS/PRECISION y clips de precisión con placeholders.
+
 ## [1.3.9] - 2026-01-09
 ### Añadido
 - Modelos de estado del editor y bloques semánticos para timeline híbrida.
