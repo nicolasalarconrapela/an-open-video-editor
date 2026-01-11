@@ -29,7 +29,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -41,8 +43,8 @@ import kotlin.math.max
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.input.pointer.pointerInput
-import kotlin.math.abs
 import io.github.devhyper.openvideoeditor.R
+import kotlin.math.abs
 import kotlin.math.floor
 
 enum class TimelineClipType {
@@ -100,6 +102,9 @@ fun TimelineView(
         R.string.timeline_current_time,
         currentTimeMs / 1000
     )
+    val gridLineColor = MaterialTheme.colorScheme.outline
+    val gridTextColor = MaterialTheme.colorScheme.onBackground
+    val gridTextSizePx = with(density) { 12.dp.toPx() }
 
     Box(
         modifier = modifier
@@ -120,7 +125,6 @@ fun TimelineView(
                     .height(32.dp)
                     .drawBehind {
                         if (pixelsPerSecond <= 0f || totalDurationMs == 0L) return@drawBehind
-                        val layoutInfo = listState.layoutInfo
                         val firstIndex = listState.firstVisibleItemIndex.coerceAtLeast(0)
                         val timeBeforeMs = masterClips.take(firstIndex).sumOf { it.durationMs }
                         val scrollPx =
@@ -128,8 +132,8 @@ fun TimelineView(
                         val startSecond = floor(scrollPx / pixelsPerSecond).toInt().coerceAtLeast(0)
                         val secondsVisible = (size.width / pixelsPerSecond).toInt() + 2
                         val paint = android.graphics.Paint().apply {
-                            color = MaterialTheme.colorScheme.onBackground.toArgb()
-                            textSize = 24f
+                            color = gridTextColor.toArgb()
+                            textSize = gridTextSizePx
                             isAntiAlias = true
                         }
                         repeat(secondsVisible) { offset ->
@@ -137,18 +141,20 @@ fun TimelineView(
                             val x = (second * pixelsPerSecond) - scrollPx
                             if (x >= -pixelsPerSecond && x <= size.width + pixelsPerSecond) {
                                 drawLine(
-                                    color = MaterialTheme.colorScheme.outline,
+                                    color = gridLineColor,
                                     start = androidx.compose.ui.geometry.Offset(x, 0f),
                                     end = androidx.compose.ui.geometry.Offset(x, size.height),
                                     strokeWidth = 1.dp.toPx()
                                 )
                                 if (second % 2 == 0) {
-                                    drawContext.canvas.nativeCanvas.drawText(
-                                        "${second}s",
-                                        x + 4.dp.toPx(),
-                                        20.dp.toPx(),
-                                        paint
-                                    )
+                                    drawIntoCanvas { canvas ->
+                                        canvas.nativeCanvas.drawText(
+                                            "${second}s",
+                                            x + 4.dp.toPx(),
+                                            20.dp.toPx(),
+                                            paint
+                                        )
+                                    }
                                 }
                             }
                         }

@@ -906,10 +906,10 @@ private fun BottomControls(
             )
         )
     }
-    LaunchedEffect(currentTime, pixelsPerSecond, timelineTracks) {
+    LaunchedEffect(currentTime(), pixelsPerSecond, timelineTracks) {
         val masterClips = timelineTracks.firstOrNull()?.clips.orEmpty()
         if (masterClips.isEmpty()) return@LaunchedEffect
-        var remainingMs = currentTime
+        var remainingMs = currentTime()
         var targetIndex = 0
         masterClips.forEachIndexed { index, clip ->
             if (remainingMs <= clip.durationMs) {

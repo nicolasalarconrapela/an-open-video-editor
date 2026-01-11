@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.8] - 2026-01-09
+### Corregido
+- Correcciones de sincronización y regla temporal del timeline para compilar en CI.
+
 ## [1.3.7] - 2026-01-09
 ### Añadido
 - Workflow de APK debug para la rama codex/2026-01-11/17-39-50/create-timelineview-composable.
