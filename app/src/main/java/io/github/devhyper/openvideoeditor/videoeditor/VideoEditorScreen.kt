@@ -84,6 +84,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -160,6 +161,12 @@ import androidx.work.workDataOf
 import androidx.work.WorkInfo
 import java.io.File
 import java.io.ObjectOutputStream
+import androidx.compose.material.icons.filled.PhotoCamera
+import android.content.ContentValues
+import android.graphics.Bitmap
+import android.graphics.Matrix
+import android.provider.MediaStore
+import android.net.Uri
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -170,6 +177,7 @@ fun VideoEditorScreen(
     requestVideoPermission: ActivityResultLauncher<String>
 ) {
     val viewModel = viewModel { VideoEditorViewModel() }
+    val screenScope = rememberCoroutineScope()
 
     val context = LocalContext.current
 
@@ -364,13 +372,19 @@ fun VideoEditorScreen(
                 var scale by remember { mutableFloatStateOf(1f) }
                 var offset by remember { mutableStateOf(Offset.Zero) }
 
-                val androidViewModifier = Modifier
-                    .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                        translationX = offset.x
-                        translationY = offset.y
+                LaunchedEffect(scale, offset, textureView) {
+                    val view = textureView
+                    if (view != null && view.width > 0) {
+                        val matrix = Matrix()
+                        val centerX = view.width / 2f
+                        val centerY = view.height / 2f
+                        matrix.postScale(scale, scale, centerX, centerY)
+                        matrix.postTranslate(offset.x, offset.y)
+                        view.setTransform(matrix)
                     }
+                }
+
+                val androidViewModifier = Modifier
                     .pointerInput(Unit) {
                         detectTransformGestures { _, pan, zoom, _ ->
                             scale = (scale * zoom).coerceIn(1f, 10f)
@@ -455,6 +469,11 @@ fun VideoEditorScreen(
                     onPlaybackSpeedChange = { speed ->
                         playbackSpeed = speed
                         player.playbackParameters = PlaybackParameters(speed)
+                    },
+                    onCaptureClick = {
+                        screenScope.launch(Dispatchers.IO) {
+                            saveFrame(context, uri, currentTime)
+                        }
                     }
                 ) { timeMs: Float ->
                     if (filterDurationEditorEnabled) {
@@ -498,6 +517,7 @@ private fun PlayerControls(
     playbackState: () -> Int,
     playbackSpeed: () -> Float,
     onPlaybackSpeedChange: (Float) -> Unit,
+    onCaptureClick: () -> Unit,
     onSeekChanged: (timeMs: Float) -> Unit
 ) {
 
@@ -528,7 +548,8 @@ private fun PlayerControls(
                     title = title,
                     transformManager = transformManager,
                     createDocument = createDocument,
-                    createProject = createProject
+                    createProject = createProject,
+                    onCaptureClick = onCaptureClick
                 )
 
                 CenterControls(
@@ -582,7 +603,8 @@ private fun TopControls(
     title: () -> String,
     transformManager: TransformManager,
     createDocument: ActivityResultLauncher<String>,
-    createProject: ActivityResultLauncher<String>
+    createProject: ActivityResultLauncher<String>,
+    onCaptureClick: () -> Unit
 ) {
     val activity = LocalContext.current as Activity
     val viewModel = viewModel { VideoEditorViewModel() }
@@ -601,6 +623,14 @@ private fun TopControls(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = stringResource(R.string.back)
+            )
+        }
+
+        IconButton(onClick = onCaptureClick) {
+            Icon(
+                imageVector = Icons.Filled.PhotoCamera,
+                contentDescription = "Capture Frame",
+                tint = Color.White
             )
         }
 
@@ -1647,4 +1677,43 @@ fun ExportFailedAlertDialog(exceptionString: String, onDismissRequest: () -> Uni
             }
         }
     )
+}
+
+private suspend fun saveFrame(context: Context, uri: String, timeMs: Long) {
+    withContext(Dispatchers.IO) {
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(context, Uri.parse(uri))
+            val bitmap = retriever.getFrameAtTime(timeMs * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+            if (bitmap != null) {
+                val filename = "frame_${System.currentTimeMillis()}.jpg"
+                val contentValues = ContentValues().apply {
+                    put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+                    put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                    put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/OpenVideoEditor")
+                }
+                val resolver = context.contentResolver
+                val imageUri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+                if (imageUri != null) {
+                    resolver.openOutputStream(imageUri)?.use { stream ->
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, stream)
+                    }
+                    withContext(Dispatchers.Main) {
+                        android.widget.Toast.makeText(context, "Frame saved to Pictures", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } else {
+                 withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(context, "Failed to capture frame", android.widget.Toast.LENGTH_SHORT).show()
+                 }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            withContext(Dispatchers.Main) {
+                 android.widget.Toast.makeText(context, "Error: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        } finally {
+            retriever.release()
+        }
+    }
 }
