@@ -15,8 +15,6 @@ import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -293,7 +291,10 @@ fun VideoEditorScreen(
                 .fillMaxSize(),
             color = colorScheme.background
         ) {
-            Box {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+            ) {
                 DisposableEffect(key1 = Unit) {
                     val listenerHandler = Handler(getMainLooper())
                     val listener =
@@ -409,9 +410,15 @@ fun VideoEditorScreen(
                         )
                     }
 
-                Box(modifier = Modifier.windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility)) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .clipToBounds()
+                        .windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility)
+                ) {
                     AndroidView(
-                        modifier = androidViewModifier,
+                        modifier = androidViewModifier.fillMaxSize(),
                         factory = {
                             textureView = TextureView(context).apply {
                                 layoutParams =
@@ -436,68 +443,81 @@ fun VideoEditorScreen(
                             currentEditingEffect?.Editor()
                         }
                     }
+
+                    PlayerControls(
+                        modifier = Modifier
+                            .fillMaxSize(),
+                        isVisible = { controlsVisible },
+                        isPlaying = { isPlaying },
+                        title = { getFileNameFromUri(context, uri.toUri()) },
+                        transformManager = transformManager,
+                        createDocument = createDocument,
+                        createProject = createProject,
+                        playbackState = { playbackState },
+                        onReplayClick = { player.seekBack() },
+                        onForwardClick = { player.seekForward() },
+                        onPauseToggle = {
+                            when {
+                                player.isPlaying -> {
+                                    player.pause()
+                                }
+
+                                player.isPlaying.not() &&
+                                        playbackState == Player.STATE_ENDED -> {
+                                    player.seekTo(0)
+                                    player.playWhenReady = true
+                                }
+
+                                else -> {
+                                    player.play()
+                                }
+                            }
+                            isPlaying = isPlaying.not()
+                        },
+                        playbackSpeed = { playbackSpeed },
+                        onPlaybackSpeedChange = { speed ->
+                            playbackSpeed = speed
+                            player.playbackParameters = PlaybackParameters(speed)
+                        },
+                        onCaptureClick = {
+                            screenScope.launch(Dispatchers.IO) {
+                                saveFrame(context, uri, currentTime)
+                            }
+                        }
+                    )
                 }
 
-                PlayerControls(
+                Box(
                     modifier = Modifier
-                        .fillMaxSize(),
-                    isVisible = { controlsVisible },
-                    isPlaying = { isPlaying },
-                    title = { getFileNameFromUri(context, uri.toUri()) },
-                    transformManager = transformManager,
-                    createDocument = createDocument,
-                    createProject = createProject,
-                    playbackState = { playbackState },
-                    onReplayClick = { player.seekBack() },
-                    onForwardClick = { player.seekForward() },
-                    onPauseToggle = {
-                        when {
-                            player.isPlaying -> {
-                                player.pause()
+                        .fillMaxWidth()
+                        .height(320.dp)
+                        .windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility)
+                ) {
+                    BottomControls(
+                        modifier = Modifier.fillMaxWidth(),
+                        fpm = { fpm },
+                        totalDuration = { totalDuration },
+                        totalDurationFrames = { totalDurationFrames },
+                        currentTime = { currentTime },
+                        currentTimeFrames = { currentTimeFrames },
+                        onSeekChanged = { timeMs ->
+                            if (filterDurationEditorEnabled) {
+                                var range: ClosedFloatingPointRange<Float>? = null
+                                if (startFilterSelected && timeMs < filterDurationEditorSliderPosition.endInclusive) {
+                                    range = timeMs..filterDurationEditorSliderPosition.endInclusive
+                                } else if (!startFilterSelected && timeMs > filterDurationEditorSliderPosition.start) {
+                                    range = filterDurationEditorSliderPosition.start..timeMs
+                                }
+                                if (range != null) {
+                                    viewModel.setFilterDurationEditorSliderPosition(range)
+                                    player.seekTo(timeMs.toLong())
+                                }
+                            } else {
+                                player.seekTo(timeMs.toLong())
                             }
-
-                            player.isPlaying.not() &&
-                                    playbackState == Player.STATE_ENDED -> {
-                                player.seekTo(0)
-                                player.playWhenReady = true
-                            }
-
-                            else -> {
-                                player.play()
-                            }
-                        }
-                        isPlaying = isPlaying.not()
-                    },
-                    fpm = { fpm },
-                    totalDuration = { totalDuration },
-                    totalDurationFrames = { totalDurationFrames },
-                    currentTime = { currentTime },
-                    currentTimeFrames = { currentTimeFrames },
-                    playbackSpeed = { playbackSpeed },
-                    onPlaybackSpeedChange = { speed ->
-                        playbackSpeed = speed
-                        player.playbackParameters = PlaybackParameters(speed)
-                    },
-                    onCaptureClick = {
-                        screenScope.launch(Dispatchers.IO) {
-                            saveFrame(context, uri, currentTime)
-                        }
-                    }
-                ) { timeMs: Float ->
-                    if (filterDurationEditorEnabled) {
-                        var range: ClosedFloatingPointRange<Float>? = null
-                        if (startFilterSelected && timeMs < filterDurationEditorSliderPosition.endInclusive) {
-                            range = timeMs..filterDurationEditorSliderPosition.endInclusive
-                        } else if (!startFilterSelected && timeMs > filterDurationEditorSliderPosition.start) {
-                            range = filterDurationEditorSliderPosition.start..timeMs
-                        }
-                        if (range != null) {
-                            viewModel.setFilterDurationEditorSliderPosition(range)
-                            player.seekTo(timeMs.toLong())
-                        }
-                    } else {
-                        player.seekTo(timeMs.toLong())
-                    }
+                        },
+                        transformManager = transformManager
+                    )
                 }
             }
         }
@@ -517,16 +537,10 @@ private fun PlayerControls(
     onReplayClick: () -> Unit,
     onForwardClick: () -> Unit,
     onPauseToggle: () -> Unit,
-    fpm: () -> Float,
-    totalDuration: () -> Long,
-    totalDurationFrames: () -> Long,
-    currentTime: () -> Long,
-    currentTimeFrames: () -> Long,
     playbackState: () -> Int,
     playbackSpeed: () -> Float,
     onPlaybackSpeedChange: (Float) -> Unit,
-    onCaptureClick: () -> Unit,
-    onSeekChanged: (timeMs: Float) -> Unit
+    onCaptureClick: () -> Unit
 ) {
 
     val visible = remember(isVisible()) { isVisible() }
@@ -571,34 +585,6 @@ private fun PlayerControls(
                     playbackState = playbackState,
                     playbackSpeed = playbackSpeed,
                     onPlaybackSpeedChange = onPlaybackSpeedChange
-                )
-
-                BottomControls(
-                    modifier =
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .animateEnterExit(
-                            enter =
-                            slideInVertically(
-                                initialOffsetY = { fullHeight: Int ->
-                                    fullHeight
-                                }
-                            ),
-                            exit =
-                            slideOutVertically(
-                                targetOffsetY = { fullHeight: Int ->
-                                    fullHeight
-                                }
-                            )
-                        ),
-                    fpm = fpm,
-                    totalDuration = totalDuration,
-                    totalDurationFrames = totalDurationFrames,
-                    currentTime = currentTime,
-                    currentTimeFrames = currentTimeFrames,
-                    onSeekChanged = onSeekChanged,
-                    transformManager = transformManager
                 )
             }
         }

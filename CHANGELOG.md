@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.14] - 2026-01-09
+### Ajustado
+- Separación de PreviewArea y TimelineArea con insets y clipToBounds.
+
 ## [1.3.13] - 2026-01-09
 ### Ajustado
 - Limpieza de estado duplicado en VideoEditorScreen.
