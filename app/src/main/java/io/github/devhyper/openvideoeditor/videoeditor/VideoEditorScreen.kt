@@ -1319,7 +1319,12 @@ private fun ExportDialog(
             onDismissRequest = onDismissRequest,
             onAcceptRequest = {
                 val dotIndex: Int = title.lastIndexOf('.')
-                val fileName: String = title.substring(0, dotIndex)
+                // Use original filename with .mp4 extension
+                val fileName: String = if (dotIndex > 0) {
+                    title.substring(0, dotIndex) + ".mp4"
+                } else {
+                    title + ".mp4"
+                }
                 createDocument.launch(fileName)
             },
         ) {

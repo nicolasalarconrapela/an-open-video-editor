@@ -315,11 +315,17 @@ class ExportManager(private val context: Context, private val projectData: Proje
         val outputSafPath =
             FFmpegKitConfig.getSafParameterForWrite(context, state.outputPath.toUri())
         
+        // Set progress to 95% at start of concat phase
+        currentProgress = 0.95f
+        android.util.Log.d("ExportDebug", "🔗 Starting concat phase (95% -> 100%)")
+        
+        // Estimate total duration for concat progress
+        val totalDurationMs = state.totalDurationMs
+        
         FFmpegKitConfig.enableStatisticsCallback { stats ->
-            // Concat is fast, but we can try to estimate if we knew total size or duration.
-            // For now, let's just leave it near 100% or indeterminate?
-            // Actually, concat is the final step. We can map it from 95% to 100%?
-            // Or just leave it. The loop handles segments progress.
+            // Map concat progress from 95% to 100%
+            val concatProgress = (stats.time / totalDurationMs.toDouble()).coerceIn(0.0, 1.0)
+            currentProgress = (0.95 + (concatProgress * 0.05)).toFloat()
         }
             
         FFmpegKit.executeAsync(
@@ -397,8 +403,8 @@ class ExportManager(private val context: Context, private val projectData: Proje
             val segmentStartMs = baseOffsetMs + nextSegment.startMs
             // We can track progress based on completed segments + current segment progress
             val totalSegments = segments.count { it.durationMs > 0 }
-            // simple progress:
-            // currentProgress = (completedSegments / total) + (currentSegmentProgress / total)
+            // Reserve 5% of progress for the concat phase (segments = 0-95%, concat = 95-100%)
+            val segmentPhaseWeight = 0.95
             
             
             FFmpegKitConfig.enableStatisticsCallback { stats ->
@@ -414,8 +420,9 @@ class ExportManager(private val context: Context, private val projectData: Proje
                 val segmentProgress = (timeInSegment / segmentDuration.toDouble()).coerceIn(0.0, 1.0)
                 
                 val completedCount = state.completedSegments.size
-                val totalProgress = (completedCount + segmentProgress) / totalSegments.toDouble()
-                currentProgress = totalProgress.toFloat()
+                // Progress within segment phase (0 to 0.95)
+                val segmentsProgress = (completedCount + segmentProgress) / totalSegments.toDouble()
+                currentProgress = (segmentsProgress * segmentPhaseWeight).toFloat()
             }
 
             FFmpegKit.executeAsync(
