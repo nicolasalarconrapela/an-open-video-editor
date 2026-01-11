@@ -173,6 +173,7 @@ import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.provider.MediaStore
 import android.net.Uri
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -905,6 +906,21 @@ private fun BottomControls(
             )
         )
     }
+    LaunchedEffect(currentTime, pixelsPerSecond, timelineTracks) {
+        val masterClips = timelineTracks.firstOrNull()?.clips.orEmpty()
+        if (masterClips.isEmpty()) return@LaunchedEffect
+        var remainingMs = currentTime
+        var targetIndex = 0
+        masterClips.forEachIndexed { index, clip ->
+            if (remainingMs <= clip.durationMs) {
+                targetIndex = index
+                return@forEachIndexed
+            }
+            remainingMs -= clip.durationMs
+        }
+        val offsetPx = ((remainingMs / 1000f) * pixelsPerSecond).roundToInt()
+        timelineListState.scrollToItem(targetIndex.coerceIn(0, masterClips.lastIndex), offsetPx)
+    }
 
     Column(
         modifier = modifier
@@ -933,6 +949,9 @@ private fun BottomControls(
             tracks = timelineTracks,
             pixelsPerSecond = pixelsPerSecond,
             listState = timelineListState,
+            onZoomChange = { zoomDelta ->
+                pixelsPerSecond = (pixelsPerSecond * zoomDelta).coerceIn(20f, 200f)
+            },
             onClipSelected = { _, clip ->
                 timelineTracks.forEachIndexed { trackIndex, track ->
                     val updatedClips = track.clips.map { item ->

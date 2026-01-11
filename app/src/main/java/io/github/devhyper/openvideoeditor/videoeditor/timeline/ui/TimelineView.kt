@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlin.math.max
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlin.math.abs
 import io.github.devhyper.openvideoeditor.R
@@ -71,7 +72,8 @@ fun TimelineView(
     listState: LazyListState,
     modifier: Modifier = Modifier,
     onClipSelected: (trackId: String, clip: TimelineUiClip) -> Unit = { _, _ -> },
-    onClipMoved: (trackId: String, fromId: String, toIndex: Int) -> Unit = { _, _, _ -> }
+    onClipMoved: (trackId: String, fromId: String, toIndex: Int) -> Unit = { _, _, _ -> },
+    onZoomChange: (zoomDelta: Float) -> Unit = {}
 ) {
     val density = LocalDensity.current
     val clipMinWidthDp = 48.dp
@@ -103,6 +105,13 @@ fun TimelineView(
         modifier = modifier
             .fillMaxWidth()
             .clipToBounds()
+            .pointerInput(Unit) {
+                detectTransformGestures { _, _, zoom, _ ->
+                    if (zoom != 1f) {
+                        onZoomChange(zoom)
+                    }
+                }
+            }
     ) {
         Column {
             Box(

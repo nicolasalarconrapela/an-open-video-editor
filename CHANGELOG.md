@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.6] - 2026-01-09
+### Añadido
+- Sincronización del scroll del timeline con la reproducción y zoom por gesto.
+
 ## [1.3.5] - 2026-01-09
 ### Añadido
 - Tracks múltiples con regla temporal y colores por tipo de clip en el timeline.
