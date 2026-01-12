@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.34] - 2026-01-09
+### Corregido
+- Import de LaunchedEffect para la integración de miniaturas en TimelineView.
+
 ## [1.3.33] - 2026-01-09
 ### Añadido
 - Workflow de APK debug para la rama de sistema de miniaturas de línea de tiempo.
