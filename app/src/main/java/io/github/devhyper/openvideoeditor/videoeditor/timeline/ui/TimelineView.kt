@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -82,6 +83,91 @@ data class TimelineUiTrack(
     val label: String,
     val clips: List<TimelineUiClip>
 )
+
+// Filmstrip architecture data structures
+data class FilmstripCell(
+    val clipId: String,
+    val timeMs: Long,
+    val thumbnailKey: ThumbnailKey
+)
+
+data class ClipBoundary(
+    val clipId: String,
+    val startMs: Long,
+    val endMs: Long,
+    val clip: TimelineUiClip
+)
+
+// Helper functions for filmstrip rendering
+private fun buildClipBoundaries(
+    clips: List<TimelineUiClip>,
+    clipStartTimes: Map<String, Long>
+): List<ClipBoundary> {
+    return clips.map { clip ->
+        val startMs = clipStartTimes[clip.id] ?: 0L
+        ClipBoundary(
+            clipId = clip.id,
+            startMs = startMs,
+            endMs = startMs + clip.durationMs,
+            clip = clip
+        )
+    }
+}
+
+private fun buildFilmstripCells(
+    clips: List<TimelineUiClip>,
+    clipStartTimes: Map<String, Long>,
+    viewportRangeMs: LongRange,
+    thumbnailIntervalMs: Long,
+    thumbnailKeyProvider: (Long, TimelineUiClip, Int) -> ThumbnailKey,
+    zoomBucket: Int
+): List<FilmstripCell> {
+    val cells = mutableListOf<FilmstripCell>()
+    
+    clips.forEach { clip ->
+        val clipStartMs = clipStartTimes[clip.id] ?: 0L
+        val clipEndMs = clipStartMs + clip.durationMs
+        
+        // Only generate cells for clips that overlap with viewport
+        if (clipEndMs > viewportRangeMs.first && clipStartMs < viewportRangeMs.last) {
+            val visibleStart = max(clipStartMs, viewportRangeMs.first)
+            val visibleEnd = min(clipEndMs, viewportRangeMs.last)
+            
+            var timeMs = visibleStart
+            while (timeMs <= visibleEnd) {
+                val key = thumbnailKeyProvider(timeMs * 1000, clip, zoomBucket)
+                cells.add(
+                    FilmstripCell(
+                        clipId = clip.id,
+                        timeMs = timeMs,
+                        thumbnailKey = key
+                    )
+                )
+                timeMs += thumbnailIntervalMs
+            }
+        }
+    }
+    
+    return cells.sortedBy { it.timeMs }
+}
+
+private fun findClipAtTime(
+    boundaries: List<ClipBoundary>,
+    timeMs: Long
+): TimelineUiClip? {
+    return boundaries.firstOrNull { boundary ->
+        timeMs >= boundary.startMs && timeMs < boundary.endMs
+    }?.clip
+}
+
+private fun isClipBoundary(
+    cell: FilmstripCell,
+    boundaries: List<ClipBoundary>,
+    nextCell: FilmstripCell?
+): Boolean {
+    if (nextCell == null) return false
+    return cell.clipId != nextCell.clipId
+}
 
 @Composable
 fun TimelineView(
@@ -204,205 +290,102 @@ fun TimelineView(
                 }
             }
     ) {
-        Column {
-
-
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(tracks, key = { it.id }) { track ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(80.dp)
-                            .padding(horizontal = 16.dp)
-                            .background(
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                shape = RoundedCornerShape(8.dp)
-                            )
+        // Single continuous track design
+        val videoTrack = tracks.firstOrNull() ?: return
+        
+        // Build clip boundaries for selection detection
+        val clipBoundaries = remember(videoTrack.clips, clipStartTimes) {
+            buildClipBoundaries(videoTrack.clips, clipStartTimes)
+        }
+        
+        // Build filmstrip cells (only visible ones)
+        val filmstripCells = remember(
+            videoTrack.clips,
+            clipStartTimes,
+            viewportRangeMs,
+            thumbnailIntervalMs,
+            zoomBucket
+        ) {
+            if (thumbnailKeyProvider != null) {
+                buildFilmstripCells(
+                    videoTrack.clips,
+                    clipStartTimes,
+                    viewportRangeMs,
+                    thumbnailIntervalMs,
+                    thumbnailKeyProvider,
+                    zoomBucket
+                )
+            } else {
+                emptyList()
+            }
+        }
+        
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Single continuous card with filmstrip
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.7f)
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .clip(RoundedCornerShape(8.dp))
+                        .padding(1.dp)
+                ) {
+                    LazyRow(
+                        modifier = Modifier.fillMaxSize(),
+                        state = listState,
+                        horizontalArrangement = Arrangement.spacedBy(0.dp)
                     ) {
-                        LazyRow(
-                            modifier = Modifier.fillMaxSize(),
-                            state = listState,
-                            horizontalArrangement = Arrangement.spacedBy(0.dp)
-                        ) {
-                            items(track.clips, key = { it.id }) { clip ->
-                                val widthPx = (clip.durationMs / 1000f) * pixelsPerSecond
-                                val widthDp = with(density) { widthPx.toDp() }
-                                val clipWidth = max(widthDp.value, clipMinWidthDp.value).dp
-                                val isSelected = clip.isSelected
-                                val isDragging = draggingClipId == clip.id
-                                val (containerColor, contentColor) = when (clip.type) {
-                                    TimelineClipType.Video -> {
-                                        MaterialTheme.colorScheme.primaryContainer to
-                                                MaterialTheme.colorScheme.onPrimaryContainer
-                                    }
-
-                                    TimelineClipType.Audio -> {
-                                        MaterialTheme.colorScheme.secondaryContainer to
-                                                MaterialTheme.colorScheme.onSecondaryContainer
-                                    }
-
-                                    TimelineClipType.Overlay -> {
-                                        MaterialTheme.colorScheme.tertiaryContainer to
-                                                MaterialTheme.colorScheme.onTertiaryContainer
-                                    }
-                                }
-                                if (isSelected) {
-                                    MaterialTheme.colorScheme.inversePrimary
-                                } else {
-                                    containerColor
-                                }
-                                val clipContent = if (isSelected) {
-                                    MaterialTheme.colorScheme.onPrimary
-                                } else {
-                                    contentColor
-                                }
-                                val clipContentDescription = stringResource(
-                                    R.string.timeline_clip_item,
-                                    clip.label
-                                )
+                        itemsIndexed(
+                            filmstripCells,
+                            key = { _, cell -> "${cell.clipId}_${cell.timeMs}" }
+                        ) { index, cell ->
+                            // Render thumbnail cell
+                            val bitmap = thumbnailState[cell.thumbnailKey.keyString()]
+                            val nextCell = filmstripCells.getOrNull(index + 1)
+                            val boundary = isClipBoundary(cell, clipBoundaries, nextCell)
+                            
+                            Row(
+                                modifier = Modifier.fillMaxHeight(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Box(
                                     modifier = Modifier
-                                        .width(clipWidth)
-                                        .height(clipHeight)
-                                        .graphicsLayer {
-                                            translationX = if (isDragging) dragOffsetPx else 0f
-                                        }
-                                        .pointerInput(track.id, clip.id, listState.layoutInfo) {
-                                            detectDragGestures(
-                                                onDragStart = {
-                                                    draggingClipId = clip.id
-                                                    dragOffsetPx = 0f
-                                                },
-                                                onDragEnd = {
-                                                    val layoutInfo = listState.layoutInfo
-                                                    val currentIndex =
-                                                        track.clips.indexOfFirst { it.id == clip.id }
-                                                    val itemInfo =
-                                                        layoutInfo.visibleItemsInfo.firstOrNull { info ->
-                                                            info.index == currentIndex
-                                                        }
-                                                    if (itemInfo != null) {
-                                                        val dragCenter =
-                                                            itemInfo.offset + (itemInfo.size / 2) + dragOffsetPx
-                                                        val targetInfo =
-                                                            layoutInfo.visibleItemsInfo.minByOrNull { info ->
-                                                                abs((info.offset + (info.size / 2)) - dragCenter)
-                                                            }
-                                                        if (targetInfo != null && targetInfo.index != currentIndex) {
-                                                            onClipMoved(
-                                                                track.id,
-                                                                clip.id,
-                                                                targetInfo.index
-                                                            )
-                                                        }
-                                                    }
-                                                    draggingClipId = null
-                                                    dragOffsetPx = 0f
-                                                },
-                                                onDragCancel = {
-                                                    draggingClipId = null
-                                                    dragOffsetPx = 0f
-                                                },
-                                                onDrag = { change, dragAmount ->
-                                                    change.consume()
-                                                    dragOffsetPx += dragAmount.x
-                                                }
-                                            )
-                                        }
-                                        .clickable { onClipSelected(track.id, clip) }
-                                        .padding(horizontal = 4.dp)
-                                        .semantics {
-                                            contentDescription = clipContentDescription
+                                        .size(thumbnailWidth, thumbnailHeight)
+                                        .clickable {
+                                            val clip = findClipAtTime(clipBoundaries, cell.timeMs)
+                                            clip?.let { onClipSelected(videoTrack.id, it) }
                                         },
-                                    contentAlignment = Alignment.CenterStart
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    if (thumbnailRepository != null && thumbnailKeyProvider != null && clip.type == TimelineClipType.Video) {
-                                        val clipStartMs = clipStartTimes[clip.id] ?: 0L
-                                        val clipEndMs = clipStartMs + clip.durationMs
-                                        val visibleStart = max(clipStartMs, viewportRangeMs.first)
-                                        val visibleEnd = min(clipEndMs, viewportRangeMs.last)
-                                        val times = remember(
-                                            clipStartMs,
-                                            clip.durationMs,
-                                            viewportRangeMs,
-                                            thumbnailIntervalMs
-                                        ) {
-                                            buildList {
-                                                if (visibleEnd <= visibleStart) return@buildList
-                                                var timeMs = visibleStart
-                                                while (timeMs <= visibleEnd) {
-                                                    add(timeMs)
-                                                    timeMs += thumbnailIntervalMs
-                                                }
-                                            }
-                                        }
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            times.forEach { timeMs ->
-                                                val key = thumbnailKeyProvider(
-                                                    timeMs * 1000,
-                                                    clip,
-                                                    zoomBucket
-                                                )
-                                                val bitmap = thumbnailState[key.keyString()]
-                                                if (bitmap != null) {
-                                                    androidx.compose.foundation.Image(
-                                                        bitmap = bitmap.asImageBitmap(),
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(
-                                                            thumbnailWidth,
-                                                            thumbnailHeight
-                                                        )
-                                                    )
-                                                } else {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .size(thumbnailWidth, thumbnailHeight)
-                                                            .background(Color.Black.copy(alpha = 0.15f))
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        if (clip.type == TimelineClipType.Overlay) {
-                                            Icon(
-                                                imageVector = Icons.Filled.TextFields,
-                                                contentDescription = null,
-                                                tint = clipContent,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        } else if (clip.type == TimelineClipType.Audio) {
-                                            Icon(
-                                                imageVector = Icons.Filled.LibraryMusic,
-                                                contentDescription = null,
-                                                tint = clipContent,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
-
-                                        Text(
-                                            text = clip.label,
-                                            color = clipContent,
-                                            style = MaterialTheme.typography.labelLarge,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-
+                                    if (bitmap != null) {
+                                        androidx.compose.foundation.Image(
+                                            bitmap = bitmap.asImageBitmap(),
+                                            contentDescription = null,
+                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    } else {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(Color.Black.copy(alpha = 0.1f))
                                         )
                                     }
+                                }
+                                
+                                // Optional separator at clip boundary
+                                if (boundary) {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(1.dp)
+                                            .fillMaxHeight()
+                                            .background(Color.White.copy(alpha = 0.3f))
+                                    )
                                 }
                             }
                         }
@@ -410,30 +393,30 @@ fun TimelineView(
                 }
             }
 
-            Box(modifier = Modifier.fillMaxSize()) {
-
+            // Playhead overlay (centered vertical line + circle)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .fillMaxHeight(),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                // Vertical line
                 Box(
                     modifier = Modifier
-                        .align(Alignment.Center)   // ✅ aquí SÍ hay BoxScope
-                        .fillMaxHeight(),
-                    contentAlignment = Alignment.TopCenter
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .width(2.dp)
-                            .background(Color.White)
-                    )
+                        .fillMaxHeight()
+                        .width(2.dp)
+                        .background(Color.White)
+                )
 
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .size(12.dp)
-                            .offset(y = (-6).dp)
-                            .clip(CircleShape)
-                            .background(Color.White)
-                    )
-                }
+                // Circle handle at top
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .size(12.dp)
+                        .offset(y = 10.dp)
+                        .clip(CircleShape)
+                        .background(Color.White)
+                )
             }
         }
     }
