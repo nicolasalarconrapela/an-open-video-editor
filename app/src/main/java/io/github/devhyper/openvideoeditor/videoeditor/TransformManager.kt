@@ -62,7 +62,7 @@ class EffectDialogSetting(
     var selection = ""
 }
 
-class ExportSettings : java.io.Serializable {
+class ExportSettings {
     var exportAudio = true
     var exportVideo = true
     var hdrMode: Int = HDR_MODE_KEEP_HDR
@@ -285,7 +285,7 @@ class TransformManager {
     ) {
         if (hasInitialized) {
             if (exoPlayer != player) {
-                if (player.isCommandAvailable(Player.COMMAND_RELEASE)) {
+                if (player.availableCommands.contains(Player.COMMAND_RELEASE)) {
                     player.release()
                 }
                 player = exoPlayer
@@ -592,15 +592,18 @@ class TransformManager {
         return fileSize
     }
 
-    private fun shouldUseSegmentedExport(context: Context, exportSettings: ExportSettings): Boolean {
+    private fun shouldUseSegmentedExport(
+        context: Context,
+        exportSettings: ExportSettings
+    ): Boolean {
         val durationMs = getExportDurationMs(context)
         val fileSize = getExportFileSize(context) ?: 0L
         val durationThresholdReached =
             exportSettings.segmentedExportMinDurationMs > 0 &&
-                durationMs >= exportSettings.segmentedExportMinDurationMs
+                    durationMs >= exportSettings.segmentedExportMinDurationMs
         val sizeThresholdReached =
             exportSettings.segmentedExportMinSizeBytes > 0 &&
-                fileSize >= exportSettings.segmentedExportMinSizeBytes
+                    fileSize >= exportSettings.segmentedExportMinSizeBytes
         return durationThresholdReached || sizeThresholdReached
     }
 
@@ -659,7 +662,7 @@ class TransformManager {
         listFile.bufferedWriter().use { writer ->
             segments.forEach { segment ->
                 val segmentPath = segmentFilePath(state, segment.index)
-                writer.appendLine("file '${segmentPath.replace("'", "\\'")}'")
+                writer.appendLine("file '''${segmentPath.replace("'", "\\'")}'''")
             }
         }
         val outputSafPath =
@@ -701,7 +704,8 @@ class TransformManager {
 
         fun exportNextSegment(startIndex: Int) {
             val nextSegment =
-                segments.drop(startIndex).firstOrNull { !state.completedSegments.contains(it.index) }
+                segments.drop(startIndex)
+                    .firstOrNull { !state.completedSegments.contains(it.index) }
             if (nextSegment == null) {
                 runConcat(context, state, segments, onFFmpegError)
                 return
@@ -752,7 +756,8 @@ class TransformManager {
 
         fun exportNextSegment(startIndex: Int) {
             val nextSegment =
-                segments.drop(startIndex).firstOrNull { !state.completedSegments.contains(it.index) }
+                segments.drop(startIndex)
+                    .firstOrNull { !state.completedSegments.contains(it.index) }
             if (nextSegment == null) {
                 runConcat(context, state, segments, onFFmpegError)
                 return
@@ -761,7 +766,8 @@ class TransformManager {
             val endMs = startMs + nextSegment.durationMs
             val clipConfig = ClippingConfiguration.Builder().setStartPositionMs(startMs)
                 .setEndPositionMs(endMs).build()
-            val segmentMedia = originalMedia.buildUpon().setClippingConfiguration(clipConfig).build()
+            val segmentMedia =
+                originalMedia.buildUpon().setClippingConfiguration(clipConfig).build()
             val editedMediaItem = EditedMediaItem.Builder(segmentMedia)
                 .setEffects(Effects(projectData.audioProcessors, effectArray))
                 .setRemoveAudio(!exportSettings.exportAudio)

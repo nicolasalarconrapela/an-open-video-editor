@@ -3,10 +3,10 @@ package io.github.devhyper.openvideoeditor.videoeditor
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.Player
+import io.github.devhyper.openvideoeditor.misc.REFRESH_RATE
 import io.github.devhyper.openvideoeditor.videoeditor.state.EditorMode
 import io.github.devhyper.openvideoeditor.videoeditor.state.EditorState
 import io.github.devhyper.openvideoeditor.videoeditor.state.TimelineBlock
-import io.github.devhyper.openvideoeditor.misc.REFRESH_RATE
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.Job
@@ -86,6 +86,7 @@ class VideoEditorViewModel : ViewModel() {
                     val next = (current.zoomLevel * event.delta).coerceIn(0.5f, 4f)
                     current.copy(zoomLevel = next)
                 }
+
                 is EditorEvent.Trim -> trimSelectedBlock(current, event.inMs, event.outMs)
                 is EditorEvent.Split -> splitSelectedBlock(current, event.atMs)
                 is EditorEvent.MoveBlock -> moveBlock(current, event.from, event.to)

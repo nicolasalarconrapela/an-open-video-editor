@@ -57,68 +57,60 @@ import java.util.Map;
             getSupportedVideoSampleMimeTypes();
     private static final ImmutableList<String> SUPPORTED_AUDIO_SAMPLE_MIME_TYPES =
             ImmutableList.of(MimeTypes.AUDIO_AAC, MimeTypes.AUDIO_AMR_NB, MimeTypes.AUDIO_AMR_WB);
-
-    /**
-     * {@link Muxer.Factory} for {@link CustomFrameworkMuxer}.
-     */
-    public static final class Factory implements Muxer.Factory {
-        private final long videoDurationMs;
-        FileDescriptor fd;
-
-        public Factory(long videoDurationMs) {
-            this.videoDurationMs = videoDurationMs;
-        }
-
-        public Factory(FileDescriptor fd, long videoDurationMs) {
-            this.videoDurationMs = videoDurationMs;
-            this.fd = fd;
-        }
-
-        @Override
-        public CustomFrameworkMuxer create(String path) throws MuxerException {
-            MediaMuxer mediaMuxer;
-            try {
-                if (path.isEmpty()) {
-                    mediaMuxer = new MediaMuxer(fd, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
-                    android.system.Os.close(fd);
-                } else {
-                    mediaMuxer = new MediaMuxer(path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
-                }
-            } catch (IOException e) {
-                throw new MuxerException("Error creating muxer", e);
-            } catch (ErrnoException e) {
-                throw new RuntimeException(e);
-            }
-            return new CustomFrameworkMuxer(mediaMuxer, videoDurationMs);
-        }
-
-        @Override
-        public ImmutableList<String> getSupportedSampleMimeTypes(@C.TrackType int trackType) {
-            if (trackType == C.TRACK_TYPE_VIDEO) {
-                return SUPPORTED_VIDEO_SAMPLE_MIME_TYPES;
-            } else if (trackType == C.TRACK_TYPE_AUDIO) {
-                return SUPPORTED_AUDIO_SAMPLE_MIME_TYPES;
-            }
-            return ImmutableList.of();
-        }
-    }
-
     private final MediaMuxer mediaMuxer;
     private final long videoDurationUs;
     private final Map<TrackToken, Long> trackTokenToLastPresentationTimeUs;
     private final Map<TrackToken, Long> trackTokenToPresentationTimeOffsetUs;
-
     @Nullable
     private TrackToken videoTrackToken;
-
     private boolean isStarted;
     private boolean isReleased;
-
     private CustomFrameworkMuxer(MediaMuxer mediaMuxer, long videoDurationMs) {
         this.mediaMuxer = mediaMuxer;
         this.videoDurationUs = Util.msToUs(videoDurationMs);
         trackTokenToLastPresentationTimeUs = new HashMap<>();
         trackTokenToPresentationTimeOffsetUs = new HashMap<>();
+    }
+
+    // Accesses MediaMuxer state via reflection to ensure that muxer resources can be released even
+    // if stopping fails.
+    @SuppressLint("PrivateApi")
+    private static void stopMuxer(MediaMuxer mediaMuxer) {
+        try {
+            mediaMuxer.stop();
+        } catch (RuntimeException e) {
+            if (SDK_INT < 30) {
+                // Set the muxer state to stopped even if mediaMuxer.stop() failed so that
+                // mediaMuxer.release() doesn't attempt to stop the muxer and therefore doesn't throw the
+                // same exception without releasing its resources. This is already implemented in MediaMuxer
+                // from API level 30. See also b/80338884.
+                try {
+                    Field muxerStoppedStateField = MediaMuxer.class.getDeclaredField("MUXER_STATE_STOPPED");
+                    muxerStoppedStateField.setAccessible(true);
+                    int muxerStoppedState = castNonNull((Integer) muxerStoppedStateField.get(mediaMuxer));
+                    Field muxerStateField = MediaMuxer.class.getDeclaredField("mState");
+                    muxerStateField.setAccessible(true);
+                    muxerStateField.set(mediaMuxer, muxerStoppedState);
+                } catch (Exception reflectionException) {
+                    // Do nothing.
+                }
+            }
+            // Rethrow the original error.
+            throw e;
+        }
+    }
+
+    private static ImmutableList<String> getSupportedVideoSampleMimeTypes() {
+        ImmutableList.Builder<String> supportedMimeTypes =
+                new ImmutableList.Builder<String>()
+                        .add(MimeTypes.VIDEO_H264, MimeTypes.VIDEO_H263, MimeTypes.VIDEO_MP4V);
+        if (SDK_INT >= 24) {
+            supportedMimeTypes.add(MimeTypes.VIDEO_H265);
+        }
+        if (SDK_INT >= 34) {
+            supportedMimeTypes.add(MimeTypes.VIDEO_AV1);
+        }
+        return supportedMimeTypes.build();
     }
 
     @Override
@@ -264,45 +256,49 @@ import java.util.Map;
         isStarted = true;
     }
 
-    // Accesses MediaMuxer state via reflection to ensure that muxer resources can be released even
-    // if stopping fails.
-    @SuppressLint("PrivateApi")
-    private static void stopMuxer(MediaMuxer mediaMuxer) {
-        try {
-            mediaMuxer.stop();
-        } catch (RuntimeException e) {
-            if (SDK_INT < 30) {
-                // Set the muxer state to stopped even if mediaMuxer.stop() failed so that
-                // mediaMuxer.release() doesn't attempt to stop the muxer and therefore doesn't throw the
-                // same exception without releasing its resources. This is already implemented in MediaMuxer
-                // from API level 30. See also b/80338884.
-                try {
-                    Field muxerStoppedStateField = MediaMuxer.class.getDeclaredField("MUXER_STATE_STOPPED");
-                    muxerStoppedStateField.setAccessible(true);
-                    int muxerStoppedState = castNonNull((Integer) muxerStoppedStateField.get(mediaMuxer));
-                    Field muxerStateField = MediaMuxer.class.getDeclaredField("mState");
-                    muxerStateField.setAccessible(true);
-                    muxerStateField.set(mediaMuxer, muxerStoppedState);
-                } catch (Exception reflectionException) {
-                    // Do nothing.
-                }
-            }
-            // Rethrow the original error.
-            throw e;
-        }
-    }
+    /**
+     * {@link Muxer.Factory} for {@link CustomFrameworkMuxer}.
+     */
+    public static final class Factory implements Muxer.Factory {
+        private final long videoDurationMs;
+        FileDescriptor fd;
 
-    private static ImmutableList<String> getSupportedVideoSampleMimeTypes() {
-        ImmutableList.Builder<String> supportedMimeTypes =
-                new ImmutableList.Builder<String>()
-                        .add(MimeTypes.VIDEO_H264, MimeTypes.VIDEO_H263, MimeTypes.VIDEO_MP4V);
-        if (SDK_INT >= 24) {
-            supportedMimeTypes.add(MimeTypes.VIDEO_H265);
+        public Factory(long videoDurationMs) {
+            this.videoDurationMs = videoDurationMs;
         }
-        if (SDK_INT >= 34) {
-            supportedMimeTypes.add(MimeTypes.VIDEO_AV1);
+
+        public Factory(FileDescriptor fd, long videoDurationMs) {
+            this.videoDurationMs = videoDurationMs;
+            this.fd = fd;
         }
-        return supportedMimeTypes.build();
+
+        @Override
+        public CustomFrameworkMuxer create(String path) throws MuxerException {
+            MediaMuxer mediaMuxer;
+            try {
+                if (path.isEmpty()) {
+                    mediaMuxer = new MediaMuxer(fd, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
+                    android.system.Os.close(fd);
+                } else {
+                    mediaMuxer = new MediaMuxer(path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
+                }
+            } catch (IOException e) {
+                throw new MuxerException("Error creating muxer", e);
+            } catch (ErrnoException e) {
+                throw new RuntimeException(e);
+            }
+            return new CustomFrameworkMuxer(mediaMuxer, videoDurationMs);
+        }
+
+        @Override
+        public ImmutableList<String> getSupportedSampleMimeTypes(@C.TrackType int trackType) {
+            if (trackType == C.TRACK_TYPE_VIDEO) {
+                return SUPPORTED_VIDEO_SAMPLE_MIME_TYPES;
+            } else if (trackType == C.TRACK_TYPE_AUDIO) {
+                return SUPPORTED_AUDIO_SAMPLE_MIME_TYPES;
+            }
+            return ImmutableList.of();
+        }
     }
 
     private static class TrackTokenImpl implements TrackToken {

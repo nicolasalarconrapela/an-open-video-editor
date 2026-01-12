@@ -3,13 +3,13 @@ package io.github.devhyper.openvideoeditor.videoeditor.thumbnail
 import android.graphics.Bitmap
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.cache.BitmapMemoryCache
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.cache.DiskThumbnailCache
-import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 
 class ThumbnailRepository(
     private val scope: CoroutineScope,

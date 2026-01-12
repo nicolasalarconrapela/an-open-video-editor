@@ -3,6 +3,8 @@ package io.github.devhyper.openvideoeditor.videoeditor.thumbnail.cache
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.os.Build
+import androidx.annotation.RequiresApi
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.THUMBNAIL_DISK_CACHE_BYTES
 import java.io.File
 import java.io.FileOutputStream
@@ -24,7 +26,12 @@ class DiskThumbnailCache(
         return bitmap
     }
 
-    fun put(key: String, bitmap: Bitmap, format: Bitmap.CompressFormat = Bitmap.CompressFormat.WEBP_LOSSY) {
+    @RequiresApi(Build.VERSION_CODES.R)
+    fun put(
+        key: String,
+        bitmap: Bitmap,
+        format: Bitmap.CompressFormat = Bitmap.CompressFormat.WEBP_LOSSY
+    ) {
         val file = fileForKey(key)
         if (!file.parentFile.exists()) {
             file.parentFile.mkdirs()

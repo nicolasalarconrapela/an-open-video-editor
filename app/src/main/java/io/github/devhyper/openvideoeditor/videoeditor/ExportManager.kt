@@ -1,19 +1,17 @@
 package io.github.devhyper.openvideoeditor.videoeditor
 
 import android.content.Context
-import android.net.Uri
 import androidx.core.net.toUri
 import androidx.media3.common.Effect
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaItem.ClippingConfiguration
 import androidx.media3.effect.FrameDropEffect
 import androidx.media3.effect.SpeedChangeEffect
-import androidx.media3.transformer.Composition.HDR_MODE_EXPERIMENTAL_FORCE_INTERPRET_HDR_AS_SDR
-import androidx.media3.transformer.Composition.HDR_MODE_KEEP_HDR
-import androidx.media3.transformer.Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_MEDIACODEC
-import androidx.media3.transformer.Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_OPEN_GL
+import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.Effects
+import androidx.media3.transformer.ExportException
+import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.ProgressHolder
 import androidx.media3.transformer.TransformationRequest
 import androidx.media3.transformer.Transformer
@@ -22,13 +20,9 @@ import androidx.media3.transformer.Transformer.PROGRESS_STATE_UNAVAILABLE
 import com.arthenica.ffmpegkit.FFmpegKit
 import com.arthenica.ffmpegkit.FFmpegKitConfig
 import com.arthenica.ffmpegkit.SessionState
+import io.github.devhyper.openvideoeditor.R
 import io.github.devhyper.openvideoeditor.misc.getVideoFileDuration
 import java.io.File
-import kotlin.math.ceil
-import io.github.devhyper.openvideoeditor.R
-import androidx.media3.transformer.ExportException
-import androidx.media3.transformer.ExportResult
-import androidx.media3.transformer.Composition
 
 class ExportManager(private val context: Context, private val projectData: ProjectData) {
 
@@ -41,12 +35,15 @@ class ExportManager(private val context: Context, private val projectData: Proje
         onCompleted: () -> Unit,
         onError: (String) -> Unit
     ) {
-        android.util.Log.d("ExportDebug", "🚀 ExportManager.export called. Output: ${exportSettings.outputPath}")
+        android.util.Log.d(
+            "ExportDebug",
+            "🚀 ExportManager.export called. Output: ${exportSettings.outputPath}"
+        )
         val outputPath = exportSettings.outputPath
         val totalDurationMs = getExportDurationMs(context)
-        
+
         val onFFmpegErrorLocal = { onError(context.getString(R.string.ffmpeg_error)) }
-        
+
         if (shouldUseSegmentedExport(context, exportSettings)) {
             val state = resolveSegmentExportState(context, exportSettings, totalDurationMs)
             val segments = buildSegmentRanges(totalDurationMs, exportSettings.segmentDurationMs)
@@ -97,20 +94,25 @@ class ExportManager(private val context: Context, private val projectData: Proje
                     add(FrameDropEffect.createDefaultFrameDropEffect(exportSettings.framerate))
                 }
             }
-            
+
             val trimmedExportMedia = getTrimmedExportMedia()
-            
+
             val editedMediaItem = EditedMediaItem.Builder(trimmedExportMedia)
                 .setEffects(Effects(projectData.audioProcessors, effectArray))
                 .setRemoveAudio(!exportSettings.exportAudio)
                 .setRemoveVideo(!exportSettings.exportVideo)
                 .build()
-                
+
             val transformerListener = object : Transformer.Listener {
                 override fun onCompleted(composition: Composition, result: ExportResult) {
-                     onCompleted()
+                    onCompleted()
                 }
-                override fun onError(composition: Composition, result: ExportResult, exception: ExportException) {
+
+                override fun onError(
+                    composition: Composition,
+                    result: ExportResult,
+                    exception: ExportException
+                ) {
                     onError(exception.toString())
                 }
             }
@@ -159,7 +161,10 @@ class ExportManager(private val context: Context, private val projectData: Proje
                 val segmentDirectory = File(baseDirectory, outputPath.hashCode().toString())
                 if (segmentDirectory.exists()) {
                     segmentDirectory.deleteRecursively()
-                    android.util.Log.d("ExportDebug", "🗑️ Cleaned up segment directory: ${segmentDirectory.absolutePath}")
+                    android.util.Log.d(
+                        "ExportDebug",
+                        "🗑️ Cleaned up segment directory: ${segmentDirectory.absolutePath}"
+                    )
                 }
             } catch (e: Exception) {
                 android.util.Log.e("ExportDebug", "Failed to cleanup segments", e)
@@ -168,7 +173,7 @@ class ExportManager(private val context: Context, private val projectData: Proje
     }
 
     private var currentProgress: Float = 0f
-    
+
     fun getProgress(): Float {
         // If transformer is active, use its progress (polling)
         if (transformer != null) {
@@ -182,7 +187,7 @@ class ExportManager(private val context: Context, private val projectData: Proje
         // Otherwise return the progress tracked from FFmpeg stats
         return currentProgress
     }
-    
+
     private fun getTrimmedExportMedia(): MediaItem {
         val trim = getMergedTrim()
         return if (trim != null) {
@@ -201,7 +206,7 @@ class ExportManager(private val context: Context, private val projectData: Proje
         }
         return effectArray
     }
-    
+
     // Made public or internal so TransformManager can use it if needed, or kept private
     private fun getMergedTrim(): Trim? {
         if (projectData.mediaTrims.isNotEmpty()) {
@@ -239,15 +244,18 @@ class ExportManager(private val context: Context, private val projectData: Proje
         return fileSize
     }
 
-    private fun shouldUseSegmentedExport(context: Context, exportSettings: ExportSettings): Boolean {
+    private fun shouldUseSegmentedExport(
+        context: Context,
+        exportSettings: ExportSettings
+    ): Boolean {
         val durationMs = getExportDurationMs(context)
         val fileSize = getExportFileSize(context) ?: 0L
         val durationThresholdReached =
             exportSettings.segmentedExportMinDurationMs > 0 &&
-                durationMs >= exportSettings.segmentedExportMinDurationMs
+                    durationMs >= exportSettings.segmentedExportMinDurationMs
         val sizeThresholdReached =
             exportSettings.segmentedExportMinSizeBytes > 0 &&
-                fileSize >= exportSettings.segmentedExportMinSizeBytes
+                    fileSize >= exportSettings.segmentedExportMinSizeBytes
         return durationThresholdReached || sizeThresholdReached
     }
 
@@ -314,20 +322,20 @@ class ExportManager(private val context: Context, private val projectData: Proje
         }
         val outputSafPath =
             FFmpegKitConfig.getSafParameterForWrite(context, state.outputPath.toUri())
-        
+
         // Set progress to 95% at start of concat phase
         currentProgress = 0.95f
         android.util.Log.d("ExportDebug", "🔗 Starting concat phase (95% -> 100%)")
-        
+
         // Estimate total duration for concat progress
         val totalDurationMs = state.totalDurationMs
-        
+
         FFmpegKitConfig.enableStatisticsCallback { stats ->
             // Map concat progress from 95% to 100%
             val concatProgress = (stats.time / totalDurationMs.toDouble()).coerceIn(0.0, 1.0)
             currentProgress = (0.95 + (concatProgress * 0.05)).toFloat()
         }
-            
+
         FFmpegKit.executeAsync(
             "-f concat -safe 0 -i ${listFile.absolutePath} -c copy $outputSafPath"
         ) { session ->
@@ -368,7 +376,7 @@ class ExportManager(private val context: Context, private val projectData: Proje
     ) {
         val trim = getMergedTrim()
         val baseOffsetMs = trim?.first ?: 0L
-        
+
         // Restore state from disk: Check which segments already exist AND are valid (size > 0)
         segments.forEach { segment ->
             val path = segmentFilePath(state, segment.index)
@@ -387,12 +395,16 @@ class ExportManager(private val context: Context, private val projectData: Proje
 
         fun exportNextSegment(startIndex: Int) {
             if (isCancelled || VideoExportWorker.isPausedFlow.value) {
-                android.util.Log.d("ExportDebug", "🛑 exportNextSegment (FFmpeg) aborted (Cancelled or Paused)")
+                android.util.Log.d(
+                    "ExportDebug",
+                    "🛑 exportNextSegment (FFmpeg) aborted (Cancelled or Paused)"
+                )
                 return
             }
 
             val nextSegment =
-                segments.drop(startIndex).firstOrNull { !state.completedSegments.contains(it.index) }
+                segments.drop(startIndex)
+                    .firstOrNull { !state.completedSegments.contains(it.index) }
             if (nextSegment == null) {
                 runConcat(context, state, segments, onFFmpegError, onCompleted)
                 return
@@ -405,20 +417,24 @@ class ExportManager(private val context: Context, private val projectData: Proje
             val totalSegments = segments.count { it.durationMs > 0 }
             // Reserve 5% of progress for the concat phase (segments = 0-95%, concat = 95-100%)
             val segmentPhaseWeight = 0.95
-            
-            
+
+
             FFmpegKitConfig.enableStatisticsCallback { stats ->
                 // Check if export was cancelled or paused DURING segment processing
                 if (isCancelled || VideoExportWorker.isPausedFlow.value) {
-                    android.util.Log.d("ExportDebug", "🛑 Aborting FFmpeg segment mid-execution (paused/cancelled)")
+                    android.util.Log.d(
+                        "ExportDebug",
+                        "🛑 Aborting FFmpeg segment mid-execution (paused/cancelled)"
+                    )
                     FFmpegKit.cancel()
                     return@enableStatisticsCallback
                 }
-                
+
                 val segmentDuration = nextSegment.durationMs
                 val timeInSegment = stats.time
-                val segmentProgress = (timeInSegment / segmentDuration.toDouble()).coerceIn(0.0, 1.0)
-                
+                val segmentProgress =
+                    (timeInSegment / segmentDuration.toDouble()).coerceIn(0.0, 1.0)
+
                 val completedCount = state.completedSegments.size
                 // Progress within segment phase (0 to 0.95)
                 val segmentsProgress = (completedCount + segmentProgress) / totalSegments.toDouble()
@@ -429,7 +445,10 @@ class ExportManager(private val context: Context, private val projectData: Proje
                 "-ss ${segmentStartMs}ms -t ${nextSegment.durationMs}ms -i $ffmpegInputPath -c copy $segmentPath"
             ) { session ->
                 if (isCancelled || VideoExportWorker.isPausedFlow.value) {
-                    android.util.Log.d("ExportDebug", "⏭️ Skipping FFmpeg callback (paused/cancelled). Session state: ${session.state}")
+                    android.util.Log.d(
+                        "ExportDebug",
+                        "⏭️ Skipping FFmpeg callback (paused/cancelled). Session state: ${session.state}"
+                    )
                     return@executeAsync
                 }
 
@@ -457,7 +476,7 @@ class ExportManager(private val context: Context, private val projectData: Proje
     ) {
         val trim = getMergedTrim()
         val baseOffsetMs = trim?.first ?: 0L
-        
+
         // Restore state from disk: Check which segments already exist AND are valid
         segments.forEach { segment ->
             val path = segmentFilePath(state, segment.index)
@@ -466,7 +485,7 @@ class ExportManager(private val context: Context, private val projectData: Proje
                 state.completedSegments.add(segment.index)
             }
         }
-        
+
         // Remove corrupted/missing segments
         state.completedSegments.removeIf { index ->
             val segmentFile = File(segmentFilePath(state, index))
@@ -484,12 +503,16 @@ class ExportManager(private val context: Context, private val projectData: Proje
 
         fun exportNextSegment(startIndex: Int) {
             if (isCancelled || VideoExportWorker.isPausedFlow.value) {
-                android.util.Log.d("ExportDebug", "🛑 exportNextSegment (Transformer) aborted (Cancelled or Paused)")
+                android.util.Log.d(
+                    "ExportDebug",
+                    "🛑 exportNextSegment (Transformer) aborted (Cancelled or Paused)"
+                )
                 return
             }
 
             val nextSegment =
-                segments.drop(startIndex).firstOrNull { !state.completedSegments.contains(it.index) }
+                segments.drop(startIndex)
+                    .firstOrNull { !state.completedSegments.contains(it.index) }
             if (nextSegment == null) {
                 runConcat(context, state, segments, onFFmpegError, onCompleted)
                 return
@@ -498,7 +521,8 @@ class ExportManager(private val context: Context, private val projectData: Proje
             val endMs = startMs + nextSegment.durationMs
             val clipConfig = ClippingConfiguration.Builder().setStartPositionMs(startMs)
                 .setEndPositionMs(endMs).build()
-            val segmentMedia = originalMedia.buildUpon().setClippingConfiguration(clipConfig).build()
+            val segmentMedia =
+                originalMedia.buildUpon().setClippingConfiguration(clipConfig).build()
             val editedMediaItem = EditedMediaItem.Builder(segmentMedia)
                 .setEffects(Effects(projectData.audioProcessors, effectArray))
                 .setRemoveAudio(!exportSettings.exportAudio)
@@ -515,8 +539,8 @@ class ExportManager(private val context: Context, private val projectData: Proje
                 .addListener(
                     object : Transformer.Listener {
                         override fun onCompleted(
-                            composition: androidx.media3.transformer.Composition,
-                            result: androidx.media3.transformer.ExportResult,
+                            composition: Composition,
+                            result: ExportResult,
                         ) {
                             if (isCancelled || VideoExportWorker.isPausedFlow.value) return
 
@@ -525,9 +549,9 @@ class ExportManager(private val context: Context, private val projectData: Proje
                         }
 
                         override fun onError(
-                            composition: androidx.media3.transformer.Composition,
-                            result: androidx.media3.transformer.ExportResult,
-                            exception: androidx.media3.transformer.ExportException,
+                            composition: Composition,
+                            result: ExportResult,
+                            exception: ExportException,
                         ) {
                             onError(exception.toString())
                         }
@@ -553,25 +577,28 @@ class ExportManager(private val context: Context, private val projectData: Proje
         val ffmpegOutputPath = FFmpegKitConfig.getSafParameterForWrite(context, outputPath.toUri())
         val audioCodec = if (audioFallback) "aac" else "copy"
         val durationMs = trim.second - trim.first
-        
-        
+
+
         FFmpegKitConfig.enableStatisticsCallback { stats ->
-             // Check if export was cancelled or paused
-             if (isCancelled || VideoExportWorker.isPausedFlow.value) {
-                 android.util.Log.d("ExportDebug", "🛑 Aborting lossless cut mid-execution")
-                 FFmpegKit.cancel()
-                 return@enableStatisticsCallback
-             }
-             
-             val time = stats.time
-             currentProgress = (time / durationMs.toDouble()).toFloat().coerceIn(0f, 1f)
+            // Check if export was cancelled or paused
+            if (isCancelled || VideoExportWorker.isPausedFlow.value) {
+                android.util.Log.d("ExportDebug", "🛑 Aborting lossless cut mid-execution")
+                FFmpegKit.cancel()
+                return@enableStatisticsCallback
+            }
+
+            val time = stats.time
+            currentProgress = (time / durationMs.toDouble()).toFloat().coerceIn(0f, 1f)
         }
 
         FFmpegKit.executeAsync(
             "-i $ffmpegInputPath -ss ${trim.first}ms -to ${trim.second}ms -c:v copy -c:a $audioCodec $ffmpegOutputPath"
         ) { session ->
             if (isCancelled || VideoExportWorker.isPausedFlow.value) {
-                android.util.Log.d("ExportDebug", "⏭️ Skipping lossless cut callback (paused/cancelled)")
+                android.util.Log.d(
+                    "ExportDebug",
+                    "⏭️ Skipping lossless cut callback (paused/cancelled)"
+                )
                 return@executeAsync
             }
 
