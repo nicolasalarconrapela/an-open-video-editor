@@ -165,6 +165,7 @@ import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.cache.DiskThumbn
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.codec.MediaCodecFrameExtractor
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import android.content.Context
@@ -611,6 +612,8 @@ fun VideoEditorScreen(
                         .windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility)
                 ) {
                     BottomControls(
+                        uri = uri,
+                        screenScope = screenScope,
                         modifier = Modifier.fillMaxWidth(),
                         fpm = { fpm },
                         totalDuration = { totalDuration },
@@ -887,6 +890,8 @@ private fun CenterControls(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BottomControls(
+    uri: String,
+    screenScope: CoroutineScope,
     modifier: Modifier = Modifier,
     fpm: () -> Float,
     totalDuration: () -> Long,
