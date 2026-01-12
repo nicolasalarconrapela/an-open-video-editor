@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.41] - 2026-01-09
+### Añadido
+- Subtítulo de bienvenida y botones con iconos en la pantalla principal.
+### Ajustado
+- Actualización de versionCode y versionName para el APK.
+
 ## [1.3.40] - 2026-01-09
 ### Añadido
 - Versión visible en la pantalla principal al abrir la app.

@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -43,6 +45,7 @@ fun MainScreen(
     pickProject: ActivityResultLauncher<Array<String>>
 ) {
     val activity = LocalContext.current as Activity
+    val buttonModifier = Modifier.widthIn(min = 220.dp)
     OpenVideoEditorTheme {
         Surface(
             modifier = Modifier
@@ -86,13 +89,25 @@ fun MainScreen(
                                 style = MaterialTheme.typography.headlineLarge,
                                 textAlign = TextAlign.Center
                             )
+                            Text(
+                                text = stringResource(R.string.welcome_subtitle),
+                                style = MaterialTheme.typography.bodyLarge,
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.widthIn(max = 320.dp)
+                            )
                             Button(onClick = {
                                 pickMedia.launch(
                                     PickVisualMediaRequest(
                                         ActivityResultContracts.PickVisualMedia.VideoOnly
                                     )
                                 )
-                            }, modifier = Modifier) {
+                            }, modifier = buttonModifier) {
+                                Icon(
+                                    imageVector = Icons.Filled.VideoLibrary,
+                                    contentDescription = null,
+                                    modifier = Modifier.padding(end = 8.dp)
+                                )
                                 Text(
                                     style = MaterialTheme.typography.titleLarge,
                                     text = stringResource(R.string.video)
@@ -104,7 +119,12 @@ fun MainScreen(
                                         PROJECT_MIME_TYPE
                                     )
                                 )
-                            }, modifier = Modifier) {
+                            }, modifier = buttonModifier) {
+                                Icon(
+                                    imageVector = Icons.Filled.FolderOpen,
+                                    contentDescription = null,
+                                    modifier = Modifier.padding(end = 8.dp)
+                                )
                                 Text(
                                     style = MaterialTheme.typography.titleLarge,
                                     text = stringResource(R.string.project)
