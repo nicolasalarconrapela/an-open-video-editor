@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - "codex/2026-01-11/17-39-50/create-timelineview-composable"
+      - "codex/2026-01-12/02-38-18/fix-unresolved-references-in-videoeditorscreen"
       - "work"
   workflow_dispatch:
 
