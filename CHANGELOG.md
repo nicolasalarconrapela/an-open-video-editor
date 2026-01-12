@@ -1,8 +1,8 @@
 # Changelog
 
 ## [1.3.37] - 2026-01-09
-### Corregido
-- Paso explícito del `uri` y uso del scope local en `BottomControls` para el repositorio de miniaturas.
+### Añadido
+- UI mock de editor con timeline superior, playhead centrado y barra inferior.
 
 ## [1.3.36] - 2026-01-09
 ### Corregido
