@@ -289,6 +289,9 @@ fun ClipItem(
     onClipDragged: (String, Float) -> Unit
 ) {
     var dragOffset by remember(clip.id) { mutableStateOf(clip.offsetPx) }
+    LaunchedEffect(clip.offsetPx) {
+        dragOffset = clip.offsetPx
+    }
     val borderColor = if (selected) Color.White else Color.Transparent
     val shape = RoundedCornerShape(12.dp)
     Box(
@@ -341,7 +344,7 @@ fun PlayheadOverlay(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .fillMaxHeight()
-            .width(3.dp)
+            .width(2.dp)
             .background(Color.White)
     )
 }
@@ -350,7 +353,7 @@ fun PlayheadOverlay(modifier: Modifier = Modifier) {
 fun BottomToolbar(modifier: Modifier = Modifier) {
     Row(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(36.dp),
+        horizontalArrangement = Arrangement.spacedBy(32.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         ToolbarButton(icon = Icons.Filled.TextFields, label = "Texto")
@@ -367,7 +370,7 @@ fun ToolbarButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: 
             imageVector = icon,
             contentDescription = label,
             tint = Color.White,
-            modifier = Modifier.size(32.dp)
+            modifier = Modifier.size(36.dp)
         )
         Spacer(modifier = Modifier.height(6.dp))
         Text(text = label, color = Color.White, fontSize = 12.sp)
@@ -377,7 +380,7 @@ fun ToolbarButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: 
 @Composable
 fun AddButton(modifier: Modifier = Modifier) {
     Surface(
-        modifier = modifier.size(56.dp),
+        modifier = modifier.size(60.dp),
         shape = RoundedCornerShape(12.dp),
         color = Color(0xFFECECEC)
     ) {

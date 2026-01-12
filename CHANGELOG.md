@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.39] - 2026-01-09
+### Ajustado
+- Ajustes visuales de playhead, toolbar y botón añadir en la UI mock del editor.
+
+## [1.3.38] - 2026-01-09
+### Ajustado
+- Sincronización del desplazamiento visual de clips con el estado del timeline mock.
+
 ## [1.3.37] - 2026-01-09
 ### Añadido
 - UI mock de editor con timeline superior, playhead centrado y barra inferior.
