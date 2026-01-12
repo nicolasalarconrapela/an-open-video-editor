@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.23] - 2026-01-09
+### Ajustado
+- Workflow de APK debug para ejecutar también en la rama work.
+
+## [1.3.22] - 2026-01-09
+### Corregido
+- Imports faltantes de EditorState y LazyListState para la pantalla del editor.
+
 ## [1.3.21] - 2026-01-09
 ### Corregido
 - Estado y datos de timeline disponibles en el scope correcto del editor.

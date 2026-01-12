@@ -2,7 +2,9 @@ name: Android APK (Debug) - codex
 
 on:
   push:
-    branches: ["codex/2026-01-11/17-39-50/create-timelineview-composable"]
+    branches:
+      - "codex/2026-01-11/17-39-50/create-timelineview-composable"
+      - "work"
   workflow_dispatch:
 
 concurrency:
