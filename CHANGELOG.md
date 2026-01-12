@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.44] - 2026-01-09
+### Añadido
+- Pantalla de carga con SplashScreen y tema dedicado.
+### Ajustado
+- Actualización de versionCode y versionName para el APK.
+
 ## [1.3.43] - 2026-01-09
 ### Añadido
 - Lectura de versión desde PackageManager para evitar referencias directas a BuildConfig en la pantalla principal.

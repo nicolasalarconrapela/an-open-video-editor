@@ -12,6 +12,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import io.github.devhyper.openvideoeditor.misc.setImmersiveMode
 import io.github.devhyper.openvideoeditor.misc.setupSystemUi
 import io.github.devhyper.openvideoeditor.settings.SettingsDataStore
@@ -23,6 +24,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var requestPermissions: ActivityResultLauncher<Array<String>>
     
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
 
         setupSystemUi()
