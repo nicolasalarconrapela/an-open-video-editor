@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.28] - 2026-01-09
+### Añadido
+- Extractor de frames con MediaCodec y conversión YUV->ARGB para miniaturas.
+
 ## [1.3.27] - 2026-01-09
 ### Añadido
 - Cache en disco para miniaturas con hash SHA-256 y eviction por antigüedad.
