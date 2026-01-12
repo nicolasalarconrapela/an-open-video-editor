@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.33] - 2026-01-09
+### Añadido
+- Workflow de APK debug para la rama de sistema de miniaturas de línea de tiempo.
+
 ## [1.3.32] - 2026-01-09
 ### Añadido
 - Option B / Pro timeline thumbnails con cache, scheduler y decode MediaCodec.
