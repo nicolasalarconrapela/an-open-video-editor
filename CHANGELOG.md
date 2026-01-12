@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.29] - 2026-01-09
+### Añadido
+- Scheduler de miniaturas con deduplicación, cancelación y prioridad por playhead.
+
 ## [1.3.28] - 2026-01-09
 ### Añadido
 - Extractor de frames con MediaCodec y conversión YUV->ARGB para miniaturas.
