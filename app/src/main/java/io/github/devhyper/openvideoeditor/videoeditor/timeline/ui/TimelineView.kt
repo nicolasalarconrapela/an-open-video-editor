@@ -2,71 +2,65 @@ package io.github.devhyper.openvideoeditor.videoeditor.timeline.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LibraryMusic
-import androidx.compose.material.icons.filled.TextFields
-import androidx.compose.material3.Icon
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.layout.offset
-import androidx.compose.ui.draw.clip
+import io.github.devhyper.openvideoeditor.R
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRepository
-import kotlin.math.max
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.input.pointer.pointerInput
-import io.github.devhyper.openvideoeditor.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
-import kotlin.math.floor
+import kotlin.math.max
 import kotlin.math.min
 
 enum class TimelineClipType {
@@ -108,7 +102,7 @@ fun TimelineView(
     val clipHeight = 56.dp
     val thumbnailHeight = 40.dp
     val thumbnailWidth = 56.dp
-    val spacingDp = 8.dp
+    8.dp
     var draggingClipId by remember { mutableStateOf<String?>(null) }
     var dragOffsetPx by remember { mutableFloatStateOf(0f) }
     val masterClips = tracks.firstOrNull()?.clips.orEmpty()
@@ -121,7 +115,8 @@ fun TimelineView(
             }
             val firstIndex = listState.firstVisibleItemIndex.coerceIn(0, masterClips.lastIndex)
             val timeBeforeMs = masterClips.take(firstIndex).sumOf { it.durationMs }
-            val offsetMs = ((listState.firstVisibleItemScrollOffset / pixelsPerSecond) * 1000f).toLong()
+            val offsetMs =
+                ((listState.firstVisibleItemScrollOffset / pixelsPerSecond) * 1000f).toLong()
             (timeBeforeMs + offsetMs).coerceAtLeast(0L)
         }
     }
@@ -140,9 +135,11 @@ fun TimelineView(
             }
             val firstIndex = listState.firstVisibleItemIndex.coerceIn(0, masterClips.lastIndex)
             val timeBeforeMs = masterClips.take(firstIndex).sumOf { it.durationMs }
-            val offsetMs = ((listState.firstVisibleItemScrollOffset / pixelsPerSecond) * 1000f).toLong()
+            val offsetMs =
+                ((listState.firstVisibleItemScrollOffset / pixelsPerSecond) * 1000f).toLong()
             val startMs = (timeBeforeMs + offsetMs).coerceAtLeast(0L)
-            val viewportWidthPx = listState.layoutInfo.viewportSize.width.toFloat().coerceAtLeast(0f)
+            val viewportWidthPx =
+                listState.layoutInfo.viewportSize.width.toFloat().coerceAtLeast(0f)
             val durationMs = ((viewportWidthPx / pixelsPerSecond) * 1000f).toLong()
             startMs..(startMs + durationMs)
         }
@@ -153,16 +150,16 @@ fun TimelineView(
             ((intervalPx / pixelsPerSecond) * 1000f).toLong().coerceAtLeast(200L)
         }
     }
-    val totalDurationMs = remember(tracks) {
+    remember(tracks) {
         tracks.maxOfOrNull { track -> track.clips.sumOf { it.durationMs } } ?: 0L
     }
-    val timelineCurrentTimeLabel = stringResource(
+    stringResource(
         R.string.timeline_current_time,
         currentTimeMs / 1000
     )
-    val gridLineColor = MaterialTheme.colorScheme.outline
-    val gridTextColor = MaterialTheme.colorScheme.onBackground
-    val gridTextSizePx = with(density) { 12.dp.toPx() }
+    MaterialTheme.colorScheme.outline
+    MaterialTheme.colorScheme.onBackground
+    with(density) { 12.dp.toPx() }
 
     if (thumbnailRepository != null && thumbnailKeyProvider != null) {
         val requestedRange = viewportRangeMs
@@ -252,7 +249,7 @@ fun TimelineView(
                                                 MaterialTheme.colorScheme.onTertiaryContainer
                                     }
                                 }
-                                val clipContainer = if (isSelected) {
+                                if (isSelected) {
                                     MaterialTheme.colorScheme.inversePrimary
                                 } else {
                                     containerColor

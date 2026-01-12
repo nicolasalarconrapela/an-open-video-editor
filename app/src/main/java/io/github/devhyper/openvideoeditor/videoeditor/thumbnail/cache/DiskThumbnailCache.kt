@@ -24,7 +24,11 @@ class DiskThumbnailCache(
         return bitmap
     }
 
-    fun put(key: String, bitmap: Bitmap, format: Bitmap.CompressFormat = Bitmap.CompressFormat.WEBP_LOSSY) {
+    fun put(
+        key: String,
+        bitmap: Bitmap,
+        format: Bitmap.CompressFormat = Bitmap.CompressFormat.WEBP_LOSSY
+    ) {
         val file = fileForKey(key)
         if (!file.parentFile.exists()) {
             file.parentFile.mkdirs()

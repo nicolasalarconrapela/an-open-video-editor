@@ -18,7 +18,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.ShortText
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Title
 import androidx.compose.material.icons.filled.Widgets
@@ -51,18 +50,19 @@ fun TimelineBlocksView(
             val widthDp = max((block.durationMs / 1000f) * 80f, 72f).dp
             val isSelected = block.id == selectedId
             val (icon, label) = blockIconAndLabel(block)
-            Box(modifier = Modifier
-                .width(widthDp)
-                .height(72.dp)
-                .clickable { onSelect(block) }
-                .background(
-                    color = if (isSelected) {
-                        MaterialTheme.colorScheme.primaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant
-                    }, shape = RoundedCornerShape(12.dp)
-                )
-                .padding(12.dp), contentAlignment = Alignment.CenterStart) {
+            Box(
+                modifier = Modifier
+                    .width(widthDp)
+                    .height(72.dp)
+                    .clickable { onSelect(block) }
+                    .background(
+                        color = if (isSelected) {
+                            MaterialTheme.colorScheme.primaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant
+                        }, shape = RoundedCornerShape(12.dp)
+                    )
+                    .padding(12.dp), contentAlignment = Alignment.CenterStart) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         modifier = Modifier.size(20.dp),

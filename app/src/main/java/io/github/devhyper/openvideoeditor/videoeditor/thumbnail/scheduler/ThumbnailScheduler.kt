@@ -2,8 +2,6 @@ package io.github.devhyper.openvideoeditor.videoeditor.thumbnail.scheduler
 
 import android.graphics.Bitmap
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
-import java.util.concurrent.ConcurrentHashMap
-import kotlin.math.abs
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -12,6 +10,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.abs
 
 class ThumbnailScheduler(
     private val scope: CoroutineScope,
@@ -66,7 +66,7 @@ class ThumbnailScheduler(
         val orderedVisible = visibleTimes.distinct().sortedBy { abs(it - playheadTimeUs) }
         val orderedPrefetch = prefetchTimes.distinct().sortedBy { abs(it - playheadTimeUs) }
         val orderedKeys = orderedVisible.map { buildKey(it, zoomBucket) } +
-            orderedPrefetch.map { buildKey(it, zoomBucket) }
+                orderedPrefetch.map { buildKey(it, zoomBucket) }
         return scheduleKeys(orderedKeys, decode)
     }
 

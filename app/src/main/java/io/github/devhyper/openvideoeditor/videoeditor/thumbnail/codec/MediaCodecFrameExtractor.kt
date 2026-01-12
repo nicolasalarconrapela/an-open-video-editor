@@ -4,8 +4,8 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.media.Image
-import android.media.MediaCodecInfo
 import android.media.MediaCodec
+import android.media.MediaCodecInfo
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
@@ -92,6 +92,7 @@ class MediaCodecFrameExtractor(
                             outputDone = true
                         }
                     }
+
                     outputIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                         // no-op
                     }
@@ -100,7 +101,14 @@ class MediaCodecFrameExtractor(
 
             return output
         } catch (_: Exception) {
-            return fallbackWithRetriever(context, uri, timeUs, targetWidth, targetHeight, rotationDegrees)
+            return fallbackWithRetriever(
+                context,
+                uri,
+                timeUs,
+                targetWidth,
+                targetHeight,
+                rotationDegrees
+            )
         } finally {
             try {
                 codec?.stop()
