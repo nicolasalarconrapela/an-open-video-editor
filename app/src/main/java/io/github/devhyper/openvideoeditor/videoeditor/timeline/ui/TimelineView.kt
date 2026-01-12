@@ -46,6 +46,13 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.draw.clip
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRepository
 import kotlin.math.max
@@ -200,66 +207,20 @@ fun TimelineView(
             }
     ) {
         Column {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(32.dp)
-                    .drawBehind {
-                        if (pixelsPerSecond <= 0f || totalDurationMs == 0L) return@drawBehind
-                        val firstIndex = listState.firstVisibleItemIndex.coerceAtLeast(0)
-                        val timeBeforeMs = masterClips.take(firstIndex).sumOf { it.durationMs }
-                        val scrollPx =
-                            (timeBeforeMs / 1000f) * pixelsPerSecond + listState.firstVisibleItemScrollOffset
-                        val startSecond = floor(scrollPx / pixelsPerSecond).toInt().coerceAtLeast(0)
-                        val secondsVisible = (size.width / pixelsPerSecond).toInt() + 2
-                        val paint = android.graphics.Paint().apply {
-                            color = gridTextColor.toArgb()
-                            textSize = gridTextSizePx
-                            isAntiAlias = true
-                        }
-                        repeat(secondsVisible) { offset ->
-                            val second = startSecond + offset
-                            val x = (second * pixelsPerSecond) - scrollPx
-                            if (x >= -pixelsPerSecond && x <= size.width + pixelsPerSecond) {
-                                drawLine(
-                                    color = gridLineColor,
-                                    start = androidx.compose.ui.geometry.Offset(x, 0f),
-                                    end = androidx.compose.ui.geometry.Offset(x, size.height),
-                                    strokeWidth = 1.dp.toPx()
-                                )
-                                if (second % 2 == 0) {
-                                    drawIntoCanvas { canvas ->
-                                        canvas.nativeCanvas.drawText(
-                                            "${second}s",
-                                            x + 4.dp.toPx(),
-                                            20.dp.toPx(),
-                                            paint
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-            )
+
 
             LazyColumn(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(tracks, key = { it.id }) { track ->
-                    Column {
-                        Text(
-                            text = track.label,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        LazyRow(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(72.dp),
-                            state = listState,
-                            contentPadding = PaddingValues(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(spacingDp)
+                    LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(80.dp),
+                        state = listState,
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(spacingDp)
                         ) {
                             items(track.clips, key = { it.id }) { clip ->
                                 val widthPx = (clip.durationMs / 1000f) * pixelsPerSecond
@@ -383,18 +344,42 @@ fun TimelineView(
                                 }
                             }
                         }
+                    } 
+                    
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                         if (clip.type == TimelineClipType.Overlay) {
+                            Icon(
+                                imageVector = Icons.Filled.TextFields,
+                                contentDescription = null,
+                                tint = clipContent,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        } else if (clip.type == TimelineClipType.Audio) {
+                            Icon(
+                                imageVector = Icons.Filled.LibraryMusic,
+                                contentDescription = null,
+                                tint = clipContent,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        
+                        Text(
+                            text = clip.label,
+                            color = clipContent,
+                            style = MaterialTheme.typography.labelLarge,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
-                    Text(
-                        text = clip.label,
-                        color = clipContent,
-                        style = MaterialTheme.typography.labelLarge,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
                 }
                             }
                         }
-                    }
                 }
             }
         }
@@ -402,21 +387,24 @@ fun TimelineView(
         Box(
             modifier = Modifier
                 .align(Alignment.Center)
-                .fillMaxHeight()
-                .width(2.dp)
-                .background(MaterialTheme.colorScheme.secondary)
-        )
+                .fillMaxHeight(),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(2.dp)
+                    .background(Color.White)
+            )
+            Box(
+                modifier = Modifier
+                    .size(12.dp)
+                    .offset(y = (-4).dp)
+                    .clip(CircleShape)
+                    .background(Color.White)
+            )
+        }
 
-        Text(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 4.dp)
-                .semantics {
-                    contentDescription = timelineCurrentTimeLabel
-                },
-            text = timelineCurrentTimeLabel,
-            color = MaterialTheme.colorScheme.onBackground,
-            style = MaterialTheme.typography.labelSmall
-        )
+
     }
 }

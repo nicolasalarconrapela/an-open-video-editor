@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -60,6 +61,13 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Replay5
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
@@ -931,68 +939,15 @@ private fun BottomControls(
 
     Column(
         modifier = modifier
-            .padding(horizontal = 16.dp)
-            .padding(bottom = 16.dp)
+            .padding(bottom = 0.dp) // Removed padding to let toolbar sit at bottom
+            .background(Color.Black)
     ) {
-        Row(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .weight(1f)
+                .background(Color(0xFF0E0F12))
         ) {
-            Text(
-                text = stringResource(R.string.timeline_mode_precision),
-                style = MaterialTheme.typography.labelMedium,
-                color = colorScheme.onBackground
-            )
-            Switch(
-                checked = editorState.mode == EditorMode.PRECISION,
-                onCheckedChange = { enabled ->
-                    val nextMode = if (enabled) EditorMode.PRECISION else EditorMode.BLOCKS
-                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.ToggleMode(nextMode))
-                }
-            )
-        }
-        Text(
-            text = stringResource(R.string.timeline_zoom),
-            style = MaterialTheme.typography.labelMedium,
-            color = colorScheme.onBackground
-        )
-        Slider(
-            modifier = Modifier
-                .fillMaxWidth(),
-            value = pixelsPerSecond,
-            onValueChange = { value ->
-                val zoomLevel = (value / basePixelsPerSecond).coerceIn(0.5f, 4f)
-                viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomChanged(zoomLevel))
-            },
-            valueRange = 20f..200f,
-            colors = SliderDefaults.colors(
-                inactiveTrackColor = colorScheme.inversePrimary
-            )
-        )
-        if (editorState.mode == EditorMode.PRECISION) {
-            TimelinePrecisionView(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp, bottom = 12.dp),
-                tracks = timelineTracks,
-                zoomLevel = editorState.zoomLevel,
-                currentTimeMs = currentTime(),
-                listState = timelineListState,
-                onZoom = { zoomDelta ->
-                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomByDelta(zoomDelta))
-                },
-                onTrim = { clipId, trimIn, trimOut ->
-                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.Trim(trimIn, trimOut))
-                },
-                onSeek = { timeMs ->
-                    onPlayerSeek(timeMs)
-                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.Seek(timeMs))
-                }
-            )
-        } else {
             val density = LocalDensity.current
             val thumbnailWidthPx = remember(density) { with(density) { 56.dp.toPx().toInt() } }
             val thumbnailHeightPx = remember(density) { with(density) { 40.dp.toPx().toInt() } }
@@ -1028,10 +983,13 @@ private fun BottomControls(
                     )
                 }
             }
+            
+            // Adjusted padding for TimelineView to account for header space if needed
             TimelineView(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp, bottom = 12.dp),
+                    .fillMaxHeight()
+                    .padding(top = 24.dp), 
                 tracks = timelineTracks,
                 pixelsPerSecond = pixelsPerSecond,
                 listState = timelineListState,
@@ -1050,176 +1008,31 @@ private fun BottomControls(
                     }
                 },
                 onClipMoved = { trackId, fromId, toIndex ->
+                     // Existing move logic
                     val trackIndex = timelineTracks.indexOfFirst { it.id == trackId }
-                    if (trackIndex == -1) return@TimelineView
-                    val track = timelineTracks[trackIndex]
-                    val fromIndex = track.clips.indexOfFirst { it.id == fromId }
-                    if (fromIndex == -1) return@TimelineView
-                    val boundedIndex = toIndex.coerceIn(0, track.clips.lastIndex)
-                    if (fromIndex == boundedIndex) return@TimelineView
-                    val updatedClips = track.clips.toMutableList()
-                    val clipToMove = updatedClips.removeAt(fromIndex)
-                    val insertIndex = if (fromIndex < boundedIndex) boundedIndex - 1 else boundedIndex
-                    updatedClips.add(insertIndex, clipToMove)
-                    timelineTracks[trackIndex] = track.copy(clips = updatedClips)
+                    if (trackIndex != -1) {
+                        val track = timelineTracks[trackIndex]
+                        val fromIndex = track.clips.indexOfFirst { it.id == fromId }
+                        if (fromIndex != -1) {
+                            val boundedIndex = toIndex.coerceIn(0, track.clips.lastIndex)
+                            if (fromIndex != boundedIndex) {
+                                val updatedClips = track.clips.toMutableList()
+                                val clipToMove = updatedClips.removeAt(fromIndex)
+                                val insertIndex = if (fromIndex < boundedIndex) boundedIndex - 1 else boundedIndex
+                                updatedClips.add(insertIndex, clipToMove)
+                                timelineTracks[trackIndex] = track.copy(clips = updatedClips)
+                            }
+                        }
+                    }
                 }
             )
         }
 
-        MiniPreviewStrip(
+        BottomToolbar(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(64.dp),
-            transformManager = transformManager,
-            durationMs = duration,
-            currentTimeMs = videoTime
+                .padding(vertical = 20.dp)
         )
-
-        Box(modifier = Modifier.fillMaxWidth()) {
-            if (filterDurationEditorEnabled) {
-                RangeSlider(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp),
-                    value = filterDurationEditorSliderPosition,
-                    onValueChange = { rangeArg ->
-                        var range = rangeArg
-                        if (range.endInclusive == 0f) {
-                            range = range.start..1f
-                        }
-                        if (filterDurationEditorSliderPosition.start != range.start) {
-                            transformManager.player.seekTo(range.start.toLong())
-                            viewModel.setStartFilterSelected(true)
-                        } else {
-                            transformManager.player.seekTo(range.endInclusive.toLong())
-                            viewModel.setStartFilterSelected(false)
-                        }
-                        viewModel.setFilterDurationEditorSliderPosition(range)
-                    },
-                    colors = SliderDefaults.colors(
-                        inactiveTrackColor = colorScheme.inversePrimary
-                    ),
-                    valueRange = 0f..duration.toFloat(),
-                )
-            } else {
-                Slider(
-                    modifier = Modifier
-                        .fillMaxWidth(),
-                    value = videoTime.toFloat(),
-                    onValueChange = onSeekChanged,
-                    colors = SliderDefaults.colors(
-                        inactiveTrackColor = colorScheme.inversePrimary
-                    ),
-                    valueRange = 0f..duration.toFloat(),
-                )
-            }
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                modifier = Modifier
-                    .weight(2f, false),
-                text = videoTime.formatMinSec() + "/" + duration.formatMinSec()
-            )
-            Row(
-                modifier = Modifier.weight(2f, false),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    modifier = Modifier
-                        .weight(1f, false)
-                        .repeatingClickable(
-                            remember { MutableInteractionSource() },
-                            true,
-                            onClick = {
-                                onSeekChanged((videoTime.toFloat() - (1F / videoFpm)) + 1F)
-                            }), onClick = {}) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                        contentDescription = stringResource(R.string.decrement_frame)
-                    )
-                }
-                Text(
-                    modifier = Modifier
-                        .weight(1f, false)
-                        .clickable { showFrameDialog = true },
-                    text = "$videoTimeFrames/$durationFrames",
-                    textAlign = TextAlign.Center,
-                    overflow = TextOverflow.Ellipsis,
-                    maxLines = 1
-                )
-                IconButton(
-                    modifier = Modifier
-                        .weight(1f, false)
-                        .repeatingClickable(
-                            remember { MutableInteractionSource() },
-                            true,
-                            onClick = {
-                                onSeekChanged((videoTime.toFloat() + (1F / videoFpm)) + 1F)
-                            }), onClick = {}) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = stringResource(R.string.increment_frame)
-                    )
-                }
-            }
-
-            if (filterDurationEditorEnabled || currentEditingEffect != null) {
-                AcceptDeclineRow(
-                    modifier = Modifier.weight(1f),
-                    acceptDescription = stringResource(R.string.accept_filter),
-                    acceptOnClick = {
-                        val currentEditingEffectLocal = currentEditingEffect
-                        if (currentEditingEffectLocal != null) {
-                            currentEditingEffectLocal.runCallback()
-                            viewModel.setCurrentEditingEffect(null)
-                        } else {
-                            viewModel.setFilterDurationEditorEnabled(false)
-                            filterDurationCallback(
-                                LongRange(
-                                    filterDurationEditorSliderPosition.start.toLong(),
-                                    filterDurationEditorSliderPosition.endInclusive.toLong()
-                                )
-                            )
-                        }
-                    },
-                    declineDescription = stringResource(R.string.decline_filter),
-                    declineOnClick = {
-                        viewModel.setCurrentEditingEffect(null)
-                        viewModel.setFilterDurationEditorEnabled(false)
-                    }
-                )
-            } else {
-                Row(
-                    modifier = Modifier.weight(1f),
-                ) {
-                    IconButton(modifier = Modifier.weight(1f), onClick = {
-                        showLayerBottomSheet = true
-                    }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Layers,
-                            contentDescription = stringResource(R.string.open_layer_drawer)
-                        )
-                    }
-                    IconButton(modifier = Modifier.weight(1f), onClick = {
-                        showFilterBottomSheet = true
-                    }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Filter,
-                            contentDescription = stringResource(R.string.open_filter_drawer)
-                        )
-                    }
-                }
-            }
-        }
     }
     if (showFilterBottomSheet) {
         ModalBottomSheet(
@@ -1974,6 +1787,63 @@ private suspend fun saveFrame(context: Context, uri: String, timeMs: Long) {
             }
         } finally {
             retriever.release()
+        }
+    }
+}
+
+@Composable
+private fun BottomToolbar(modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        ToolbarButton(icon = Icons.Filled.TextFields, label = "T")
+        ToolbarButton(icon = Icons.Filled.Face, label = "Sticker", hasBadge = true)
+        ToolbarButton(icon = Icons.Filled.Edit, label = "Edit")
+        ToolbarButton(icon = Icons.Filled.LibraryMusic, label = "Music")
+        ToolbarButton(icon = Icons.Filled.Settings, label = "Effects")
+    }
+}
+
+@Composable
+private fun ToolbarButton(icon: ImageVector, label: String, hasBadge: Boolean = false) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = Color.White,
+                modifier = Modifier.size(28.dp)
+            )
+            if (hasBadge) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFFF5252))
+                        .offset(x = 2.dp, y = (-2).dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddButton(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.size(48.dp),
+        shape = RoundedCornerShape(8.dp),
+        color = Color(0xFFECECEC)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = "Añadir",
+                tint = Color.Black,
+                modifier = Modifier.size(24.dp)
+            )
         }
     }
 }
