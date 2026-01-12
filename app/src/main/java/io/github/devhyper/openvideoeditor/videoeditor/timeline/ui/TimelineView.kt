@@ -185,10 +185,9 @@ fun TimelineView(
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
     val clipMinWidthDp = 48.dp
-    val clipHeight = 56.dp
-    val thumbnailHeight = 40.dp
-    val thumbnailWidth = 56.dp
-    8.dp
+    val clipHeight = 80.dp
+    val thumbnailHeight = 72.dp
+    val thumbnailWidth = 96.dp
     var draggingClipId by remember { mutableStateOf<String?>(null) }
     var dragOffsetPx by remember { mutableFloatStateOf(0f) }
     val masterClips = tracks.firstOrNull()?.clips.orEmpty()
@@ -326,14 +325,14 @@ fun TimelineView(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .fillMaxHeight(0.7f)
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .fillMaxHeight(0.85f)
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
                         .background(
                             color = MaterialTheme.colorScheme.surfaceVariant,
-                            shape = RoundedCornerShape(8.dp)
+                            shape = RoundedCornerShape(1.dp)
                         )
-                        .clip(RoundedCornerShape(8.dp))
-                        .padding(1.dp)
+                        .clip(RoundedCornerShape(1.dp))
+                        .padding(2.dp)
                 ) {
                     LazyRow(
                         modifier = Modifier.fillMaxSize(),
