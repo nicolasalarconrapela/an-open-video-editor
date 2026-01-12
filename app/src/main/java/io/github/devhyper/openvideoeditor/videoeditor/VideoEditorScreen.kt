@@ -15,8 +15,6 @@ import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -33,6 +31,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
@@ -41,6 +40,7 @@ import androidx.compose.foundation.layout.systemBarsIgnoringVisibility
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -76,6 +76,7 @@ import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -84,6 +85,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -117,6 +119,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.Player.COMMAND_GET_CURRENT_MEDIA_ITEM
 import androidx.media3.common.Player.Commands
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -129,6 +132,13 @@ import androidx.media3.transformer.Composition
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer.Listener
+import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineClipType
+import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelinePrecisionView
+import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineUiClip
+import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineUiTrack
+import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineView
+import io.github.devhyper.openvideoeditor.videoeditor.state.EditorState
+import io.github.devhyper.openvideoeditor.videoeditor.state.EditorMode
 import io.github.devhyper.openvideoeditor.R
 import io.github.devhyper.openvideoeditor.misc.AcceptDeclineRow
 import io.github.devhyper.openvideoeditor.misc.DropdownSetting
@@ -167,6 +177,7 @@ import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.provider.MediaStore
 import android.net.Uri
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -177,6 +188,7 @@ fun VideoEditorScreen(
     requestVideoPermission: ActivityResultLauncher<String>
 ) {
     val viewModel = viewModel { VideoEditorViewModel() }
+    val editorState by viewModel.state.collectAsState()
     val screenScope = rememberCoroutineScope()
 
     val context = LocalContext.current
@@ -192,6 +204,10 @@ fun VideoEditorScreen(
                 setSeekForwardIncrementMs(PLAYER_SEEK_FORWARD_INCREMENT)
             }
             .build()
+    }
+
+    LaunchedEffect(player) {
+        viewModel.startPlaybackSync(player)
     }
 
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
@@ -235,6 +251,107 @@ fun VideoEditorScreen(
     val filterDurationEditorSliderPosition by viewModel.filterDurationEditorSliderPosition.collectAsState()
 
     val startFilterSelected by viewModel.startFilterSelected.collectAsState()
+
+    val timelineListState = rememberLazyListState()
+    val basePixelsPerSecond = 80f
+    val pixelsPerSecond = (basePixelsPerSecond * editorState.zoomLevel).coerceIn(20f, 200f)
+    val videoTrackLabel = stringResource(R.string.timeline_track_video)
+    val audioTrackLabel = stringResource(R.string.timeline_track_audio)
+    val overlayTrackLabel = stringResource(R.string.timeline_track_overlay)
+    val timelineTracks = remember(videoTrackLabel, audioTrackLabel, overlayTrackLabel) {
+        mutableStateListOf(
+            TimelineUiTrack(
+                id = "track-video",
+                label = videoTrackLabel,
+                clips = listOf(
+                    TimelineUiClip(
+                        id = "clip-1",
+                        durationMs = 3_000L,
+                        label = "Intro",
+                        type = TimelineClipType.Video
+                    ),
+                    TimelineUiClip(
+                        id = "clip-2",
+                        durationMs = 6_500L,
+                        label = "Entrevista",
+                        type = TimelineClipType.Video
+                    ),
+                    TimelineUiClip(
+                        id = "clip-3",
+                        durationMs = 4_000L,
+                        label = "B-roll",
+                        type = TimelineClipType.Video
+                    ),
+                    TimelineUiClip(
+                        id = "clip-4",
+                        durationMs = 2_500L,
+                        label = "Outro",
+                        type = TimelineClipType.Video
+                    )
+                )
+            ),
+            TimelineUiTrack(
+                id = "track-audio",
+                label = audioTrackLabel,
+                clips = listOf(
+                    TimelineUiClip(
+                        id = "clip-5",
+                        durationMs = 3_000L,
+                        label = "Música",
+                        type = TimelineClipType.Audio
+                    ),
+                    TimelineUiClip(
+                        id = "clip-6",
+                        durationMs = 6_500L,
+                        label = "Ambiente",
+                        type = TimelineClipType.Audio
+                    ),
+                    TimelineUiClip(
+                        id = "clip-7",
+                        durationMs = 4_000L,
+                        label = "FX",
+                        type = TimelineClipType.Audio
+                    ),
+                    TimelineUiClip(
+                        id = "clip-8",
+                        durationMs = 2_500L,
+                        label = "Cierre",
+                        type = TimelineClipType.Audio
+                    )
+                )
+            ),
+            TimelineUiTrack(
+                id = "track-overlay",
+                label = overlayTrackLabel,
+                clips = listOf(
+                    TimelineUiClip(
+                        id = "clip-9",
+                        durationMs = 3_000L,
+                        label = "Texto",
+                        type = TimelineClipType.Overlay
+                    ),
+                    TimelineUiClip(
+                        id = "clip-10",
+                        durationMs = 6_500L,
+                        label = "Sticker",
+                        type = TimelineClipType.Overlay
+                    ),
+                    TimelineUiClip(
+                        id = "clip-11",
+                        durationMs = 4_000L,
+                        label = "Lower third",
+                        type = TimelineClipType.Overlay
+                    ),
+                    TimelineUiClip(
+                        id = "clip-12",
+                        durationMs = 2_500L,
+                        label = "Logo",
+                        type = TimelineClipType.Overlay
+                    )
+                )
+            )
+        )
+    }
 
     val videoTitle = remember(uri) { getFileNameFromUri(context, uri.toUri()) }
     
@@ -285,7 +402,10 @@ fun VideoEditorScreen(
                 .fillMaxSize(),
             color = colorScheme.background
         ) {
-            Box {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+            ) {
                 DisposableEffect(key1 = Unit) {
                     val listenerHandler = Handler(getMainLooper())
                     val listener =
@@ -401,9 +521,15 @@ fun VideoEditorScreen(
                         )
                     }
 
-                Box(modifier = Modifier.windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility)) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .clipToBounds()
+                        .windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility)
+                ) {
                     AndroidView(
-                        modifier = androidViewModifier,
+                        modifier = androidViewModifier.fillMaxSize(),
                         factory = {
                             textureView = TextureView(context).apply {
                                 layoutParams =
@@ -428,68 +554,87 @@ fun VideoEditorScreen(
                             currentEditingEffect?.Editor()
                         }
                     }
+
+                    PlayerControls(
+                        modifier = Modifier
+                            .fillMaxSize(),
+                        isVisible = { controlsVisible },
+                        isPlaying = { isPlaying },
+                        title = { getFileNameFromUri(context, uri.toUri()) },
+                        transformManager = transformManager,
+                        createDocument = createDocument,
+                        createProject = createProject,
+                        playbackState = { playbackState },
+                        onReplayClick = { player.seekBack() },
+                        onForwardClick = { player.seekForward() },
+                        onPauseToggle = {
+                            when {
+                                player.isPlaying -> {
+                                    player.pause()
+                                }
+
+                                player.isPlaying.not() &&
+                                        playbackState == Player.STATE_ENDED -> {
+                                    player.seekTo(0)
+                                    player.playWhenReady = true
+                                }
+
+                                else -> {
+                                    player.play()
+                                }
+                            }
+                            isPlaying = isPlaying.not()
+                        },
+                        playbackSpeed = { playbackSpeed },
+                        onPlaybackSpeedChange = { speed ->
+                            playbackSpeed = speed
+                            player.playbackParameters = PlaybackParameters(speed)
+                        },
+                        onCaptureClick = {
+                            screenScope.launch(Dispatchers.IO) {
+                                saveFrame(context, uri, currentTime)
+                            }
+                        }
+                    )
                 }
 
-                PlayerControls(
+                Box(
                     modifier = Modifier
-                        .fillMaxSize(),
-                    isVisible = { controlsVisible },
-                    isPlaying = { isPlaying },
-                    title = { getFileNameFromUri(context, uri.toUri()) },
-                    transformManager = transformManager,
-                    createDocument = createDocument,
-                    createProject = createProject,
-                    playbackState = { playbackState },
-                    onReplayClick = { player.seekBack() },
-                    onForwardClick = { player.seekForward() },
-                    onPauseToggle = {
-                        when {
-                            player.isPlaying -> {
-                                player.pause()
+                        .fillMaxWidth()
+                        .height(320.dp)
+                        .windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility)
+                ) {
+                    BottomControls(
+                        modifier = Modifier.fillMaxWidth(),
+                        fpm = { fpm },
+                        totalDuration = { totalDuration },
+                        totalDurationFrames = { totalDurationFrames },
+                        currentTime = { currentTime },
+                        currentTimeFrames = { currentTimeFrames },
+                        onSeekChanged = { timeMs ->
+                            if (filterDurationEditorEnabled) {
+                                var range: ClosedFloatingPointRange<Float>? = null
+                                if (startFilterSelected && timeMs < filterDurationEditorSliderPosition.endInclusive) {
+                                    range = timeMs..filterDurationEditorSliderPosition.endInclusive
+                                } else if (!startFilterSelected && timeMs > filterDurationEditorSliderPosition.start) {
+                                    range = filterDurationEditorSliderPosition.start..timeMs
+                                }
+                                if (range != null) {
+                                    viewModel.setFilterDurationEditorSliderPosition(range)
+                                    player.seekTo(timeMs.toLong())
+                                }
+                            } else {
+                                player.seekTo(timeMs.toLong())
                             }
-
-                            player.isPlaying.not() &&
-                                    playbackState == Player.STATE_ENDED -> {
-                                player.seekTo(0)
-                                player.playWhenReady = true
-                            }
-
-                            else -> {
-                                player.play()
-                            }
-                        }
-                        isPlaying = isPlaying.not()
-                    },
-                    fpm = { fpm },
-                    totalDuration = { totalDuration },
-                    totalDurationFrames = { totalDurationFrames },
-                    currentTime = { currentTime },
-                    currentTimeFrames = { currentTimeFrames },
-                    playbackSpeed = { playbackSpeed },
-                    onPlaybackSpeedChange = { speed ->
-                        playbackSpeed = speed
-                        player.playbackParameters = PlaybackParameters(speed)
-                    },
-                    onCaptureClick = {
-                        screenScope.launch(Dispatchers.IO) {
-                            saveFrame(context, uri, currentTime)
-                        }
-                    }
-                ) { timeMs: Float ->
-                    if (filterDurationEditorEnabled) {
-                        var range: ClosedFloatingPointRange<Float>? = null
-                        if (startFilterSelected && timeMs < filterDurationEditorSliderPosition.endInclusive) {
-                            range = timeMs..filterDurationEditorSliderPosition.endInclusive
-                        } else if (!startFilterSelected && timeMs > filterDurationEditorSliderPosition.start) {
-                            range = filterDurationEditorSliderPosition.start..timeMs
-                        }
-                        if (range != null) {
-                            viewModel.setFilterDurationEditorSliderPosition(range)
-                            player.seekTo(timeMs.toLong())
-                        }
-                    } else {
-                        player.seekTo(timeMs.toLong())
-                    }
+                        },
+                        transformManager = transformManager,
+                        editorState = editorState,
+                        timelineTracks = timelineTracks,
+                        timelineListState = timelineListState,
+                        basePixelsPerSecond = basePixelsPerSecond,
+                        pixelsPerSecond = pixelsPerSecond,
+                        onPlayerSeek = { timeMs -> player.seekTo(timeMs) }
+                    )
                 }
             }
         }
@@ -509,16 +654,10 @@ private fun PlayerControls(
     onReplayClick: () -> Unit,
     onForwardClick: () -> Unit,
     onPauseToggle: () -> Unit,
-    fpm: () -> Float,
-    totalDuration: () -> Long,
-    totalDurationFrames: () -> Long,
-    currentTime: () -> Long,
-    currentTimeFrames: () -> Long,
     playbackState: () -> Int,
     playbackSpeed: () -> Float,
     onPlaybackSpeedChange: (Float) -> Unit,
-    onCaptureClick: () -> Unit,
-    onSeekChanged: (timeMs: Float) -> Unit
+    onCaptureClick: () -> Unit
 ) {
 
     val visible = remember(isVisible()) { isVisible() }
@@ -563,34 +702,6 @@ private fun PlayerControls(
                     playbackState = playbackState,
                     playbackSpeed = playbackSpeed,
                     onPlaybackSpeedChange = onPlaybackSpeedChange
-                )
-
-                BottomControls(
-                    modifier =
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .animateEnterExit(
-                            enter =
-                            slideInVertically(
-                                initialOffsetY = { fullHeight: Int ->
-                                    fullHeight
-                                }
-                            ),
-                            exit =
-                            slideOutVertically(
-                                targetOffsetY = { fullHeight: Int ->
-                                    fullHeight
-                                }
-                            )
-                        ),
-                    fpm = fpm,
-                    totalDuration = totalDuration,
-                    totalDurationFrames = totalDurationFrames,
-                    currentTime = currentTime,
-                    currentTimeFrames = currentTimeFrames,
-                    onSeekChanged = onSeekChanged,
-                    transformManager = transformManager
                 )
             }
         }
@@ -777,7 +888,13 @@ private fun BottomControls(
     currentTime: () -> Long,
     currentTimeFrames: () -> Long,
     onSeekChanged: (timeMs: Float) -> Unit,
-    transformManager: TransformManager
+    transformManager: TransformManager,
+    editorState: EditorState,
+    timelineTracks: MutableList<TimelineUiTrack>,
+    timelineListState: LazyListState,
+    basePixelsPerSecond: Float,
+    pixelsPerSecond: Float,
+    onPlayerSeek: (Long) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -806,6 +923,100 @@ private fun BottomControls(
             .padding(horizontal = 16.dp)
             .padding(bottom = 16.dp)
     ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = stringResource(R.string.timeline_mode_precision),
+                style = MaterialTheme.typography.labelMedium,
+                color = colorScheme.onBackground
+            )
+            Switch(
+                checked = editorState.mode == EditorMode.PRECISION,
+                onCheckedChange = { enabled ->
+                    val nextMode = if (enabled) EditorMode.PRECISION else EditorMode.BLOCKS
+                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.ToggleMode(nextMode))
+                }
+            )
+        }
+        Text(
+            text = stringResource(R.string.timeline_zoom),
+            style = MaterialTheme.typography.labelMedium,
+            color = colorScheme.onBackground
+        )
+        Slider(
+            modifier = Modifier
+                .fillMaxWidth(),
+            value = pixelsPerSecond,
+            onValueChange = { value ->
+                val zoomLevel = (value / basePixelsPerSecond).coerceIn(0.5f, 4f)
+                viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomChanged(zoomLevel))
+            },
+            valueRange = 20f..200f,
+            colors = SliderDefaults.colors(
+                inactiveTrackColor = colorScheme.inversePrimary
+            )
+        )
+        if (editorState.mode == EditorMode.PRECISION) {
+            TimelinePrecisionView(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp, bottom = 12.dp),
+                tracks = timelineTracks,
+                zoomLevel = editorState.zoomLevel,
+                currentTimeMs = currentTime(),
+                listState = timelineListState,
+                onZoom = { zoomDelta ->
+                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomByDelta(zoomDelta))
+                },
+                onTrim = { clipId, trimIn, trimOut ->
+                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.Trim(trimIn, trimOut))
+                },
+                onSeek = { timeMs ->
+                    onPlayerSeek(timeMs)
+                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.Seek(timeMs))
+                }
+            )
+        } else {
+            TimelineView(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp, bottom = 12.dp),
+                tracks = timelineTracks,
+                pixelsPerSecond = pixelsPerSecond,
+                listState = timelineListState,
+                onZoomChange = { zoomDelta ->
+                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomByDelta(zoomDelta))
+                },
+                onClipSelected = { _, clip ->
+                    timelineTracks.forEachIndexed { trackIndex, track ->
+                        val updatedClips = track.clips.map { item ->
+                            item.copy(isSelected = item.id == clip.id)
+                        }
+                        timelineTracks[trackIndex] = track.copy(clips = updatedClips)
+                    }
+                },
+                onClipMoved = { trackId, fromId, toIndex ->
+                    val trackIndex = timelineTracks.indexOfFirst { it.id == trackId }
+                    if (trackIndex == -1) return@TimelineView
+                    val track = timelineTracks[trackIndex]
+                    val fromIndex = track.clips.indexOfFirst { it.id == fromId }
+                    if (fromIndex == -1) return@TimelineView
+                    val boundedIndex = toIndex.coerceIn(0, track.clips.lastIndex)
+                    if (fromIndex == boundedIndex) return@TimelineView
+                    val updatedClips = track.clips.toMutableList()
+                    val clipToMove = updatedClips.removeAt(fromIndex)
+                    val insertIndex = if (fromIndex < boundedIndex) boundedIndex - 1 else boundedIndex
+                    updatedClips.add(insertIndex, clipToMove)
+                    timelineTracks[trackIndex] = track.copy(clips = updatedClips)
+                }
+            )
+        }
+
         MiniPreviewStrip(
             modifier = Modifier
                 .fillMaxWidth()

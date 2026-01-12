@@ -1,5 +1,101 @@
 # Changelog
 
+## [1.3.24] - 2026-01-09
+### Ajustado
+- Workflow de APK debug para ejecutar también en la rama de fix de referencias del editor.
+
+## [1.3.23] - 2026-01-09
+### Ajustado
+- Workflow de APK debug para ejecutar también en la rama work.
+
+## [1.3.22] - 2026-01-09
+### Corregido
+- Imports faltantes de EditorState y LazyListState para la pantalla del editor.
+
+## [1.3.21] - 2026-01-09
+### Corregido
+- Estado y datos de timeline disponibles en el scope correcto del editor.
+
+## [1.3.20] - 2026-01-09
+### Corregido
+- Import de clipToBounds para el PreviewArea.
+
+## [1.3.19] - 2026-01-09
+### Ajustado
+- Sincronización de reproducción en ViewModel y corrección de currentTime.
+
+## [1.3.18] - 2026-01-09
+### Ajustado
+- TimelinePrecisionView con scroll animado y playhead centrado.
+
+## [1.3.17] - 2026-01-09
+### Añadido
+- TimelineBlocksView con bloques semánticos seleccionables.
+
+## [1.3.16] - 2026-01-09
+### Añadido
+- Selector de modo Bloques/Precisión y uso de TimelinePrecisionView.
+
+## [1.3.15] - 2026-01-09
+### Añadido
+- TimelinePrecisionView con regla temporal, placeholders y callbacks de interacción.
+
+## [1.3.14] - 2026-01-09
+### Ajustado
+- Separación de PreviewArea y TimelineArea con insets y clipToBounds.
+
+## [1.3.13] - 2026-01-09
+### Ajustado
+- Limpieza de estado duplicado en VideoEditorScreen.
+
+## [1.3.12] - 2026-01-09
+### Ajustado
+- Integración de EditorState en VideoEditorScreen.
+
+## [1.3.11] - 2026-01-09
+### Añadido
+- Estado del editor con eventos, zoom derivado y sincronización de tiempo.
+
+## [1.3.10] - 2026-01-09
+### Ajustado
+- Modelos del editor con modo BLOCKS/PRECISION y clips de precisión con placeholders.
+
+## [1.3.9] - 2026-01-09
+### Añadido
+- Modelos de estado del editor y bloques semánticos para timeline híbrida.
+
+## [1.3.8] - 2026-01-09
+### Corregido
+- Correcciones de sincronización y regla temporal del timeline para compilar en CI.
+
+## [1.3.7] - 2026-01-09
+### Añadido
+- Workflow de APK debug para la rama codex/2026-01-11/17-39-50/create-timelineview-composable.
+
+## [1.3.6] - 2026-01-09
+### Añadido
+- Sincronización del scroll del timeline con la reproducción y zoom por gesto.
+
+## [1.3.5] - 2026-01-09
+### Añadido
+- Tracks múltiples con regla temporal y colores por tipo de clip en el timeline.
+
+## [1.3.4] - 2026-01-09
+### Añadido
+- Reordenamiento de clips por arrastre y selección persistente en el timeline.
+
+## [1.3.3] - 2026-01-09
+### Añadido
+- Selección de clips y etiqueta de tiempo actual en el timeline.
+
+## [1.3.2] - 2026-01-09
+### Añadido
+- Texto localizado para el control de zoom temporal del timeline.
+
+## [1.3.1] - 2026-01-09
+### Añadido
+- Vista de timeline con clips dummy, playhead centrado y control de zoom temporal.
+
 ## [1.3.0] - 2026-01-09
 ### Añadido
 - Mini previsualización del vídeo en la barra de controles con miniaturas y marcador de progreso.
