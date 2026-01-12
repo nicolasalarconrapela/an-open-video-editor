@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.45] - 2026-01-09
+### Ajustado
+- Dependencia Material Components para resolver el tema Material3 en recursos.
+
 ## [1.3.44] - 2026-01-09
 ### Añadido
 - Pantalla de carga con SplashScreen y tema dedicado.
