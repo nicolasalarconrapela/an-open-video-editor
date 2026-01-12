@@ -58,6 +58,7 @@ import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailReposit
 import kotlin.math.max
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.input.pointer.pointerInput
 import io.github.devhyper.openvideoeditor.R
 import kotlinx.coroutines.Dispatchers
@@ -214,13 +215,20 @@ fun TimelineView(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(tracks, key = { it.id }) { track ->
-                    LazyRow(
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(80.dp),
-                        state = listState,
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(spacingDp)
+                            .height(80.dp)
+                            .padding(horizontal = 16.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                    ) {
+                        LazyRow(
+                            modifier = Modifier.fillMaxSize(),
+                            state = listState,
+                            horizontalArrangement = Arrangement.spacedBy(0.dp)
                         ) {
                             items(track.clips, key = { it.id }) { clip ->
                                 val widthPx = (clip.durationMs / 1000f) * pixelsPerSecond
@@ -231,15 +239,17 @@ fun TimelineView(
                                 val (containerColor, contentColor) = when (clip.type) {
                                     TimelineClipType.Video -> {
                                         MaterialTheme.colorScheme.primaryContainer to
-                                            MaterialTheme.colorScheme.onPrimaryContainer
+                                                MaterialTheme.colorScheme.onPrimaryContainer
                                     }
+
                                     TimelineClipType.Audio -> {
                                         MaterialTheme.colorScheme.secondaryContainer to
-                                            MaterialTheme.colorScheme.onSecondaryContainer
+                                                MaterialTheme.colorScheme.onSecondaryContainer
                                     }
+
                                     TimelineClipType.Overlay -> {
                                         MaterialTheme.colorScheme.tertiaryContainer to
-                                            MaterialTheme.colorScheme.onTertiaryContainer
+                                                MaterialTheme.colorScheme.onTertiaryContainer
                                     }
                                 }
                                 val clipContainer = if (isSelected) {
@@ -257,154 +267,178 @@ fun TimelineView(
                                     clip.label
                                 )
                                 Box(
-                    modifier = Modifier
-                        .width(clipWidth)
-                        .height(clipHeight)
-                        .graphicsLayer { translationX = if (isDragging) dragOffsetPx else 0f }
-                        .pointerInput(track.id, clip.id, listState.layoutInfo) {
-                            detectDragGestures(
-                                onDragStart = {
-                                    draggingClipId = clip.id
-                                    dragOffsetPx = 0f
-                                },
-                                onDragEnd = {
-                                    val layoutInfo = listState.layoutInfo
-                                    val currentIndex = track.clips.indexOfFirst { it.id == clip.id }
-                                    val itemInfo = layoutInfo.visibleItemsInfo.firstOrNull { info ->
-                                        info.index == currentIndex
-                                    }
-                                    if (itemInfo != null) {
-                                        val dragCenter = itemInfo.offset + (itemInfo.size / 2) + dragOffsetPx
-                                        val targetInfo = layoutInfo.visibleItemsInfo.minByOrNull { info ->
-                                            abs((info.offset + (info.size / 2)) - dragCenter)
+                                    modifier = Modifier
+                                        .width(clipWidth)
+                                        .height(clipHeight)
+                                        .graphicsLayer {
+                                            translationX = if (isDragging) dragOffsetPx else 0f
                                         }
-                                        if (targetInfo != null && targetInfo.index != currentIndex) {
-                                            onClipMoved(track.id, clip.id, targetInfo.index)
+                                        .pointerInput(track.id, clip.id, listState.layoutInfo) {
+                                            detectDragGestures(
+                                                onDragStart = {
+                                                    draggingClipId = clip.id
+                                                    dragOffsetPx = 0f
+                                                },
+                                                onDragEnd = {
+                                                    val layoutInfo = listState.layoutInfo
+                                                    val currentIndex =
+                                                        track.clips.indexOfFirst { it.id == clip.id }
+                                                    val itemInfo =
+                                                        layoutInfo.visibleItemsInfo.firstOrNull { info ->
+                                                            info.index == currentIndex
+                                                        }
+                                                    if (itemInfo != null) {
+                                                        val dragCenter =
+                                                            itemInfo.offset + (itemInfo.size / 2) + dragOffsetPx
+                                                        val targetInfo =
+                                                            layoutInfo.visibleItemsInfo.minByOrNull { info ->
+                                                                abs((info.offset + (info.size / 2)) - dragCenter)
+                                                            }
+                                                        if (targetInfo != null && targetInfo.index != currentIndex) {
+                                                            onClipMoved(
+                                                                track.id,
+                                                                clip.id,
+                                                                targetInfo.index
+                                                            )
+                                                        }
+                                                    }
+                                                    draggingClipId = null
+                                                    dragOffsetPx = 0f
+                                                },
+                                                onDragCancel = {
+                                                    draggingClipId = null
+                                                    dragOffsetPx = 0f
+                                                },
+                                                onDrag = { change, dragAmount ->
+                                                    change.consume()
+                                                    dragOffsetPx += dragAmount.x
+                                                }
+                                            )
+                                        }
+                                        .clickable { onClipSelected(track.id, clip) }
+                                        .padding(horizontal = 4.dp)
+                                        .semantics {
+                                            contentDescription = clipContentDescription
+                                        },
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    if (thumbnailRepository != null && thumbnailKeyProvider != null && clip.type == TimelineClipType.Video) {
+                                        val clipStartMs = clipStartTimes[clip.id] ?: 0L
+                                        val clipEndMs = clipStartMs + clip.durationMs
+                                        val visibleStart = max(clipStartMs, viewportRangeMs.first)
+                                        val visibleEnd = min(clipEndMs, viewportRangeMs.last)
+                                        val times = remember(
+                                            clipStartMs,
+                                            clip.durationMs,
+                                            viewportRangeMs,
+                                            thumbnailIntervalMs
+                                        ) {
+                                            buildList {
+                                                if (visibleEnd <= visibleStart) return@buildList
+                                                var timeMs = visibleStart
+                                                while (timeMs <= visibleEnd) {
+                                                    add(timeMs)
+                                                    timeMs += thumbnailIntervalMs
+                                                }
+                                            }
+                                        }
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            times.forEach { timeMs ->
+                                                val key = thumbnailKeyProvider(
+                                                    timeMs * 1000,
+                                                    clip,
+                                                    zoomBucket
+                                                )
+                                                val bitmap = thumbnailState[key.keyString()]
+                                                if (bitmap != null) {
+                                                    androidx.compose.foundation.Image(
+                                                        bitmap = bitmap.asImageBitmap(),
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(
+                                                            thumbnailWidth,
+                                                            thumbnailHeight
+                                                        )
+                                                    )
+                                                } else {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(thumbnailWidth, thumbnailHeight)
+                                                            .background(Color.Black.copy(alpha = 0.15f))
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
-                                    draggingClipId = null
-                                    dragOffsetPx = 0f
-                                },
-                                onDragCancel = {
-                                    draggingClipId = null
-                                    dragOffsetPx = 0f
-                                },
-                                onDrag = { change, dragAmount ->
-                                    change.consume()
-                                    dragOffsetPx += dragAmount.x
-                                }
-                            )
-                        }
-                        .clickable { onClipSelected(track.id, clip) }
-                        .background(
-                            color = clipContainer,
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                        .padding(horizontal = 8.dp)
-                        .semantics {
-                            contentDescription = clipContentDescription
-                        },
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    if (thumbnailRepository != null && thumbnailKeyProvider != null && clip.type == TimelineClipType.Video) {
-                        val clipStartMs = clipStartTimes[clip.id] ?: 0L
-                        val clipEndMs = clipStartMs + clip.durationMs
-                        val visibleStart = max(clipStartMs, viewportRangeMs.first)
-                        val visibleEnd = min(clipEndMs, viewportRangeMs.last)
-                        val times = remember(clipStartMs, clip.durationMs, viewportRangeMs, thumbnailIntervalMs) {
-                            buildList {
-                                if (visibleEnd <= visibleStart) return@buildList
-                                var timeMs = visibleStart
-                                while (timeMs <= visibleEnd) {
-                                    add(timeMs)
-                                    timeMs += thumbnailIntervalMs
-                                }
-                            }
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            times.forEach { timeMs ->
-                                val key = thumbnailKeyProvider(timeMs * 1000, clip, zoomBucket)
-                                val bitmap = thumbnailState[key.keyString()]
-                                if (bitmap != null) {
-                                    androidx.compose.foundation.Image(
-                                        bitmap = bitmap.asImageBitmap(),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(thumbnailWidth, thumbnailHeight)
-                                    )
-                                } else {
-                                    Box(
+
+                                    Row(
                                         modifier = Modifier
-                                            .size(thumbnailWidth, thumbnailHeight)
-                                            .background(Color.Black.copy(alpha = 0.15f))
-                                    )
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        if (clip.type == TimelineClipType.Overlay) {
+                                            Icon(
+                                                imageVector = Icons.Filled.TextFields,
+                                                contentDescription = null,
+                                                tint = clipContent,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        } else if (clip.type == TimelineClipType.Audio) {
+                                            Icon(
+                                                imageVector = Icons.Filled.LibraryMusic,
+                                                contentDescription = null,
+                                                tint = clipContent,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+
+                                        Text(
+                                            text = clip.label,
+                                            color = clipContent,
+                                            style = MaterialTheme.typography.labelLarge,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+
+                                        )
+                                    }
                                 }
                             }
                         }
-                    } 
-                    
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                         if (clip.type == TimelineClipType.Overlay) {
-                            Icon(
-                                imageVector = Icons.Filled.TextFields,
-                                contentDescription = null,
-                                tint = clipContent,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        } else if (clip.type == TimelineClipType.Audio) {
-                            Icon(
-                                imageVector = Icons.Filled.LibraryMusic,
-                                contentDescription = null,
-                                tint = clipContent,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                        
-                        Text(
-                            text = clip.label,
-                            color = clipContent,
-                            style = MaterialTheme.typography.labelLarge,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
                     }
                 }
-                            }
-                        }
+            }
+
+            Box(modifier = Modifier.fillMaxSize()) {
+
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)   // ✅ aquí SÍ hay BoxScope
+                        .fillMaxHeight(),
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(2.dp)
+                            .background(Color.White)
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .size(12.dp)
+                            .offset(y = (-6).dp)
+                            .clip(CircleShape)
+                            .background(Color.White)
+                    )
                 }
             }
         }
-
-        Box(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .fillMaxHeight(),
-            contentAlignment = Alignment.TopCenter
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(2.dp)
-                    .background(Color.White)
-            )
-            Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .offset(y = (-4).dp)
-                    .clip(CircleShape)
-                    .background(Color.White)
-            )
-        }
-
-
     }
 }
+

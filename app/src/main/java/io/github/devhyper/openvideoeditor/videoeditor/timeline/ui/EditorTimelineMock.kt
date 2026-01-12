@@ -58,9 +58,7 @@ import kotlinx.coroutines.flow.update
 import kotlin.math.roundToInt
 
 enum class TrackType {
-    Video,
-    Text,
-    Music
+    Video, Text, Music
 }
 
 data class EditorClip(
@@ -73,10 +71,7 @@ data class EditorClip(
 )
 
 data class EditorTrack(
-    val id: String,
-    val label: String,
-    val type: TrackType,
-    val clips: List<EditorClip>
+    val id: String, val label: String, val type: TrackType, val clips: List<EditorClip>
 )
 
 data class EditorUiState(
@@ -104,8 +99,7 @@ class EditorTimelineViewModel : ViewModel() {
                             trackType = TrackType.Video
                         )
                     )
-                ),
-                EditorTrack(
+                ), EditorTrack(
                     id = "track-text",
                     label = "Pista de texto",
                     type = TrackType.Text,
@@ -118,8 +112,7 @@ class EditorTimelineViewModel : ViewModel() {
                             trackType = TrackType.Text
                         )
                     )
-                ),
-                EditorTrack(
+                ), EditorTrack(
                     id = "track-music",
                     label = "Pista de música",
                     type = TrackType.Music,
@@ -165,15 +158,17 @@ class EditorTimelineViewModel : ViewModel() {
 
 @Composable
 fun EditorTimelineScreen(
-    modifier: Modifier = Modifier,
-    viewModel: EditorTimelineViewModel = viewModel()
+    modifier: Modifier = Modifier, viewModel: EditorTimelineViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsState()
     val scrollState = rememberScrollState()
 
     LaunchedEffect(scrollState) {
-        snapshotFlow { scrollState.value.toFloat() }
-            .collect { scrollPx -> viewModel.onScrollChanged(scrollPx) }
+        snapshotFlow { scrollState.value.toFloat() }.collect { scrollPx ->
+            viewModel.onScrollChanged(
+                scrollPx
+            )
+        }
     }
 
     Column(
@@ -252,9 +247,7 @@ fun TrackLane(
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            text = track.label,
-            color = Color.White,
-            style = MaterialTheme.typography.labelSmall
+            text = track.label, color = Color.White, style = MaterialTheme.typography.labelSmall
         )
         Row(
             modifier = Modifier
@@ -310,11 +303,9 @@ fun ClipItem(
                         change.consumePositionChange()
                         dragOffset += dragAmount.x
                         onClipDragged(clip.id, dragAmount.x)
-                    }
-                )
+                    })
             }
-            .padding(8.dp)
-    ) {
+            .padding(8.dp)) {
         if (clip.trackType == TrackType.Video) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 repeat(6) {
@@ -342,12 +333,14 @@ fun ClipItem(
                     tint = Color.White,
                     modifier = Modifier.size(16.dp)
                 )
+
                 TrackType.Music -> Icon(
                     imageVector = Icons.Filled.LibraryMusic,
                     contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(16.dp)
                 )
+
                 else -> Unit
             }
 
@@ -423,9 +416,7 @@ fun ToolbarButton(icon: ImageVector, label: String, hasBadge: Boolean = false) {
 @Composable
 fun AddButton(modifier: Modifier = Modifier) {
     Surface(
-        modifier = modifier.size(48.dp),
-        shape = RoundedCornerShape(8.dp),
-        color = Color(0xFFECECEC)
+        modifier = modifier.size(48.dp), shape = RoundedCornerShape(8.dp), color = Color(0xFFECECEC)
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(

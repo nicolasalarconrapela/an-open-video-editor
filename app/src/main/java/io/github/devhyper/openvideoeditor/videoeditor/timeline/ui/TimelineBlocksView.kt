@@ -51,22 +51,18 @@ fun TimelineBlocksView(
             val widthDp = max((block.durationMs / 1000f) * 80f, 72f).dp
             val isSelected = block.id == selectedId
             val (icon, label) = blockIconAndLabel(block)
-            Box(
-                modifier = Modifier
-                    .width(widthDp)
-                    .height(72.dp)
-                    .clickable { onSelect(block) }
-                    .background(
-                        color = if (isSelected) {
-                            MaterialTheme.colorScheme.primaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.surfaceVariant
-                        },
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    .padding(12.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
+            Box(modifier = Modifier
+                .width(widthDp)
+                .height(72.dp)
+                .clickable { onSelect(block) }
+                .background(
+                    color = if (isSelected) {
+                        MaterialTheme.colorScheme.primaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant
+                    }, shape = RoundedCornerShape(12.dp)
+                )
+                .padding(12.dp), contentAlignment = Alignment.CenterStart) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         modifier = Modifier.size(20.dp),
@@ -95,12 +91,11 @@ fun TimelineBlocksView(
     }
 }
 
-private fun blockIconAndLabel(block: TimelineBlock): Pair<ImageVector, String> =
-    when (block) {
-        is TimelineBlock.Intro -> Icons.Filled.Movie to block.label
-        is TimelineBlock.Roll -> Icons.Filled.Star to block.label
-        is TimelineBlock.Outro -> Icons.Filled.Movie to block.label
-        is TimelineBlock.LowerThird -> Icons.Filled.Title to block.label
-        is TimelineBlock.Logo -> Icons.Filled.Widgets to block.label
-        is TimelineBlock.AudioBed -> Icons.Filled.MusicNote to block.label
-    }
+private fun blockIconAndLabel(block: TimelineBlock): Pair<ImageVector, String> = when (block) {
+    is TimelineBlock.Intro -> Icons.Filled.Movie to block.label
+    is TimelineBlock.Roll -> Icons.Filled.Star to block.label
+    is TimelineBlock.Outro -> Icons.Filled.Movie to block.label
+    is TimelineBlock.LowerThird -> Icons.Filled.Title to block.label
+    is TimelineBlock.Logo -> Icons.Filled.Widgets to block.label
+    is TimelineBlock.AudioBed -> Icons.Filled.MusicNote to block.label
+}
