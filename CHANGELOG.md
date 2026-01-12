@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.21] - 2026-01-09
+### Corregido
+- Estado y datos de timeline disponibles en el scope correcto del editor.
+
 ## [1.3.20] - 2026-01-09
 ### Corregido
 - Import de clipToBounds para el PreviewArea.

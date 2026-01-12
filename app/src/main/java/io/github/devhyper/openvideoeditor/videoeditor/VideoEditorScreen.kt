@@ -250,6 +250,107 @@ fun VideoEditorScreen(
 
     val startFilterSelected by viewModel.startFilterSelected.collectAsState()
 
+    val timelineListState = rememberLazyListState()
+    val basePixelsPerSecond = 80f
+    val pixelsPerSecond = (basePixelsPerSecond * editorState.zoomLevel).coerceIn(20f, 200f)
+    val videoTrackLabel = stringResource(R.string.timeline_track_video)
+    val audioTrackLabel = stringResource(R.string.timeline_track_audio)
+    val overlayTrackLabel = stringResource(R.string.timeline_track_overlay)
+    val timelineTracks = remember(videoTrackLabel, audioTrackLabel, overlayTrackLabel) {
+        mutableStateListOf(
+            TimelineUiTrack(
+                id = "track-video",
+                label = videoTrackLabel,
+                clips = listOf(
+                    TimelineUiClip(
+                        id = "clip-1",
+                        durationMs = 3_000L,
+                        label = "Intro",
+                        type = TimelineClipType.Video
+                    ),
+                    TimelineUiClip(
+                        id = "clip-2",
+                        durationMs = 6_500L,
+                        label = "Entrevista",
+                        type = TimelineClipType.Video
+                    ),
+                    TimelineUiClip(
+                        id = "clip-3",
+                        durationMs = 4_000L,
+                        label = "B-roll",
+                        type = TimelineClipType.Video
+                    ),
+                    TimelineUiClip(
+                        id = "clip-4",
+                        durationMs = 2_500L,
+                        label = "Outro",
+                        type = TimelineClipType.Video
+                    )
+                )
+            ),
+            TimelineUiTrack(
+                id = "track-audio",
+                label = audioTrackLabel,
+                clips = listOf(
+                    TimelineUiClip(
+                        id = "clip-5",
+                        durationMs = 3_000L,
+                        label = "Música",
+                        type = TimelineClipType.Audio
+                    ),
+                    TimelineUiClip(
+                        id = "clip-6",
+                        durationMs = 6_500L,
+                        label = "Ambiente",
+                        type = TimelineClipType.Audio
+                    ),
+                    TimelineUiClip(
+                        id = "clip-7",
+                        durationMs = 4_000L,
+                        label = "FX",
+                        type = TimelineClipType.Audio
+                    ),
+                    TimelineUiClip(
+                        id = "clip-8",
+                        durationMs = 2_500L,
+                        label = "Cierre",
+                        type = TimelineClipType.Audio
+                    )
+                )
+            ),
+            TimelineUiTrack(
+                id = "track-overlay",
+                label = overlayTrackLabel,
+                clips = listOf(
+                    TimelineUiClip(
+                        id = "clip-9",
+                        durationMs = 3_000L,
+                        label = "Texto",
+                        type = TimelineClipType.Overlay
+                    ),
+                    TimelineUiClip(
+                        id = "clip-10",
+                        durationMs = 6_500L,
+                        label = "Sticker",
+                        type = TimelineClipType.Overlay
+                    ),
+                    TimelineUiClip(
+                        id = "clip-11",
+                        durationMs = 4_000L,
+                        label = "Lower third",
+                        type = TimelineClipType.Overlay
+                    ),
+                    TimelineUiClip(
+                        id = "clip-12",
+                        durationMs = 2_500L,
+                        label = "Logo",
+                        type = TimelineClipType.Overlay
+                    )
+                )
+            )
+        )
+    }
+
     val videoTitle = remember(uri) { getFileNameFromUri(context, uri.toUri()) }
     
     val workManager = remember { WorkManager.getInstance(context) }
@@ -524,7 +625,13 @@ fun VideoEditorScreen(
                                 player.seekTo(timeMs.toLong())
                             }
                         },
-                        transformManager = transformManager
+                        transformManager = transformManager,
+                        editorState = editorState,
+                        timelineTracks = timelineTracks,
+                        timelineListState = timelineListState,
+                        basePixelsPerSecond = basePixelsPerSecond,
+                        pixelsPerSecond = pixelsPerSecond,
+                        onPlayerSeek = { timeMs -> player.seekTo(timeMs) }
                     )
                 }
             }
@@ -779,7 +886,13 @@ private fun BottomControls(
     currentTime: () -> Long,
     currentTimeFrames: () -> Long,
     onSeekChanged: (timeMs: Float) -> Unit,
-    transformManager: TransformManager
+    transformManager: TransformManager,
+    editorState: EditorState,
+    timelineTracks: MutableList<TimelineUiTrack>,
+    timelineListState: LazyListState,
+    basePixelsPerSecond: Float,
+    pixelsPerSecond: Float,
+    onPlayerSeek: (Long) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -792,7 +905,7 @@ private fun BottomControls(
     val videoFpm = remember(fpm()) { fpm() }
     val duration = remember(totalDuration()) { totalDuration() }
     val durationFrames = remember(totalDurationFrames()) { totalDurationFrames() }
-    val videoTime = remember(currentTime) { currentTime }
+    val videoTime = remember(currentTime()) { currentTime() }
     val videoTimeFrames = remember(currentTimeFrames()) { currentTimeFrames() }
 
     val viewModel = viewModel { VideoEditorViewModel() }
@@ -802,124 +915,6 @@ private fun BottomControls(
     val filterDurationEditorEnabled by viewModel.filterDurationEditorEnabled.collectAsState()
     val filterDurationCallback by viewModel.filterDurationCallback.collectAsState()
     val filterDurationEditorSliderPosition by viewModel.filterDurationEditorSliderPosition.collectAsState()
-    val timelineListState = rememberLazyListState()
-    val basePixelsPerSecond = 80f
-    val pixelsPerSecond = (basePixelsPerSecond * editorState.zoomLevel).coerceIn(20f, 200f)
-    val videoTrackLabel = stringResource(R.string.timeline_track_video)
-    val audioTrackLabel = stringResource(R.string.timeline_track_audio)
-    val overlayTrackLabel = stringResource(R.string.timeline_track_overlay)
-    val timelineTracks = remember(videoTrackLabel, audioTrackLabel, overlayTrackLabel) {
-        mutableStateListOf(
-            TimelineUiTrack(
-                id = "track-video",
-                label = videoTrackLabel,
-                clips = listOf(
-                    TimelineUiClip(
-                        id = "clip-1",
-                        durationMs = 3_000L,
-                        label = "Intro",
-                        type = TimelineClipType.Video
-                    ),
-                    TimelineUiClip(
-                        id = "clip-2",
-                        durationMs = 6_500L,
-                        label = "Entrevista",
-                        type = TimelineClipType.Video
-                    ),
-                    TimelineUiClip(
-                        id = "clip-3",
-                        durationMs = 4_000L,
-                        label = "B-roll",
-                        type = TimelineClipType.Video
-                    ),
-                    TimelineUiClip(
-                        id = "clip-4",
-                        durationMs = 2_500L,
-                        label = "Outro",
-                        type = TimelineClipType.Video
-                    )
-                )
-            ),
-            TimelineUiTrack(
-                id = "track-audio",
-                label = audioTrackLabel,
-                clips = listOf(
-                    TimelineUiClip(
-                        id = "clip-5",
-                        durationMs = 3_000L,
-                        label = "Música",
-                        type = TimelineClipType.Audio
-                    ),
-                    TimelineUiClip(
-                        id = "clip-6",
-                        durationMs = 6_500L,
-                        label = "Ambiente",
-                        type = TimelineClipType.Audio
-                    ),
-                    TimelineUiClip(
-                        id = "clip-7",
-                        durationMs = 4_000L,
-                        label = "FX",
-                        type = TimelineClipType.Audio
-                    ),
-                    TimelineUiClip(
-                        id = "clip-8",
-                        durationMs = 2_500L,
-                        label = "Cierre",
-                        type = TimelineClipType.Audio
-                    )
-                )
-            ),
-            TimelineUiTrack(
-                id = "track-overlay",
-                label = overlayTrackLabel,
-                clips = listOf(
-                    TimelineUiClip(
-                        id = "clip-9",
-                        durationMs = 3_000L,
-                        label = "Texto",
-                        type = TimelineClipType.Overlay
-                    ),
-                    TimelineUiClip(
-                        id = "clip-10",
-                        durationMs = 6_500L,
-                        label = "Sticker",
-                        type = TimelineClipType.Overlay
-                    ),
-                    TimelineUiClip(
-                        id = "clip-11",
-                        durationMs = 4_000L,
-                        label = "Lower third",
-                        type = TimelineClipType.Overlay
-                    ),
-                    TimelineUiClip(
-                        id = "clip-12",
-                        durationMs = 2_500L,
-                        label = "Logo",
-                        type = TimelineClipType.Overlay
-                    )
-                )
-            )
-        )
-    }
-    LaunchedEffect(currentTime, pixelsPerSecond, timelineTracks) {
-        val masterClips = timelineTracks.firstOrNull()?.clips.orEmpty()
-        if (masterClips.isEmpty()) return@LaunchedEffect
-        var remainingMs = currentTime
-        var targetIndex = 0
-        masterClips.forEachIndexed { index, clip ->
-            if (remainingMs <= clip.durationMs) {
-                targetIndex = index
-                return@forEachIndexed
-            }
-            remainingMs -= clip.durationMs
-        }
-        val offsetPx = ((remainingMs / 1000f) * pixelsPerSecond).roundToInt()
-        timelineListState.scrollToItem(targetIndex.coerceIn(0, masterClips.lastIndex), offsetPx)
-    }
-    LaunchedEffect(currentTime) {
-        viewModel.onEvent(VideoEditorViewModel.EditorEvent.Seek(currentTime))
-    }
 
     Column(
         modifier = modifier
@@ -971,7 +966,7 @@ private fun BottomControls(
                     .padding(top = 8.dp, bottom = 12.dp),
                 tracks = timelineTracks,
                 zoomLevel = editorState.zoomLevel,
-                currentTimeMs = currentTime,
+                currentTimeMs = currentTime(),
                 listState = timelineListState,
                 onZoom = { zoomDelta ->
                     viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomByDelta(zoomDelta))
@@ -980,7 +975,7 @@ private fun BottomControls(
                     viewModel.onEvent(VideoEditorViewModel.EditorEvent.Trim(trimIn, trimOut))
                 },
                 onSeek = { timeMs ->
-                    player.seekTo(timeMs)
+                    onPlayerSeek(timeMs)
                     viewModel.onEvent(VideoEditorViewModel.EditorEvent.Seek(timeMs))
                 }
             )
