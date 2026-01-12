@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.36] - 2026-01-09
+### Corregido
+- Variables de miniaturas movidas al scope correcto del TimelineView.
+
 ## [1.3.35] - 2026-01-09
 ### Corregido
 - Conexión de TimelineView al repositorio de miniaturas para cargar thumbnails.

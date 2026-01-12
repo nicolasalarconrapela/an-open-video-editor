@@ -261,41 +261,6 @@ fun VideoEditorScreen(
     val timelineListState = rememberLazyListState()
     val basePixelsPerSecond = 80f
     val pixelsPerSecond = (basePixelsPerSecond * editorState.zoomLevel).coerceIn(20f, 200f)
-    val density = LocalDensity.current
-    val thumbnailWidthPx = remember(density) { with(density) { 56.dp.toPx().toInt() } }
-    val thumbnailHeightPx = remember(density) { with(density) { 40.dp.toPx().toInt() } }
-    val thumbnailZoomBucket = remember(editorState.zoomLevel) { (editorState.zoomLevel * 10f).roundToInt() }
-    val thumbnailRepository = remember(uri, context, screenScope) {
-        val extractor = MediaCodecFrameExtractor()
-        ThumbnailRepository(
-            scope = screenScope,
-            dispatcher = Dispatchers.IO,
-            memoryCache = BitmapMemoryCache(),
-            diskCache = DiskThumbnailCache(context),
-            decode = { key ->
-                extractor.extractFrame(
-                    context = context,
-                    uriString = key.videoIdOrUri,
-                    timeUs = key.timeUs,
-                    targetWidth = key.targetWidth,
-                    targetHeight = key.targetHeight,
-                    rotationDegrees = key.rotationDegrees
-                )
-            }
-        )
-    }
-    val thumbnailKeyProvider = remember(uri, thumbnailWidthPx, thumbnailHeightPx) {
-        { timeUs: Long, _: TimelineUiClip, zoomBucket: Int ->
-            ThumbnailKey(
-                videoIdOrUri = uri,
-                timeUs = timeUs,
-                targetWidth = thumbnailWidthPx,
-                targetHeight = thumbnailHeightPx,
-                rotationDegrees = 0,
-                zoomBucket = zoomBucket
-            )
-        }
-    }
     val videoTrackLabel = stringResource(R.string.timeline_track_video)
     val audioTrackLabel = stringResource(R.string.timeline_track_audio)
     val overlayTrackLabel = stringResource(R.string.timeline_track_overlay)
@@ -1023,6 +988,41 @@ private fun BottomControls(
                 }
             )
         } else {
+            val density = LocalDensity.current
+            val thumbnailWidthPx = remember(density) { with(density) { 56.dp.toPx().toInt() } }
+            val thumbnailHeightPx = remember(density) { with(density) { 40.dp.toPx().toInt() } }
+            val thumbnailZoomBucket = remember(editorState.zoomLevel) { (editorState.zoomLevel * 10f).roundToInt() }
+            val thumbnailRepository = remember(uri, context, screenScope) {
+                val extractor = MediaCodecFrameExtractor()
+                ThumbnailRepository(
+                    scope = screenScope,
+                    dispatcher = Dispatchers.IO,
+                    memoryCache = BitmapMemoryCache(),
+                    diskCache = DiskThumbnailCache(context),
+                    decode = { key ->
+                        extractor.extractFrame(
+                            context = context,
+                            uriString = key.videoIdOrUri,
+                            timeUs = key.timeUs,
+                            targetWidth = key.targetWidth,
+                            targetHeight = key.targetHeight,
+                            rotationDegrees = key.rotationDegrees
+                        )
+                    }
+                )
+            }
+            val thumbnailKeyProvider = remember(uri, thumbnailWidthPx, thumbnailHeightPx) {
+                { timeUs: Long, _: TimelineUiClip, zoomBucket: Int ->
+                    ThumbnailKey(
+                        videoIdOrUri = uri,
+                        timeUs = timeUs,
+                        targetWidth = thumbnailWidthPx,
+                        targetHeight = thumbnailHeightPx,
+                        rotationDegrees = 0,
+                        zoomBucket = zoomBucket
+                    )
+                }
+            }
             TimelineView(
                 modifier = Modifier
                     .fillMaxWidth()
