@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.25] - 2026-01-09
+### Añadido
+- Clave de miniaturas y caché en memoria para deduplicar frames de previsualización.
+
 ## [1.3.24] - 2026-01-09
 ### Ajustado
 - Workflow de APK debug para ejecutar también en la rama de fix de referencias del editor.

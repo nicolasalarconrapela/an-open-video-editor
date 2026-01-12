@@ -103,6 +103,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -137,6 +138,8 @@ import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelinePrecis
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineUiClip
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineUiTrack
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineView
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailMemoryCache
 import io.github.devhyper.openvideoeditor.videoeditor.state.EditorState
 import io.github.devhyper.openvideoeditor.videoeditor.state.EditorMode
 import io.github.devhyper.openvideoeditor.R
@@ -1244,7 +1247,10 @@ private fun MiniPreviewStrip(
     currentTimeMs: Long,
 ) {
     val context = LocalContext.current
+    val density = LocalDensity.current
     val previewSource = remember(durationMs) { transformManager.getPreviewSource(context) }
+    val targetWidthPx = remember(density) { with(density) { 72.dp.roundToPx() } }
+    val targetHeightPx = 0
     val previewFrames by produceState(initialValue = emptyList<androidx.compose.ui.graphics.ImageBitmap>(), previewSource, durationMs) {
         value = withContext(Dispatchers.IO) {
             if (durationMs <= 0L) {
@@ -1260,14 +1266,33 @@ private fun MiniPreviewStrip(
                     val frameCount = 8
                     val stepMs = (durationMs / frameCount).coerceAtLeast(1L)
                     val frames = mutableListOf<androidx.compose.ui.graphics.ImageBitmap>()
+                    val seenKeys = mutableSetOf<ThumbnailKey>()
                     for (index in 0 until frameCount) {
                         val timeUs = (index * stepMs) * 1000L
-                        val bitmap = retriever.getFrameAtTime(
-                            timeUs,
-                            MediaMetadataRetriever.OPTION_CLOSEST_SYNC
+                        val key = ThumbnailKey(
+                            videoIdOrUri = previewSource,
+                            timeUs = timeUs,
+                            targetWidth = targetWidthPx,
+                            targetHeight = targetHeightPx,
+                            rotationDegrees = 0,
+                            zoomBucket = 0,
                         )
-                        if (bitmap != null) {
-                            frames.add(bitmap.asImageBitmap())
+                        if (!seenKeys.add(key)) {
+                            continue
+                        }
+                        val cachedBitmap = ThumbnailMemoryCache.get(key)
+                        if (cachedBitmap != null) {
+                            frames.add(cachedBitmap)
+                        } else {
+                            val bitmap = retriever.getFrameAtTime(
+                                timeUs,
+                                MediaMetadataRetriever.OPTION_CLOSEST_SYNC
+                            )
+                            if (bitmap != null) {
+                                val imageBitmap = bitmap.asImageBitmap()
+                                ThumbnailMemoryCache.put(key, imageBitmap)
+                                frames.add(imageBitmap)
+                            }
                         }
                     }
                     frames
