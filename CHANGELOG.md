@@ -1,5 +1,57 @@
 # Changelog
 
+## [1.3.37] - 2026-01-09
+### Añadido
+- UI mock de editor con timeline superior, playhead centrado y barra inferior.
+
+## [1.3.36] - 2026-01-09
+### Corregido
+- Variables de miniaturas movidas al scope correcto del TimelineView.
+
+## [1.3.35] - 2026-01-09
+### Corregido
+- Conexión de TimelineView al repositorio de miniaturas para cargar thumbnails.
+
+## [1.3.34] - 2026-01-09
+### Corregido
+- Import de LaunchedEffect para la integración de miniaturas en TimelineView.
+
+## [1.3.33] - 2026-01-09
+### Añadido
+- Workflow de APK debug para la rama de sistema de miniaturas de línea de tiempo.
+
+## [1.3.32] - 2026-01-09
+### Añadido
+- Option B / Pro timeline thumbnails con cache, scheduler y decode MediaCodec.
+
+## [1.3.31] - 2026-01-09
+### Añadido
+- Integración de miniaturas en TimelineView con solicitudes por viewport.
+
+## [1.3.30] - 2026-01-09
+### Añadido
+- Repositorio de miniaturas con pipeline memoria/disco/decode y dedupe en vuelo.
+
+## [1.3.29] - 2026-01-09
+### Añadido
+- Scheduler de miniaturas con deduplicación, cancelación y prioridad por playhead.
+
+## [1.3.28] - 2026-01-09
+### Añadido
+- Extractor de frames con MediaCodec y conversión YUV->ARGB para miniaturas.
+
+## [1.3.27] - 2026-01-09
+### Añadido
+- Cache en disco para miniaturas con hash SHA-256 y eviction por antigüedad.
+
+## [1.3.26] - 2026-01-09
+### Añadido
+- Cache LRU en memoria para miniaturas con límite configurable por bytes.
+
+## [1.3.25] - 2026-01-09
+### Añadido
+- Modelo ThumbnailKey para claves estables de miniaturas en caches y deduplicación.
+
 ## [1.3.24] - 2026-01-09
 ### Ajustado
 - Workflow de APK debug para ejecutar también en la rama de fix de referencias del editor.
