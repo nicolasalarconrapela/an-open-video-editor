@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.27] - 2026-01-09
+### Añadido
+- Cache en disco para miniaturas con hash SHA-256 y eviction por antigüedad.
+
+## [1.3.26] - 2026-01-09
+### Añadido
+- Cache LRU en memoria para miniaturas con límite configurable por bytes.
+
+## [1.3.25] - 2026-01-09
+### Añadido
+- Modelo ThumbnailKey para claves estables de miniaturas en caches y deduplicación.
+
 ## [1.3.24] - 2026-01-09
 ### Ajustado
 - Workflow de APK debug para ejecutar también en la rama de fix de referencias del editor.
