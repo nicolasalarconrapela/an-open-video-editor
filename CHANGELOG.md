@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.35] - 2026-01-09
+### Corregido
+- Conexión de TimelineView al repositorio de miniaturas para cargar thumbnails.
+
 ## [1.3.34] - 2026-01-09
 ### Corregido
 - Import de LaunchedEffect para la integración de miniaturas en TimelineView.

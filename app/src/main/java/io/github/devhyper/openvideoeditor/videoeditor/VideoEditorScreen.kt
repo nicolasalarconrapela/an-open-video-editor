@@ -158,6 +158,11 @@ import io.github.devhyper.openvideoeditor.misc.validateUInt
 import io.github.devhyper.openvideoeditor.settings.SettingsActivity
 import io.github.devhyper.openvideoeditor.settings.SettingsDataStore
 import io.github.devhyper.openvideoeditor.ui.theme.OpenVideoEditorTheme
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRepository
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.cache.BitmapMemoryCache
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.cache.DiskThumbnailCache
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.codec.MediaCodecFrameExtractor
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
@@ -177,6 +182,7 @@ import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.provider.MediaStore
 import android.net.Uri
+import androidx.compose.ui.platform.LocalDensity
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -255,6 +261,41 @@ fun VideoEditorScreen(
     val timelineListState = rememberLazyListState()
     val basePixelsPerSecond = 80f
     val pixelsPerSecond = (basePixelsPerSecond * editorState.zoomLevel).coerceIn(20f, 200f)
+    val density = LocalDensity.current
+    val thumbnailWidthPx = remember(density) { with(density) { 56.dp.toPx().toInt() } }
+    val thumbnailHeightPx = remember(density) { with(density) { 40.dp.toPx().toInt() } }
+    val thumbnailZoomBucket = remember(editorState.zoomLevel) { (editorState.zoomLevel * 10f).roundToInt() }
+    val thumbnailRepository = remember(uri, context, screenScope) {
+        val extractor = MediaCodecFrameExtractor()
+        ThumbnailRepository(
+            scope = screenScope,
+            dispatcher = Dispatchers.IO,
+            memoryCache = BitmapMemoryCache(),
+            diskCache = DiskThumbnailCache(context),
+            decode = { key ->
+                extractor.extractFrame(
+                    context = context,
+                    uriString = key.videoIdOrUri,
+                    timeUs = key.timeUs,
+                    targetWidth = key.targetWidth,
+                    targetHeight = key.targetHeight,
+                    rotationDegrees = key.rotationDegrees
+                )
+            }
+        )
+    }
+    val thumbnailKeyProvider = remember(uri, thumbnailWidthPx, thumbnailHeightPx) {
+        { timeUs: Long, _: TimelineUiClip, zoomBucket: Int ->
+            ThumbnailKey(
+                videoIdOrUri = uri,
+                timeUs = timeUs,
+                targetWidth = thumbnailWidthPx,
+                targetHeight = thumbnailHeightPx,
+                rotationDegrees = 0,
+                zoomBucket = zoomBucket
+            )
+        }
+    }
     val videoTrackLabel = stringResource(R.string.timeline_track_video)
     val audioTrackLabel = stringResource(R.string.timeline_track_audio)
     val overlayTrackLabel = stringResource(R.string.timeline_track_overlay)
@@ -989,6 +1030,9 @@ private fun BottomControls(
                 tracks = timelineTracks,
                 pixelsPerSecond = pixelsPerSecond,
                 listState = timelineListState,
+                thumbnailRepository = thumbnailRepository,
+                thumbnailKeyProvider = thumbnailKeyProvider,
+                zoomBucket = thumbnailZoomBucket,
                 onZoomChange = { zoomDelta ->
                     viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomByDelta(zoomDelta))
                 },
