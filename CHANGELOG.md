@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.20] - 2026-01-09
+### Corregido
+- Import de clipToBounds para el PreviewArea.
+
 ## [1.3.19] - 2026-01-09
 ### Ajustado
 - Sincronización de reproducción en ViewModel y corrección de currentTime.
