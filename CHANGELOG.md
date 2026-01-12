@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.30] - 2026-01-09
+### Añadido
+- Repositorio de miniaturas con pipeline memoria/disco/decode y dedupe en vuelo.
+
 ## [1.3.29] - 2026-01-09
 ### Añadido
 - Scheduler de miniaturas con deduplicación, cancelación y prioridad por playhead.
