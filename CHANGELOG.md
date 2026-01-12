@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.40] - 2026-01-09
+### Añadido
+- Versión visible en la pantalla principal al abrir la app.
+### Ajustado
+- Actualización de versionCode y versionName para el APK.
+
 ## [1.3.39] - 2026-01-09
 ### Ajustado
 - Ajustes visuales de playhead, toolbar y botón añadir en la UI mock del editor.
