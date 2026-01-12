@@ -612,6 +612,7 @@ fun VideoEditorScreen(
                 ) {
                     BottomControls(
                         modifier = Modifier.fillMaxWidth(),
+                        uri = uri,
                         fpm = { fpm },
                         totalDuration = { totalDuration },
                         totalDurationFrames = { totalDurationFrames },
@@ -888,6 +889,7 @@ private fun CenterControls(
 @Composable
 private fun BottomControls(
     modifier: Modifier = Modifier,
+    uri: String,
     fpm: () -> Float,
     totalDuration: () -> Long,
     totalDurationFrames: () -> Long,
@@ -992,10 +994,10 @@ private fun BottomControls(
             val thumbnailWidthPx = remember(density) { with(density) { 56.dp.toPx().toInt() } }
             val thumbnailHeightPx = remember(density) { with(density) { 40.dp.toPx().toInt() } }
             val thumbnailZoomBucket = remember(editorState.zoomLevel) { (editorState.zoomLevel * 10f).roundToInt() }
-            val thumbnailRepository = remember(uri, context, screenScope) {
+            val thumbnailRepository = remember(uri, context, scope) {
                 val extractor = MediaCodecFrameExtractor()
                 ThumbnailRepository(
-                    scope = screenScope,
+                    scope = scope,
                     dispatcher = Dispatchers.IO,
                     memoryCache = BitmapMemoryCache(),
                     diskCache = DiskThumbnailCache(context),

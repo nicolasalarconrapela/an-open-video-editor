@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.37] - 2026-01-09
+### Corregido
+- Paso explícito del `uri` y uso del scope local en `BottomControls` para el repositorio de miniaturas.
+
 ## [1.3.36] - 2026-01-09
 ### Corregido
 - Variables de miniaturas movidas al scope correcto del TimelineView.
