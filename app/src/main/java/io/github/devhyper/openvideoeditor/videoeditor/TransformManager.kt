@@ -62,7 +62,7 @@ class EffectDialogSetting(
     var selection = ""
 }
 
-class ExportSettings : java.io.Serializable {
+class ExportSettings {
     var exportAudio = true
     var exportVideo = true
     var hdrMode: Int = HDR_MODE_KEEP_HDR
@@ -285,7 +285,7 @@ class TransformManager {
     ) {
         if (hasInitialized) {
             if (exoPlayer != player) {
-                if (player.isCommandAvailable(Player.COMMAND_RELEASE)) {
+                if (player.availableCommands.contains(Player.COMMAND_RELEASE)) {
                     player.release()
                 }
                 player = exoPlayer
@@ -659,7 +659,7 @@ class TransformManager {
         listFile.bufferedWriter().use { writer ->
             segments.forEach { segment ->
                 val segmentPath = segmentFilePath(state, segment.index)
-                writer.appendLine("file '${segmentPath.replace("'", "\\'")}'")
+                writer.appendLine("file '''${segmentPath.replace("'", "\\'")}'''")
             }
         }
         val outputSafPath =
