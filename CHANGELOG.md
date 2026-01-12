@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.32] - 2026-01-09
+### Añadido
+- Option B / Pro timeline thumbnails con cache, scheduler y decode MediaCodec.
+
 ## [1.3.31] - 2026-01-09
 ### Añadido
 - Integración de miniaturas en TimelineView con solicitudes por viewport.
