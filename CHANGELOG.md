@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.31] - 2026-01-09
+### Añadido
+- Integración de miniaturas en TimelineView con solicitudes por viewport.
+
 ## [1.3.30] - 2026-01-09
 ### Añadido
 - Repositorio de miniaturas con pipeline memoria/disco/decode y dedupe en vuelo.
