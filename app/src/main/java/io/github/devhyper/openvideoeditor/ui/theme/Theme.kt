@@ -5,8 +5,6 @@ import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
@@ -19,40 +17,46 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import io.github.devhyper.openvideoeditor.settings.SettingsDataStore
 
+// We prioritize Dark Theme for the "Ultra-Minimalist 2026" look
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = Primary2026,
+    secondary = Secondary2026,
+    tertiary = Tertiary2026,
+    background = Background2026,
+    surface = Surface2026,
+    onPrimary = OnPrimary2026,
+    onSecondary = OnPrimary2026,
+    onTertiary = OnPrimary2026,
+    onBackground = OnBackground2026,
+    onSurface = OnSurface2026,
+    surfaceVariant = GlassDark, // Use for cards/glass
 )
 
+// Light theme is also high-contrast minimalist, but inverted
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-background = Color(0xFFFFFBFE),
-surface = Color(0xFFFFFBFE),
-onPrimary = Color.White,
-onSecondary = Color.White,
-onTertiary = Color.White,
-onBackground = Color(0xFF1C1B1F),
-onSurface = Color(0xFF1C1B1F),
-*/
+    primary = Primary2026,
+    secondary = Secondary2026,
+    tertiary = Tertiary2026,
+    background = White,
+    surface = Color(0xFFF5F5F5),
+    onPrimary = AbsoluteBlack,
+    onSecondary = AbsoluteBlack,
+    onTertiary = AbsoluteBlack,
+    onBackground = AbsoluteBlack,
+    onSurface = AbsoluteBlack
 )
 
 @Composable
 fun OpenVideoEditorTheme(
-    forceDarkTheme: Boolean = false,
+    forceDarkTheme: Boolean = true, // Defaulting to Dark for the intended 2026 vibe
     forceBlackStatusBar: Boolean = false,
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false, // Disable dynamic color to enforce the branding
     content: @Composable () -> Unit
 ) {
     val dataStore = SettingsDataStore(LocalContext.current)
     val theme by dataStore.getThemeAsync().collectAsState(dataStore.getThemeBlocking())
-    val amoled by dataStore.getAmoledAsync().collectAsState(dataStore.getAmoledBlocking())
 
+    // Logic to determine dark theme preference
     val darkTheme = if (forceDarkTheme) {
         true
     } else {
@@ -63,26 +67,20 @@ fun OpenVideoEditorTheme(
         }
     }
 
-    var colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
-    if (darkTheme && amoled) {
-        colorScheme = colorScheme.copy(background = Color.Black, surface = Color.Black)
-    }
+    // Select color scheme
+    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor =
-                if (forceBlackStatusBar) Color.Black.toArgb() else colorScheme.background.toArgb()
+            // Make status bar transparent for edge-to-edge content
+            window.statusBarColor = Color.Transparent.toArgb()
+            window.navigationBarColor = Color.Transparent.toArgb()
+
+            // Adjust icons visibility based on theme
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !darkTheme
         }
     }
 

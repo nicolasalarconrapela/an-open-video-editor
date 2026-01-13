@@ -24,6 +24,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -31,12 +32,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.size
@@ -151,6 +152,9 @@ import io.github.devhyper.openvideoeditor.misc.validateUFloatAndNonzero
 import io.github.devhyper.openvideoeditor.misc.validateUInt
 import io.github.devhyper.openvideoeditor.settings.SettingsActivity
 import io.github.devhyper.openvideoeditor.settings.SettingsDataStore
+import io.github.devhyper.openvideoeditor.ui.theme.ElectricBlue
+import io.github.devhyper.openvideoeditor.ui.theme.GlassDark
+import io.github.devhyper.openvideoeditor.ui.theme.GlassWhite
 import io.github.devhyper.openvideoeditor.ui.theme.OpenVideoEditorTheme
 import io.github.devhyper.openvideoeditor.videoeditor.state.EditorState
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
@@ -391,7 +395,7 @@ fun VideoEditorScreen(
         Surface(
             modifier = Modifier
                 .fillMaxSize(),
-            color = colorScheme.background
+            color = Color.Black // Background absolute black
         ) {
             Column(
                 modifier = Modifier
@@ -516,6 +520,7 @@ fun VideoEditorScreen(
                         )
                     }
 
+                // Video Preview Area
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -550,6 +555,7 @@ fun VideoEditorScreen(
                         }
                     }
 
+                    // Overlay Controls (Top & Center)
                     PlayerControls(
                         modifier = Modifier
                             .fillMaxSize(),
@@ -593,10 +599,12 @@ fun VideoEditorScreen(
                     )
                 }
 
+                // Timeline and Bottom Toolbar
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(320.dp)
+                        .height(350.dp) // Adjusted height
+                        .background(Color.Black) // Solid background for bottom area
                         .windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility)
                 ) {
                     BottomControls(
@@ -665,42 +673,47 @@ private fun PlayerControls(
         enter = fadeIn(),
         exit = fadeOut()
     ) {
+        // Full screen overlay for controls
         Box(
-            modifier = Modifier
-                .background(
-                    brush = SolidColor(colorScheme.scrim),
-                    alpha = 0.5F
-                )
+            modifier = Modifier.fillMaxSize()
         ) {
-            Box(
-                modifier = Modifier
-                    .safeContentPadding()
-                    .fillMaxSize()
-            ) {
-                TopControls(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .fillMaxWidth(),
-                    title = title,
-                    transformManager = transformManager,
-                    createDocument = createDocument,
-                    createProject = createProject,
-                    onCaptureClick = onCaptureClick
+            // Gradient scrim at top for better visibility of top bar
+            Box(modifier = Modifier
+                .fillMaxWidth()
+                .height(100.dp)
+                .align(Alignment.TopCenter)
+                .background(
+                    brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                        colors = listOf(Color.Black.copy(alpha = 0.7f), Color.Transparent)
+                    )
                 )
+            )
 
-                CenterControls(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .fillMaxWidth(),
-                    isPlaying = isPlaying,
-                    onReplayClick = onReplayClick,
-                    onForwardClick = onForwardClick,
-                    onPauseToggle = onPauseToggle,
-                    playbackState = playbackState,
-                    playbackSpeed = playbackSpeed,
-                    onPlaybackSpeedChange = onPlaybackSpeedChange
-                )
-            }
+            TopControls(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 48.dp), // More padding for immersive mode
+                title = title,
+                transformManager = transformManager,
+                createDocument = createDocument,
+                createProject = createProject,
+                onCaptureClick = onCaptureClick
+            )
+
+            // Center play/pause controls
+            CenterControls(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .fillMaxWidth(),
+                isPlaying = isPlaying,
+                onReplayClick = onReplayClick,
+                onForwardClick = onForwardClick,
+                onPauseToggle = onPauseToggle,
+                playbackState = playbackState,
+                playbackSpeed = playbackSpeed,
+                onPlaybackSpeedChange = onPlaybackSpeedChange
+            )
         }
     }
 }
@@ -723,67 +736,82 @@ private fun TopControls(
     var showExportDialog by rememberSaveable { mutableStateOf(false) }
 
     Row(
-        modifier = modifier.padding(top = 16.dp),
+        modifier = modifier,
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(onClick = { activity.finish() }) {
+        IconButton(
+            onClick = { activity.finish() },
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(GlassDark)
+        ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = stringResource(R.string.back)
-            )
-        }
-
-        IconButton(onClick = onCaptureClick) {
-            Icon(
-                imageVector = Icons.Filled.PhotoCamera,
-                contentDescription = "Capture Frame",
+                contentDescription = stringResource(R.string.back),
                 tint = Color.White
             )
         }
 
-        Text(
-            text = videoTitle,
-            overflow = TextOverflow.Ellipsis,
-            maxLines = 1,
-            modifier = Modifier.weight(1f, false)
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(
+                onClick = onCaptureClick,
+                modifier = Modifier
+                    .padding(end = 8.dp)
+                    .clip(CircleShape)
+                    .background(GlassDark)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.PhotoCamera,
+                    contentDescription = "Capture Frame",
+                    tint = Color.White
+                )
+            }
 
-        if (projectOutputPath.isNotEmpty()) {
-            transformManager.projectData.write(projectOutputPath, activity)
-            viewModel.setProjectOutputPath("")
-        }
+            if (projectOutputPath.isNotEmpty()) {
+                transformManager.projectData.write(projectOutputPath, activity)
+                viewModel.setProjectOutputPath("")
+            }
 
-        IconButton(onClick = { showThreeDotMenu = !showThreeDotMenu }) {
-            Icon(
-                imageVector = Icons.Filled.MoreVert,
-                contentDescription = stringResource(R.string.more_vertical_options)
-            )
-            DropdownMenu(
-                expanded = showThreeDotMenu,
-                onDismissRequest = { showThreeDotMenu = false },
-                content = {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.settings)) },
-                        onClick = {
-                            showThreeDotMenu = false
-                            val intent = Intent(activity, SettingsActivity::class.java)
-                            activity.startActivity(intent)
-                        })
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.export)) },
-                        onClick = { showThreeDotMenu = false; showExportDialog = true })
-                    DropdownMenuItem(
-                        enabled = projectSavingSupported,
-                        text = { Text(stringResource(R.string.save_project)) },
-                        onClick = {
-                            showThreeDotMenu = false
-                            val dotIndex: Int = videoTitle.lastIndexOf('.')
-                            val projectName: String =
-                                videoTitle.substring(0, dotIndex) + "." + PROJECT_FILE_EXT
-                            createProject.launch(projectName)
-                        })
-                })
+            Box {
+                IconButton(
+                    onClick = { showThreeDotMenu = !showThreeDotMenu },
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(GlassDark)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.MoreVert,
+                        contentDescription = stringResource(R.string.more_vertical_options),
+                        tint = Color.White
+                    )
+                }
+                DropdownMenu(
+                    expanded = showThreeDotMenu,
+                    onDismissRequest = { showThreeDotMenu = false },
+                    content = {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.settings)) },
+                            onClick = {
+                                showThreeDotMenu = false
+                                val intent = Intent(activity, SettingsActivity::class.java)
+                                activity.startActivity(intent)
+                            })
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.export)) },
+                            onClick = { showThreeDotMenu = false; showExportDialog = true })
+                        DropdownMenuItem(
+                            enabled = projectSavingSupported,
+                            text = { Text(stringResource(R.string.save_project)) },
+                            onClick = {
+                                showThreeDotMenu = false
+                                val dotIndex: Int = videoTitle.lastIndexOf('.')
+                                val projectName: String =
+                                    videoTitle.substring(0, dotIndex) + "." + PROJECT_FILE_EXT
+                                createProject.launch(projectName)
+                            })
+                    })
+            }
         }
     }
 
@@ -809,18 +837,27 @@ private fun CenterControls(
 
     val playerState = remember(playbackState()) { playbackState() }
 
-    Row(modifier = modifier, horizontalArrangement = Arrangement.SpaceEvenly) {
-        IconButton(modifier = Modifier.size(40.dp), onClick = onReplayClick) {
+    Row(modifier = modifier, horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+
+        // Replay Button
+        IconButton(modifier = Modifier.size(56.dp), onClick = onReplayClick) {
             Icon(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().padding(12.dp),
                 imageVector = Icons.Filled.Replay5,
                 contentDescription = stringResource(R.string.replay_5_seconds),
+                tint = Color.White
             )
         }
 
-        IconButton(modifier = Modifier.size(40.dp), onClick = onPauseToggle) {
+        // Play/Pause Button (Larger)
+        IconButton(
+            modifier = Modifier
+                .size(80.dp)
+                .background(ElectricBlue.copy(alpha = 0.8f), CircleShape), // Glass/Neon effect
+            onClick = onPauseToggle
+        ) {
             Icon(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().padding(20.dp),
                 imageVector =
                     when {
                         isVideoPlaying -> {
@@ -836,20 +873,27 @@ private fun CenterControls(
                         }
                     },
                 contentDescription = stringResource(R.string.play_pause),
+                tint = Color.Black // Contrast with Electric Blue
             )
         }
 
-        IconButton(modifier = Modifier.size(40.dp), onClick = onForwardClick) {
+        // Forward Button
+        IconButton(modifier = Modifier.size(56.dp), onClick = onForwardClick) {
             Icon(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().padding(12.dp),
                 imageVector = Icons.Filled.Forward10,
                 contentDescription = stringResource(R.string.forward_10_seconds),
+                tint = Color.White
             )
         }
 
+        // Speed Control
         Box {
             var expanded by remember { mutableStateOf(false) }
-            TextButton(onClick = { expanded = true }) {
+            TextButton(
+                onClick = { expanded = true },
+                modifier = Modifier.background(GlassDark, RoundedCornerShape(8.dp))
+            ) {
                 Text(
                     text = "${playbackSpeed()}x",
                     color = Color.White,
@@ -913,14 +957,23 @@ private fun BottomControls(
 
     Column(
         modifier = modifier
-            .padding(bottom = 0.dp) // Removed padding to let toolbar sit at bottom
             .background(Color.Black)
     ) {
+        // Bottom Toolbar (Actions) - Moved to top of bottom sheet for easy access
+        BottomToolbar(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            onFilterClick = { showFilterBottomSheet = true },
+            onLayerClick = { showLayerBottomSheet = true }
+        )
+
+        // Timeline Area
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .background(Color(0xFF0E0F12))
+                .background(Color(0xFF050505)) // Almost black
         ) {
             val density = LocalDensity.current
             val thumbnailWidthPx = remember(density) { with(density) { 56.dp.toPx().toInt() } }
@@ -959,12 +1012,10 @@ private fun BottomControls(
                 }
             }
 
-            // Adjusted padding for TimelineView to account for header space if needed
             TimelineView(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight()
-                    .padding(top = 24.dp),
+                    .fillMaxHeight(),
                 tracks = timelineTracks,
                 pixelsPerSecond = pixelsPerSecond,
                 listState = timelineListState,
@@ -983,7 +1034,6 @@ private fun BottomControls(
                     }
                 },
                 onClipMoved = { trackId, fromId, toIndex ->
-                    // Existing move logic
                     val trackIndex = timelineTracks.indexOfFirst { it.id == trackId }
                     if (trackIndex != -1) {
                         val track = timelineTracks[trackIndex]
@@ -1003,20 +1053,16 @@ private fun BottomControls(
                 }
             )
         }
-
-        BottomToolbar(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 20.dp)
-        )
     }
+
     if (showFilterBottomSheet) {
         ModalBottomSheet(
             modifier = Modifier.fillMaxSize(),
             onDismissRequest = {
                 showFilterBottomSheet = false
             },
-            sheetState = filterSheetState
+            sheetState = filterSheetState,
+            containerColor = Color.Black
         ) {
             FilterDrawer(transformManager) {
                 scope.launch { filterSheetState.hide() }.invokeOnCompletion {
@@ -1032,7 +1078,8 @@ private fun BottomControls(
             onDismissRequest = {
                 showLayerBottomSheet = false
             },
-            sheetState = layerSheetState
+            sheetState = layerSheetState,
+            containerColor = Color.Black
         ) {
             LayerDrawer(transformManager)
         }
@@ -1075,6 +1122,66 @@ private fun BottomControls(
     }
 }
 
+// ... (Rest of existing Dialog composables remain same but wrapped in dark theme effectively)
+
+@Composable
+private fun BottomToolbar(
+    modifier: Modifier = Modifier,
+    onFilterClick: () -> Unit,
+    onLayerClick: () -> Unit
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        ToolbarButton(icon = Icons.Filled.ContentCut, label = "Trim")
+        ToolbarButton(icon = Icons.Filled.TextFields, label = "Text")
+        ToolbarButton(icon = Icons.Filled.Face, label = "Sticker")
+        ToolbarButton(icon = Icons.Filled.Settings, label = "Filters", onClick = onFilterClick)
+        ToolbarButton(icon = Icons.Filled.MoreVert, label = "Layers", onClick = onLayerClick)
+    }
+}
+
+@Composable
+private fun ToolbarButton(
+    icon: ImageVector,
+    label: String,
+    hasBadge: Boolean = false,
+    onClick: () -> Unit = {}
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable(onClick = onClick)
+    ) {
+        Box {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = Color.White,
+                modifier = Modifier.size(24.dp)
+            )
+            if (hasBadge) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFFF5252))
+                        .offset(x = 2.dp, y = (-2).dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.LightGray
+        )
+    }
+}
+
+// ... (Other functions like ExportDialog, etc. remain, assuming they inherit theme)
 @Composable
 private fun MiniPreviewStrip(
     modifier: Modifier = Modifier,
@@ -1793,45 +1900,6 @@ private suspend fun saveFrame(context: Context, uri: String, timeMs: Long) {
             }
         } finally {
             retriever.release()
-        }
-    }
-}
-
-@Composable
-private fun BottomToolbar(modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        ToolbarButton(icon = Icons.Filled.TextFields, label = "T")
-        ToolbarButton(icon = Icons.Filled.Face, label = "Sticker", hasBadge = true)
-        ToolbarButton(icon = Icons.Filled.Edit, label = "Edit")
-        ToolbarButton(icon = Icons.Filled.LibraryMusic, label = "Music")
-        ToolbarButton(icon = Icons.Filled.Settings, label = "Effects")
-    }
-}
-
-@Composable
-private fun ToolbarButton(icon: ImageVector, label: String, hasBadge: Boolean = false) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = Color.White,
-                modifier = Modifier.size(28.dp)
-            )
-            if (hasBadge) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFFF5252))
-                        .offset(x = 2.dp, y = (-2).dp)
-                )
-            }
         }
     }
 }
