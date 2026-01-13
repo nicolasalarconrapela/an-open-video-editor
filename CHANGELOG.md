@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.52] - 2026-01-09
+### Ajustado
+- Pantalla inicial con estado vacío cuando no hay proyectos.
+
 ## [1.3.51] - 2026-01-09
 ### Ajustado
 - Nombre del artefacto APK en el workflow con nombre y versión.

@@ -34,6 +34,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -56,6 +57,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import io.github.devhyper.openvideoeditor.R
@@ -114,19 +116,32 @@ fun MainScreen(
                             .padding(innerPadding)
                             .fillMaxSize()
                     ) {
-                        ProjectsGrid(
-                            projects = projectEntries,
-                            onOpenProject = onOpenProject,
-                            onAddProject = {
-                                pickMedia.launch(
-                                    PickVisualMediaRequest(
-                                        ActivityResultContracts.PickVisualMedia.VideoOnly
+                        if (projectEntries.isEmpty()) {
+                            EmptyProjectsState(
+                                onAddProject = {
+                                    pickMedia.launch(
+                                        PickVisualMediaRequest(
+                                            ActivityResultContracts.PickVisualMedia.VideoOnly
+                                        )
                                     )
-                                )
-                            },
-                            onProjectsChanged = { refreshToken += 1 },
-                            modifier = Modifier.align(Alignment.TopCenter)
-                        )
+                                },
+                                modifier = Modifier.align(Alignment.TopCenter)
+                            )
+                        } else {
+                            ProjectsGrid(
+                                projects = projectEntries,
+                                onOpenProject = onOpenProject,
+                                onAddProject = {
+                                    pickMedia.launch(
+                                        PickVisualMediaRequest(
+                                            ActivityResultContracts.PickVisualMedia.VideoOnly
+                                        )
+                                    )
+                                },
+                                onProjectsChanged = { refreshToken += 1 },
+                                modifier = Modifier.align(Alignment.TopCenter)
+                            )
+                        }
                         Text(
                             text = stringResource(
                                 R.string.app_version,
@@ -176,6 +191,58 @@ private fun ProjectsGrid(
                     onProjectsChanged = onProjectsChanged
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun EmptyProjectsState(
+    onAddProject: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(24.dp)
+    ) {
+        Button(
+            onClick = onAddProject,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = null,
+                modifier = Modifier.padding(end = 8.dp)
+            )
+            Text(stringResource(R.string.new_project))
+        }
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(top = 80.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.FolderOpen,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            Text(
+                text = stringResource(R.string.create_first_project),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = stringResource(R.string.create_first_project_subtitle),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
         }
     }
 }

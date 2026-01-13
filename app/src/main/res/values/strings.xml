@@ -97,4 +97,7 @@
     <string name="confirm_delete_project">¿Eliminar este proyecto? Esta acción no se puede deshacer.</string>
     <string name="confirm">Confirmar</string>
     <string name="project_name">Nombre del proyecto</string>
+    <string name="new_project">Nuevo proyecto</string>
+    <string name="create_first_project">Crea tu primer proyecto</string>
+    <string name="create_first_project_subtitle">Haz un seguimiento de tus borradores y vídeos terminados en un solo lugar.</string>
 </resources>
