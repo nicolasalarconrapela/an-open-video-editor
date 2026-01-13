@@ -150,7 +150,6 @@ import io.github.devhyper.openvideoeditor.misc.toLongPair
 import io.github.devhyper.openvideoeditor.misc.validateUFloatAndNonzero
 import io.github.devhyper.openvideoeditor.misc.validateUInt
 import io.github.devhyper.openvideoeditor.settings.SettingsActivity
-import io.github.devhyper.openvideoeditor.settings.SettingsDataStore
 import io.github.devhyper.openvideoeditor.ui.theme.OpenVideoEditorTheme
 import io.github.devhyper.openvideoeditor.videoeditor.state.EditorState
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
@@ -177,7 +176,6 @@ import kotlin.math.roundToInt
 fun VideoEditorScreen(
     uri: String,
     createDocument: ActivityResultLauncher<String>,
-    createProject: ActivityResultLauncher<String>,
     requestVideoPermission: ActivityResultLauncher<String>
 ) {
     val viewModel = viewModel { VideoEditorViewModel() }
@@ -185,8 +183,6 @@ fun VideoEditorScreen(
     val screenScope = rememberCoroutineScope()
 
     val context = LocalContext.current
-
-    val dataStore = SettingsDataStore(context)
 
     val controlsVisible by viewModel.controlsVisible.collectAsState()
 
@@ -558,7 +554,6 @@ fun VideoEditorScreen(
                         title = { getFileNameFromUri(context, uri.toUri()) },
                         transformManager = transformManager,
                         createDocument = createDocument,
-                        createProject = createProject,
                         playbackState = { playbackState },
                         onReplayClick = { player.seekBack() },
                         onForwardClick = { player.seekForward() },
@@ -647,7 +642,6 @@ private fun PlayerControls(
     title: () -> String,
     transformManager: TransformManager,
     createDocument: ActivityResultLauncher<String>,
-    createProject: ActivityResultLauncher<String>,
     onReplayClick: () -> Unit,
     onForwardClick: () -> Unit,
     onPauseToggle: () -> Unit,
@@ -684,7 +678,6 @@ private fun PlayerControls(
                     title = title,
                     transformManager = transformManager,
                     createDocument = createDocument,
-                    createProject = createProject,
                     onCaptureClick = onCaptureClick
                 )
 
@@ -711,15 +704,12 @@ private fun TopControls(
     title: () -> String,
     transformManager: TransformManager,
     createDocument: ActivityResultLauncher<String>,
-    createProject: ActivityResultLauncher<String>,
     onCaptureClick: () -> Unit
 ) {
     val activity = LocalContext.current as Activity
     val viewModel = viewModel { VideoEditorViewModel() }
-    val projectOutputPath by viewModel.projectOutputPath.collectAsState()
     val projectSavingSupported by viewModel.projectSavingSupported.collectAsState()
     val videoTitle = remember(title()) { title() }
-    val dataStore = remember { SettingsDataStore(activity) }
     val scope = rememberCoroutineScope()
     var showThreeDotMenu by remember { mutableStateOf(false) }
     var showExportDialog by rememberSaveable { mutableStateOf(false) }
@@ -751,14 +741,6 @@ private fun TopControls(
             modifier = Modifier.weight(1f, false)
         )
 
-        if (projectOutputPath.isNotEmpty()) {
-            transformManager.projectData.write(projectOutputPath, activity)
-            scope.launch {
-                dataStore.addRecentProject(projectOutputPath)
-            }
-            viewModel.setProjectOutputPath("")
-        }
-
         IconButton(onClick = { showThreeDotMenu = !showThreeDotMenu }) {
             Icon(
                 imageVector = Icons.Filled.MoreVert,
@@ -783,10 +765,10 @@ private fun TopControls(
                         text = { Text(stringResource(R.string.save_project)) },
                         onClick = {
                             showThreeDotMenu = false
-                            val dotIndex: Int = videoTitle.lastIndexOf('.')
-                            val projectName: String =
-                                videoTitle.substring(0, dotIndex) + "." + PROJECT_FILE_EXT
-                            createProject.launch(projectName)
+                            scope.launch(Dispatchers.IO) {
+                                val projectFile = createInternalProjectFile(activity, videoTitle)
+                                transformManager.projectData.write(projectFile.toUri().toString(), activity)
+                            }
                         })
                 })
         }
@@ -1857,4 +1839,16 @@ private fun AddButton(modifier: Modifier = Modifier) {
             )
         }
     }
+}
+
+private fun createInternalProjectFile(context: Context, videoTitle: String): File {
+    val projectsDir = File(context.filesDir, "projects").apply { mkdirs() }
+    val baseName = videoTitle.substringBeforeLast('.').ifBlank { "project" }
+    val sanitized = baseName.replace(Regex("[^A-Za-z0-9_-]"), "_")
+    var projectFile = File(projectsDir, "$sanitized.$PROJECT_FILE_EXT")
+    if (projectFile.exists()) {
+        val timestamp = System.currentTimeMillis()
+        projectFile = File(projectsDir, "${sanitized}_$timestamp.$PROJECT_FILE_EXT")
+    }
+    return projectFile
 }

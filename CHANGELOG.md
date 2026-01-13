@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.48] - 2026-01-09
+### Añadido
+- Pantalla inicial en formato de cuadrícula con tarjetas de proyectos.
+### Ajustado
+- Guardado de proyectos gestionado internamente por la app en almacenamiento privado.
+
 ## [1.3.47] - 2026-01-09
 ### Corregido
 - Import necesario para usar `collectAsState` con delegación en la pantalla principal.
