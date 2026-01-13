@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.51] - 2026-01-09
+### Ajustado
+- Nombre del artefacto APK en el workflow con nombre y versión.
+
 ## [1.3.50] - 2026-01-09
 ### Corregido
 - Nombre de archivo en proyectos con URI de tipo archivo para evitar mostrar "null".

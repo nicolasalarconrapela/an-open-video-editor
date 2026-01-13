@@ -59,8 +59,15 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew :app:assembleDebug --no-daemon
 
+      - name: Set APK artifact name
+        id: apk_name
+        run: |
+          VERSION_NAME=$(./gradlew -q :app:properties --no-daemon | awk -F': ' '/^versionName/ {print $2}' | tr -d '\r')
+          VERSION_CODE=$(./gradlew -q :app:properties --no-daemon | awk -F': ' '/^versionCode/ {print $2}' | tr -d '\r')
+          echo "name=open-video-editor-${VERSION_NAME}(${VERSION_CODE})-debug-apk" >> "$GITHUB_OUTPUT"
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: open-video-editor-debug-apk
+          name: ${{ steps.apk_name.outputs.name }}
           path: app/build/outputs/apk/debug/*.apk
