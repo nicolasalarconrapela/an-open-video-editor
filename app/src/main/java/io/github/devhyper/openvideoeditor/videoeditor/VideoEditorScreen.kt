@@ -894,82 +894,81 @@ private fun BottomControls(
 
     val viewModel = viewModel { VideoEditorViewModel() }
 
-        Column(
-            modifier = modifier
-                .padding(bottom = 0.dp)
-                .background(Color.Black)
+    Column(
+        modifier = modifier
+            .padding(bottom = 0.dp)
+            .background(Color.Black)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .background(Color(0xFF0E0F12))
         ) {
-            Box(
+            TimelinePrecisionView(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f)
-                    .background(Color(0xFF0E0F12))
-            ) {
-                TimelinePrecisionView(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .fillMaxHeight(),
-                    tracks = timelineTracks,
-                    zoomLevel = editorState.zoomLevel,
-                    currentTimeMs = editorState.currentTimeMs,
-                    listState = timelineListState,
-                    onZoom = { zoomDelta ->
-                        viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomByDelta(zoomDelta))
-                    },
-                    onTrim = { _, _, _ -> },
-                    onSeek = { timeMs -> onPlayerSeek(timeMs) }
-                )
-            }
-
-            EditorToolRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                tools = listOf(
-                    EditorToolAction(
-                        label = stringResource(R.string.video_filters),
-                        icon = Icons.Filled.Filter,
-                        onClick = { showFilterBottomSheet = true }
-                    ),
-                    EditorToolAction(
-                        label = stringResource(R.string.video_layers),
-                        icon = Icons.Filled.Layers,
-                        onClick = { showLayerBottomSheet = true }
-                    ),
-                    EditorToolAction(
-                        label = stringResource(R.string.frames),
-                        icon = Icons.Filled.PhotoCamera,
-                        onClick = { showFrameDialog = true }
-                    ),
-                    EditorToolAction(
-                        label = stringResource(R.string.text),
-                        icon = Icons.Filled.TextFields,
-                        onClick = {
-                            val effect = onVideoUserEffectsArray.firstOrNull { effect ->
-                                effect.stringResId == R.string.text
-                            }
-                            if (effect != null) {
-                                viewModel.setCurrentEditingEffect(effect)
-                                viewModel.setControlsVisible(false)
-                            }
-                        }
-                    ),
-                    EditorToolAction(
-                        label = stringResource(R.string.crop),
-                        icon = Icons.Filled.ContentCut,
-                        onClick = {
-                            val effect = onVideoUserEffectsArray.firstOrNull { effect ->
-                                effect.stringResId == R.string.crop
-                            }
-                            if (effect != null) {
-                                viewModel.setCurrentEditingEffect(effect)
-                                viewModel.setControlsVisible(false)
-                            }
-                        }
-                    )
-                )
+                    .fillMaxHeight(),
+                tracks = timelineTracks,
+                zoomLevel = editorState.zoomLevel,
+                currentTimeMs = editorState.currentTimeMs,
+                listState = timelineListState,
+                onZoom = { zoomDelta ->
+                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomByDelta(zoomDelta))
+                },
+                onTrim = { _, _, _ -> },
+                onSeek = { timeMs -> onPlayerSeek(timeMs) }
             )
         }
+
+        EditorToolRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            tools = listOf(
+                EditorToolAction(
+                    label = stringResource(R.string.video_filters),
+                    icon = Icons.Filled.Filter,
+                    onClick = { showFilterBottomSheet = true }
+                ),
+                EditorToolAction(
+                    label = stringResource(R.string.video_layers),
+                    icon = Icons.Filled.Layers,
+                    onClick = { showLayerBottomSheet = true }
+                ),
+                EditorToolAction(
+                    label = stringResource(R.string.frames),
+                    icon = Icons.Filled.PhotoCamera,
+                    onClick = { showFrameDialog = true }
+                ),
+                EditorToolAction(
+                    label = stringResource(R.string.text),
+                    icon = Icons.Filled.TextFields,
+                    onClick = {
+                        val effect = onVideoUserEffectsArray.firstOrNull { effect ->
+                            effect.stringResId == R.string.text
+                        }
+                        if (effect != null) {
+                            viewModel.setCurrentEditingEffect(effect)
+                            viewModel.setControlsVisible(false)
+                        }
+                    }
+                ),
+                EditorToolAction(
+                    label = stringResource(R.string.crop),
+                    icon = Icons.Filled.ContentCut,
+                    onClick = {
+                        val effect = onVideoUserEffectsArray.firstOrNull { effect ->
+                            effect.stringResId == R.string.crop
+                        }
+                        if (effect != null) {
+                            viewModel.setCurrentEditingEffect(effect)
+                            viewModel.setControlsVisible(false)
+                        }
+                    }
+                )
+            )
+        )
     }
     when {
         showFilterBottomSheet -> {

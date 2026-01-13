@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.59] - 2026-01-09
+### Corregido
+- Error de compilación en la pantalla del editor por cierre de bloque fuera de lugar.
+
 ## [1.3.58] - 2026-01-09
 ### Ajustado
 - Reestructuración del manejo de diálogos inferiores del editor para mayor claridad.
