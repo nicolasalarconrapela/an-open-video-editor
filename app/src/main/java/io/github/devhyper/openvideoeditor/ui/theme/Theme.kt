@@ -48,7 +48,7 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun OpenVideoEditorTheme(
-    forceDarkTheme: Boolean = true, // Defaulting to Dark for the intended 2026 vibe
+    forceDarkTheme: Boolean = false, // Allow user setting to take precedence
     forceBlackStatusBar: Boolean = false,
     dynamicColor: Boolean = false, // Disable dynamic color to enforce the branding
     content: @Composable () -> Unit
