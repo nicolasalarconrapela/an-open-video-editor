@@ -100,4 +100,6 @@
     <string name="new_project">Nuevo proyecto</string>
     <string name="create_first_project">Crea tu primer proyecto</string>
     <string name="create_first_project_subtitle">Haz un seguimiento de tus borradores y vídeos terminados en un solo lugar.</string>
+    <string name="project_saved">Proyecto guardado</string>
+    <string name="project_save_failed">No se pudo guardar el proyecto</string>
 </resources>

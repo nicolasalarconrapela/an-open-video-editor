@@ -60,6 +60,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.github.devhyper.openvideoeditor.R
 import io.github.devhyper.openvideoeditor.misc.PROJECT_FILE_EXT
 import io.github.devhyper.openvideoeditor.settings.SettingsActivity
@@ -77,6 +80,7 @@ fun MainScreen(
 ) {
     val activity = LocalContext.current as Activity
     var refreshToken by rememberSaveable { mutableStateOf(0) }
+    val lifecycleOwner = LocalLifecycleOwner.current
     val projectEntries by produceState(
         initialValue = emptyList<ProjectEntry>(),
         key1 = refreshToken
@@ -84,6 +88,15 @@ fun MainScreen(
         value = loadProjectEntries(activity)
     }
     val appVersion = rememberAppVersion()
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                refreshToken += 1
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     OpenVideoEditorTheme {
         Surface(
             modifier = Modifier

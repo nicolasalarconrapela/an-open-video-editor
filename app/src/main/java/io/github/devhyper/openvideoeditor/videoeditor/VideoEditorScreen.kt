@@ -14,6 +14,7 @@ import android.provider.MediaStore
 import android.view.TextureView
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
@@ -766,8 +767,23 @@ private fun TopControls(
                         onClick = {
                             showThreeDotMenu = false
                             scope.launch(Dispatchers.IO) {
-                                val projectFile = createInternalProjectFile(activity, videoTitle)
-                                transformManager.projectData.write(projectFile.toUri().toString(), activity)
+                                val saved = saveInternalProject(
+                                    activity = activity,
+                                    transformManager = transformManager,
+                                    videoTitle = videoTitle
+                                )
+                                val messageId = if (saved) {
+                                    R.string.project_saved
+                                } else {
+                                    R.string.project_save_failed
+                                }
+                                activity.runOnUiThread {
+                                    Toast.makeText(
+                                        activity,
+                                        activity.getString(messageId),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
                             }
                         })
                 })
@@ -1851,4 +1867,16 @@ private fun createInternalProjectFile(context: Context, videoTitle: String): Fil
         projectFile = File(projectsDir, "${sanitized}_$timestamp.$PROJECT_FILE_EXT")
     }
     return projectFile
+}
+
+private fun saveInternalProject(
+    activity: Activity,
+    transformManager: TransformManager,
+    videoTitle: String
+): Boolean {
+    return runCatching {
+        val projectFile = createInternalProjectFile(activity, videoTitle)
+        transformManager.projectData.write(projectFile.toUri().toString(), activity)
+        true
+    }.getOrDefault(false)
 }

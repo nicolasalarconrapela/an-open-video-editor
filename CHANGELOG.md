@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.54] - 2026-01-09
+### Ajustado
+- Mensajes de guardado de proyecto y refresco de la lista al volver a la pantalla principal.
+
 ## [1.3.53] - 2026-01-09
 ### Ajustado
 - Workflow con caching ampliado y opciones de Gradle para optimizar recursos y tiempos.
