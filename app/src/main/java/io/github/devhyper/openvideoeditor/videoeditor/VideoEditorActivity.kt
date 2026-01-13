@@ -13,12 +13,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.devhyper.openvideoeditor.R
+import io.github.devhyper.openvideoeditor.misc.PROJECT_MIME_TYPE
 import io.github.devhyper.openvideoeditor.misc.setImmersiveMode
 import io.github.devhyper.openvideoeditor.misc.setupSystemUi
 
 
 class VideoEditorActivity : ComponentActivity() {
     private lateinit var createDocument: ActivityResultLauncher<String>
+    private lateinit var createProject: ActivityResultLauncher<String>
     private lateinit var requestVideoPermission: ActivityResultLauncher<String>
     private lateinit var viewModel: VideoEditorViewModel
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,6 +41,15 @@ class VideoEditorActivity : ComponentActivity() {
         ) { uri ->
             if (uri != null) {
                 viewModel.setOutputPath(uri.toString())
+            }
+        }
+        createProject = registerForActivityResult(
+            ActivityResultContracts.CreateDocument(
+                PROJECT_MIME_TYPE
+            )
+        ) { uri ->
+            if (uri != null) {
+                viewModel.setProjectOutputPath(uri.toString())
             }
         }
         requestVideoPermission =
@@ -77,7 +88,7 @@ class VideoEditorActivity : ComponentActivity() {
                 viewModel = viewModel { viewModel }
                 val controlsVisible by viewModel.controlsVisible.collectAsState()
                 setImmersiveMode(!controlsVisible)
-                VideoEditorScreen(it, createDocument, requestVideoPermission)
+                VideoEditorScreen(it, createDocument, createProject, requestVideoPermission)
             }
         } ?: finish()
     }

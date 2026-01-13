@@ -2,7 +2,6 @@ package io.github.devhyper.openvideoeditor.videoeditor
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -213,13 +212,7 @@ data class ProjectData(
     companion object {
         fun read(uri: String, context: Context): ProjectData? {
             var projectData: ProjectData? = null
-            val parsedUri = uri.toUri()
-            val inputStream = if (parsedUri.scheme == ContentResolver.SCHEME_FILE) {
-                File(parsedUri.path ?: return null).inputStream()
-            } else {
-                context.contentResolver.openInputStream(parsedUri)
-            }
-            inputStream?.let {
+            context.contentResolver.openInputStream(uri.toUri())?.let {
                 val input = ObjectInputStream(it)
                 projectData = input.readObject() as ProjectData?
                 input.close()
@@ -229,13 +222,7 @@ data class ProjectData(
     }
 
     fun write(uri: String, context: Context) {
-        val parsedUri = uri.toUri()
-        val outputStream = if (parsedUri.scheme == ContentResolver.SCHEME_FILE) {
-            File(parsedUri.path ?: return).outputStream()
-        } else {
-            context.contentResolver.openOutputStream(parsedUri)
-        }
-        outputStream?.let {
+        context.contentResolver.openOutputStream(uri.toUri())?.let {
             val output = ObjectOutputStream(it)
             output.writeObject(this)
             output.close()

@@ -6,89 +6,60 @@ on:
       - "codex/2026-01-11/17-39-50/create-timelineview-composable"
       - "codex/2026-01-12/02-38-18/fix-unresolved-references-in-videoeditorscreen"
       - "codex/2026-01-12/14-39-17/implementar-sistema-de-miniaturas-de-linea-de-tiempo"
-      - "codex/2026-01-12/22-00-29/explore-ui-2027-highlights"
-      - "ui-overhaul-2026-minimalist-9281951960967825290"
+      - "work"
   workflow_dispatch:
 
 concurrency:
-  group: apk-debug-codex-${{ github.ref }}
+  group: apk-debug-codex
   cancel-in-progress: true
 
 jobs:
   apk-debug:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-
-    env:
-      # Flags CI razonables (evita “magia” excesiva)
-      GRADLE_OPTS: >-
-        -Dorg.gradle.caching=true
-        -Dorg.gradle.parallel=true
-        -Dorg.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8
-        -Dkotlin.daemon.jvmargs=-Xmx2g
-
-      # Si tienes flakiness de red, esto ayuda más que tocar resolv.conf:
-      # (puedes moverlo a gradle.properties si prefieres)
-      ORG_GRADLE_PROJECT_org.gradle.internal.http.connectionTimeout: "120000"
-      ORG_GRADLE_PROJECT_org.gradle.internal.http.socketTimeout: "120000"
+    timeout-minutes: 30
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
+      - uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
+
+      - name: Fix DNS for Maven repositories
+        run: |
+          sudo bash -c 'printf "nameserver 1.1.1.1\nnameserver 8.8.8.8\n" > /etc/resolv.conf'
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Validate Gradle wrapper
-        uses: gradle/wrapper-validation-action@v2
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses
 
-      # Acción de Gradle con caché “bien hecha” para GH Actions
-      - name: Set up Gradle (cache)
-        uses: gradle/actions/setup-gradle@v3
+      # Caché extra (más agresiva) para Gradle:
+      - name: Cache Gradle (wrapper + caches)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: >
+            ${{ runner.os }}-gradle-
+            ${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/settings.gradle*', '**/gradle.properties', '**/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # Build (una sola invocación)
+      # Recomendado para CI: evita daemon y reduce “ruido”
       - name: Build Debug APK
-        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
-
-      # Extrae versionName/versionCode DEL APK (sin ejecutar Gradle otra vez)
-      - name: Set APK artifact name (from APK)
-        id: apk_name
-        shell: bash
-        run: |
-          APK_PATH="$(ls -1 app/build/outputs/apk/debug/*.apk | head -n 1)"
-          echo "APK_PATH=$APK_PATH" >> "$GITHUB_ENV"
-
-          # aapt suele estar disponible vía build-tools; si falla, instalamos build-tools.
-          if ! command -v aapt >/dev/null 2>&1; then
-            echo "aapt not found; installing build-tools..."
-            sdkmanager "build-tools;34.0.0" >/dev/null
-            export PATH="$ANDROID_HOME/build-tools/34.0.0:$PATH"
-          fi
-
-          BADGING="$(aapt dump badging "$APK_PATH" | tr -d '\r')"
-          VERSION_NAME="$(echo "$BADGING" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p" | head -n 1)"
-          VERSION_CODE="$(echo "$BADGING" | sed -n "s/.*versionCode='\([^']*\)'.*/\1/p" | head -n 1)"
-
-          # Fallbacks por si algún parsing falla
-          VERSION_NAME="${VERSION_NAME:-unknown}"
-          VERSION_CODE="${VERSION_CODE:-0}"
-
-          echo "name=open-video-editor-${VERSION_NAME}(${VERSION_CODE})-debug-apk" >> "$GITHUB_OUTPUT"
+        run: ./gradlew :app:assembleDebug --no-daemon
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.apk_name.outputs.name }}
-          path: ${{ env.APK_PATH }}
-          if-no-files-found: error
+          name: open-video-editor-debug-apk
+          path: app/build/outputs/apk/debug/*.apk

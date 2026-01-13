@@ -6,7 +6,6 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import android.media.MediaMetadataRetriever
 import android.net.Uri
-import androidx.core.net.toFile
 import android.provider.OpenableColumns
 import android.text.Spannable
 import android.text.SpannableString
@@ -51,9 +50,7 @@ fun getFileNameFromUri(context: Context, uri: Uri): String {
     if (!fileName.isNullOrEmpty()) {
         return fileName
     }
-    return runCatching {
-        uri.toFile().name
-    }.getOrDefault(uri.lastPathSegment ?: "null")
+    return "null"
 }
 
 fun getVideoFileDuration(context: Context, uri: Uri): Long? {
