@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
 import kotlin.math.max
@@ -46,11 +47,13 @@ fun TimelinePrecisionView(
 ) {
     val basePixelsPerSecond = 80f
     val pixelsPerSecond = (basePixelsPerSecond * zoomLevel).coerceIn(20f, 200f)
-    val clipHeight = 64.dp
-    val waveformHeight = 48.dp
-    val spacing = 8.dp
+    val clipHeight = 58.dp
+    val waveformHeight = 42.dp
+    val spacing = 6.dp
     val masterClips = tracks.firstOrNull()?.clips.orEmpty()
     var lastScrollMs by remember { mutableLongStateOf(0L) }
+    val density = LocalDensity.current
+    val contentPaddingPx = with(density) { 16.dp.toPx() }
 
     LaunchedEffect(currentTimeMs, pixelsPerSecond, masterClips) {
         if (masterClips.isEmpty()) return@LaunchedEffect
@@ -64,10 +67,19 @@ fun TimelinePrecisionView(
             }
             remainingMs -= clip.durationMs
         }
-        val offsetPx = ((remainingMs / 1000f) * pixelsPerSecond).toInt()
+        val viewportWidthPx = listState.layoutInfo.viewportSize.width.toFloat()
+        val halfViewportPx = (viewportWidthPx / 2f).coerceAtLeast(0f)
+        val rawOffsetPx = ((remainingMs / 1000f) * pixelsPerSecond) - halfViewportPx + contentPaddingPx
+        var offsetPx = rawOffsetPx.toInt()
+        if (offsetPx < 0 && targetIndex > 0) {
+            val prevDuration = masterClips[targetIndex - 1].durationMs
+            val prevWidthPx = ((prevDuration / 1000f) * pixelsPerSecond).toInt()
+            targetIndex -= 1
+            offsetPx += prevWidthPx
+        }
         listState.animateScrollToItem(
             targetIndex.coerceIn(0, masterClips.lastIndex),
-            offsetPx
+            offsetPx.coerceAtLeast(0)
         )
         lastScrollMs = currentTimeMs
     }
@@ -90,7 +102,7 @@ fun TimelinePrecisionView(
             TimelineTimeRuler(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(28.dp),
+                    .height(24.dp),
                 pixelsPerSecond = pixelsPerSecond,
                 onSeek = onSeek
             )
@@ -178,7 +190,7 @@ fun TimelinePrecisionView(
             modifier = Modifier
                 .align(Alignment.Center)
                 .width(2.dp)
-                .height(clipHeight + 28.dp)
+                .height(clipHeight + 24.dp)
                 .background(MaterialTheme.colorScheme.tertiary)
         )
     }

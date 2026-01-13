@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.57] - 2026-01-09
+### Ajustado
+- Sincronización mejorada del timeline para mantener el playhead centrado y compactar alturas para aprovechar más pantalla.
+
 ## [1.3.56] - 2026-01-09
 ### Ajustado
 - Barra inferior del editor con iconos pequeños sin etiquetas y colocada debajo del timeline.
