@@ -1,5 +1,100 @@
 # Changelog
 
+## [1.3.59] - 2026-01-09
+### Corregido
+- Error de compilación en la pantalla del editor por cierre de bloque fuera de lugar.
+
+## [1.3.58] - 2026-01-09
+### Ajustado
+- Reestructuración del manejo de diálogos inferiores del editor para mayor claridad.
+
+## [1.3.57] - 2026-01-09
+### Ajustado
+- Sincronización mejorada del timeline para mantener el playhead centrado y compactar alturas para aprovechar más pantalla.
+
+## [1.3.56] - 2026-01-09
+### Ajustado
+- Barra inferior del editor con iconos pequeños sin etiquetas y colocada debajo del timeline.
+- Timeline con vista de precisión sincronizada con la reproducción y con mejor aprovechamiento del espacio.
+
+## [1.3.55] - 2026-01-09
+### Ajustado
+- Renovación del panel inferior del editor con secciones de herramientas clásicas y nuevas, y accesos directos a filtros, capas, fotogramas, texto y recorte.
+
+## [1.3.54] - 2026-01-09
+### Ajustado
+- Mensajes de guardado de proyecto y refresco de la lista al volver a la pantalla principal.
+
+## [1.3.53] - 2026-01-09
+### Ajustado
+- Workflow con caching ampliado y opciones de Gradle para optimizar recursos y tiempos.
+
+## [1.3.52] - 2026-01-09
+### Ajustado
+- Pantalla inicial con estado vacío cuando no hay proyectos.
+
+## [1.3.51] - 2026-01-09
+### Ajustado
+- Nombre del artefacto APK en el workflow con nombre y versión.
+
+## [1.3.50] - 2026-01-09
+### Corregido
+- Nombre de archivo en proyectos con URI de tipo archivo para evitar mostrar "null".
+
+## [1.3.49] - 2026-01-09
+### Añadido
+- Opciones para renombrar y eliminar proyectos desde la pantalla principal.
+
+## [1.3.48] - 2026-01-09
+### Añadido
+- Pantalla inicial en formato de cuadrícula con tarjetas de proyectos.
+### Ajustado
+- Guardado de proyectos gestionado internamente por la app en almacenamiento privado.
+
+## [1.3.47] - 2026-01-09
+### Corregido
+- Import necesario para usar `collectAsState` con delegación en la pantalla principal.
+
+## [1.3.46] - 2026-01-09
+### Añadido
+- Lista de proyectos recientes en la pantalla principal con acceso rápido.
+### Ajustado
+- Guardado automático de proyectos recientes al abrir o guardar proyectos.
+
+## [1.3.45] - 2026-01-09
+### Ajustado
+- Dependencia Material Components para resolver el tema Material3 en recursos.
+
+## [1.3.44] - 2026-01-09
+### Añadido
+- Pantalla de carga con SplashScreen y tema dedicado.
+### Ajustado
+- Actualización de versionCode y versionName para el APK.
+
+## [1.3.43] - 2026-01-09
+### Añadido
+- Lectura de versión desde PackageManager para evitar referencias directas a BuildConfig en la pantalla principal.
+### Ajustado
+- Actualización de versionCode y versionName para el APK.
+
+## [1.3.42] - 2026-01-09
+### Añadido
+- Workflow de APK debug para la rama codex/2026-01-12/22-00-29/explore-ui-2027-highlights.
+### Ajustado
+- Actualización de versionCode y versionName para el APK.
+
+## [1.3.41] - 2026-01-09
+### Añadido
+- Subtítulo de bienvenida y botones con iconos en la pantalla principal.
+### Ajustado
+- Actualización de versionCode y versionName para el APK.
+
+## [1.3.40] - 2026-01-09
+### Añadido
+- Versión visible en la pantalla principal al abrir la app.
+### Ajustado
+- Actualización de versionCode y versionName para el APK.
+
 ## [1.3.39] - 2026-01-09
 ### Ajustado
 - Ajustes visuales de playhead, toolbar y botón añadir en la UI mock del editor.
