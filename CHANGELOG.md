@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.47] - 2026-01-09
+### Corregido
+- Import necesario para usar `collectAsState` con delegación en la pantalla principal.
+
 ## [1.3.46] - 2026-01-09
 ### Añadido
 - Lista de proyectos recientes en la pantalla principal con acceso rápido.
