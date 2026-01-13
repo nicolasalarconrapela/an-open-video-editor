@@ -971,68 +971,74 @@ private fun BottomControls(
             )
         }
     }
-    if (showFilterBottomSheet) {
-        ModalBottomSheet(
-            modifier = Modifier.fillMaxSize(),
-            onDismissRequest = {
-                showFilterBottomSheet = false
-            },
-            sheetState = filterSheetState
-        ) {
-            FilterDrawer(transformManager) {
-                scope.launch { filterSheetState.hide() }.invokeOnCompletion {
-                    if (!filterSheetState.isVisible) {
-                        showFilterBottomSheet = false
+    when {
+        showFilterBottomSheet -> {
+            ModalBottomSheet(
+                modifier = Modifier.fillMaxSize(),
+                onDismissRequest = {
+                    showFilterBottomSheet = false
+                },
+                sheetState = filterSheetState
+            ) {
+                FilterDrawer(transformManager) {
+                    scope.launch { filterSheetState.hide() }.invokeOnCompletion {
+                        if (!filterSheetState.isVisible) {
+                            showFilterBottomSheet = false
+                        }
                     }
                 }
             }
         }
-    } else if (showLayerBottomSheet) {
-        ModalBottomSheet(
-            modifier = Modifier.fillMaxSize(),
-            onDismissRequest = {
-                showLayerBottomSheet = false
-            },
-            sheetState = layerSheetState
-        ) {
-            LayerDrawer(transformManager)
-        }
-    } else if (showFrameDialog) {
-        var newFrame by remember { mutableLongStateOf(-1L) }
-        ListDialog(
-            title = stringResource(R.string.frames),
-            dismissText = stringResource(R.string.dismiss),
-            acceptText = stringResource(R.string.accept),
-            onDismissRequest = { showFrameDialog = false },
-            onAcceptRequest = {
-                if (newFrame >= 0L) {
-                    showFrameDialog = false
-                    val timeMs = (newFrame / videoFpm) + 1F
-                    onSeekChanged(timeMs)
-                }
-            },
-            listItems = {
-                item {
-                    Text("$videoTimeFrames/$durationFrames")
-                    TextfieldSetting(
-                        name = stringResource(R.string.new_frame),
-                        keyboardType = KeyboardType.Number,
-                        onValueChanged = {
-                            val errorTxt = validateUInt(it)
-                            if (errorTxt.isEmpty()) {
-                                val newLongFrame = it.toLong()
-                                if (newLongFrame <= durationFrames) {
-                                    newFrame = newLongFrame
-                                } else {
-                                    newFrame = -1L
-                                    return@TextfieldSetting context.getString(R.string.input_frame_must_less_or_equal) + " $durationFrames"
-                                }
-                            }
-                            errorTxt
-                        })
-                }
+
+        showLayerBottomSheet -> {
+            ModalBottomSheet(
+                modifier = Modifier.fillMaxSize(),
+                onDismissRequest = {
+                    showLayerBottomSheet = false
+                },
+                sheetState = layerSheetState
+            ) {
+                LayerDrawer(transformManager)
             }
-        )
+        }
+
+        showFrameDialog -> {
+            var newFrame by remember { mutableLongStateOf(-1L) }
+            ListDialog(
+                title = stringResource(R.string.frames),
+                dismissText = stringResource(R.string.dismiss),
+                acceptText = stringResource(R.string.accept),
+                onDismissRequest = { showFrameDialog = false },
+                onAcceptRequest = {
+                    if (newFrame >= 0L) {
+                        showFrameDialog = false
+                        val timeMs = (newFrame / videoFpm) + 1F
+                        onSeekChanged(timeMs)
+                    }
+                },
+                listItems = {
+                    item {
+                        Text("$videoTimeFrames/$durationFrames")
+                        TextfieldSetting(
+                            name = stringResource(R.string.new_frame),
+                            keyboardType = KeyboardType.Number,
+                            onValueChanged = {
+                                val errorTxt = validateUInt(it)
+                                if (errorTxt.isEmpty()) {
+                                    val newLongFrame = it.toLong()
+                                    if (newLongFrame <= durationFrames) {
+                                        newFrame = newLongFrame
+                                    } else {
+                                        newFrame = -1L
+                                        return@TextfieldSetting context.getString(R.string.input_frame_must_less_or_equal) + " $durationFrames"
+                                    }
+                                }
+                                errorTxt
+                            })
+                    }
+                }
+            )
+        }
     }
 }
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.58] - 2026-01-09
+### Ajustado
+- Reestructuración del manejo de diálogos inferiores del editor para mayor claridad.
+
 ## [1.3.57] - 2026-01-09
 ### Ajustado
 - Sincronización mejorada del timeline para mantener el playhead centrado y compactar alturas para aprovechar más pantalla.
