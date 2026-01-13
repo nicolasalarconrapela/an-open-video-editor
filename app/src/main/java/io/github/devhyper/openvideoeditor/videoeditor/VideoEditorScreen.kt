@@ -112,7 +112,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -151,24 +150,17 @@ import io.github.devhyper.openvideoeditor.misc.validateUInt
 import io.github.devhyper.openvideoeditor.settings.SettingsActivity
 import io.github.devhyper.openvideoeditor.ui.theme.OpenVideoEditorTheme
 import io.github.devhyper.openvideoeditor.videoeditor.state.EditorState
-import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
-import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRepository
-import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.cache.BitmapMemoryCache
-import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.cache.DiskThumbnailCache
-import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.codec.MediaCodecFrameExtractor
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineClipType
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineUiClip
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineUiTrack
-import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineView
+import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelinePrecisionView
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.toImmutableList
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.ObjectOutputStream
-import kotlin.math.roundToInt
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -238,8 +230,6 @@ fun VideoEditorScreen(
     val startFilterSelected by viewModel.startFilterSelected.collectAsState()
 
     val timelineListState = rememberLazyListState()
-    val basePixelsPerSecond = 80f
-    val pixelsPerSecond = (basePixelsPerSecond * editorState.zoomLevel).coerceIn(20f, 200f)
     val videoTrackLabel = stringResource(R.string.timeline_track_video)
     val audioTrackLabel = stringResource(R.string.timeline_track_audio)
     val overlayTrackLabel = stringResource(R.string.timeline_track_overlay)
@@ -590,12 +580,10 @@ fun VideoEditorScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(320.dp)
+                        .height(280.dp)
                         .windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility)
                 ) {
                     BottomControls(
-                        uri = uri,
-                        screenScope = screenScope,
                         modifier = Modifier.fillMaxWidth(),
                         fpm = { fpm },
                         totalDuration = { totalDuration },
@@ -622,8 +610,6 @@ fun VideoEditorScreen(
                         editorState = editorState,
                         timelineTracks = timelineTracks,
                         timelineListState = timelineListState,
-                        basePixelsPerSecond = basePixelsPerSecond,
-                        pixelsPerSecond = pixelsPerSecond,
                         onPlayerSeek = { timeMs -> player.seekTo(timeMs) }
                     )
                 }
@@ -879,8 +865,6 @@ private fun CenterControls(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BottomControls(
-    uri: String,
-    screenScope: CoroutineScope,
     modifier: Modifier = Modifier,
     fpm: () -> Float,
     totalDuration: () -> Long,
@@ -892,8 +876,6 @@ private fun BottomControls(
     editorState: EditorState,
     timelineTracks: MutableList<TimelineUiTrack>,
     timelineListState: LazyListState,
-    basePixelsPerSecond: Float,
-    pixelsPerSecond: Float,
     onPlayerSeek: (Long) -> Unit
 ) {
     val context = LocalContext.current
@@ -912,153 +894,82 @@ private fun BottomControls(
 
     val viewModel = viewModel { VideoEditorViewModel() }
 
-    Column(
-        modifier = modifier
-            .padding(bottom = 0.dp) // Removed padding to let toolbar sit at bottom
-            .background(Color.Black)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .background(Color(0xFF0E0F12))
+        Column(
+            modifier = modifier
+                .padding(bottom = 0.dp)
+                .background(Color.Black)
         ) {
-            val density = LocalDensity.current
-            val thumbnailWidthPx = remember(density) { with(density) { 56.dp.toPx().toInt() } }
-            val thumbnailHeightPx = remember(density) { with(density) { 40.dp.toPx().toInt() } }
-            val thumbnailZoomBucket =
-                remember(editorState.zoomLevel) { (editorState.zoomLevel * 10f).roundToInt() }
-            val thumbnailRepository = remember(uri, context, screenScope) {
-                val extractor = MediaCodecFrameExtractor()
-                ThumbnailRepository(
-                    scope = screenScope,
-                    dispatcher = Dispatchers.IO,
-                    memoryCache = BitmapMemoryCache(),
-                    diskCache = DiskThumbnailCache(context),
-                    decode = { key ->
-                        extractor.extractFrame(
-                            context = context,
-                            uriString = key.videoIdOrUri,
-                            timeUs = key.timeUs,
-                            targetWidth = key.targetWidth,
-                            targetHeight = key.targetHeight,
-                            rotationDegrees = key.rotationDegrees
-                        )
-                    }
-                )
-            }
-            val thumbnailKeyProvider = remember(uri, thumbnailWidthPx, thumbnailHeightPx) {
-                { timeUs: Long, _: TimelineUiClip, zoomBucket: Int ->
-                    ThumbnailKey(
-                        videoIdOrUri = uri,
-                        timeUs = timeUs,
-                        targetWidth = thumbnailWidthPx,
-                        targetHeight = thumbnailHeightPx,
-                        rotationDegrees = 0,
-                        zoomBucket = zoomBucket
-                    )
-                }
-            }
-
-            // Adjusted padding for TimelineView to account for header space if needed
-            TimelineView(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight()
-                    .padding(top = 24.dp),
-                tracks = timelineTracks,
-                pixelsPerSecond = pixelsPerSecond,
-                listState = timelineListState,
-                thumbnailRepository = thumbnailRepository,
-                thumbnailKeyProvider = thumbnailKeyProvider,
-                zoomBucket = thumbnailZoomBucket,
-                onZoomChange = { zoomDelta ->
-                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomByDelta(zoomDelta))
-                },
-                onClipSelected = { _, clip ->
-                    timelineTracks.forEachIndexed { trackIndex, track ->
-                        val updatedClips = track.clips.map { item ->
-                            item.copy(isSelected = item.id == clip.id)
-                        }
-                        timelineTracks[trackIndex] = track.copy(clips = updatedClips)
-                    }
-                },
-                onClipMoved = { trackId, fromId, toIndex ->
-                    // Existing move logic
-                    val trackIndex = timelineTracks.indexOfFirst { it.id == trackId }
-                    if (trackIndex != -1) {
-                        val track = timelineTracks[trackIndex]
-                        val fromIndex = track.clips.indexOfFirst { it.id == fromId }
-                        if (fromIndex != -1) {
-                            val boundedIndex = toIndex.coerceIn(0, track.clips.lastIndex)
-                            if (fromIndex != boundedIndex) {
-                                val updatedClips = track.clips.toMutableList()
-                                val clipToMove = updatedClips.removeAt(fromIndex)
-                                val insertIndex =
-                                    if (fromIndex < boundedIndex) boundedIndex - 1 else boundedIndex
-                                updatedClips.add(insertIndex, clipToMove)
-                                timelineTracks[trackIndex] = track.copy(clips = updatedClips)
+                    .weight(1f)
+                    .background(Color(0xFF0E0F12))
+            ) {
+                TimelinePrecisionView(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(),
+                    tracks = timelineTracks,
+                    zoomLevel = editorState.zoomLevel,
+                    currentTimeMs = editorState.currentTimeMs,
+                    listState = timelineListState,
+                    onZoom = { zoomDelta ->
+                        viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomByDelta(zoomDelta))
+                    },
+                    onTrim = { _, _, _ -> },
+                    onSeek = { timeMs -> onPlayerSeek(timeMs) }
+                )
+            }
+
+            EditorToolRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                tools = listOf(
+                    EditorToolAction(
+                        label = stringResource(R.string.video_filters),
+                        icon = Icons.Filled.Filter,
+                        onClick = { showFilterBottomSheet = true }
+                    ),
+                    EditorToolAction(
+                        label = stringResource(R.string.video_layers),
+                        icon = Icons.Filled.Layers,
+                        onClick = { showLayerBottomSheet = true }
+                    ),
+                    EditorToolAction(
+                        label = stringResource(R.string.frames),
+                        icon = Icons.Filled.PhotoCamera,
+                        onClick = { showFrameDialog = true }
+                    ),
+                    EditorToolAction(
+                        label = stringResource(R.string.text),
+                        icon = Icons.Filled.TextFields,
+                        onClick = {
+                            val effect = onVideoUserEffectsArray.firstOrNull { effect ->
+                                effect.stringResId == R.string.text
+                            }
+                            if (effect != null) {
+                                viewModel.setCurrentEditingEffect(effect)
+                                viewModel.setControlsVisible(false)
                             }
                         }
-                    }
-                }
+                    ),
+                    EditorToolAction(
+                        label = stringResource(R.string.crop),
+                        icon = Icons.Filled.ContentCut,
+                        onClick = {
+                            val effect = onVideoUserEffectsArray.firstOrNull { effect ->
+                                effect.stringResId == R.string.crop
+                            }
+                            if (effect != null) {
+                                viewModel.setCurrentEditingEffect(effect)
+                                viewModel.setControlsVisible(false)
+                            }
+                        }
+                    )
+                )
             )
         }
-
-        val classicToolsTitle = stringResource(R.string.classic_tools)
-        val newToolsTitle = stringResource(R.string.new_tools)
-        EditorToolShelf(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 20.dp),
-            classicTitle = classicToolsTitle,
-            classicTools = listOf(
-                EditorToolAction(
-                    label = stringResource(R.string.video_filters),
-                    icon = Icons.Filled.Filter,
-                    onClick = { showFilterBottomSheet = true }
-                ),
-                EditorToolAction(
-                    label = stringResource(R.string.video_layers),
-                    icon = Icons.Filled.Layers,
-                    onClick = { showLayerBottomSheet = true }
-                ),
-                EditorToolAction(
-                    label = stringResource(R.string.frames),
-                    icon = Icons.Filled.PhotoCamera,
-                    onClick = { showFrameDialog = true }
-                )
-            ),
-            modernTitle = newToolsTitle,
-            modernTools = listOf(
-                EditorToolAction(
-                    label = stringResource(R.string.text),
-                    icon = Icons.Filled.TextFields,
-                    onClick = {
-                        val effect = onVideoUserEffectsArray.firstOrNull { effect ->
-                            effect.stringResId == R.string.text
-                        }
-                        if (effect != null) {
-                            viewModel.setCurrentEditingEffect(effect)
-                            viewModel.setControlsVisible(false)
-                        }
-                    }
-                ),
-                EditorToolAction(
-                    label = stringResource(R.string.crop),
-                    icon = Icons.Filled.ContentCut,
-                    onClick = {
-                        val effect = onVideoUserEffectsArray.firstOrNull { effect ->
-                            effect.stringResId == R.string.crop
-                        }
-                        if (effect != null) {
-                            viewModel.setCurrentEditingEffect(effect)
-                            viewModel.setControlsVisible(false)
-                        }
-                    }
-                )
-            )
-        )
     }
     if (showFilterBottomSheet) {
         ModalBottomSheet(
@@ -1855,33 +1766,6 @@ private data class EditorToolAction(
 )
 
 @Composable
-private fun EditorToolShelf(
-    modifier: Modifier = Modifier,
-    classicTitle: String,
-    classicTools: List<EditorToolAction>,
-    modernTitle: String,
-    modernTools: List<EditorToolAction>
-) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text(
-            text = classicTitle,
-            color = Color.White,
-            style = MaterialTheme.typography.titleMedium
-        )
-        EditorToolRow(tools = classicTools)
-        Text(
-            text = modernTitle,
-            color = Color.White,
-            style = MaterialTheme.typography.titleMedium
-        )
-        EditorToolRow(tools = modernTools)
-    }
-}
-
-@Composable
 private fun EditorToolRow(
     tools: List<EditorToolAction>,
     modifier: Modifier = Modifier
@@ -1901,7 +1785,7 @@ private fun EditorToolRow(
 private fun EditorToolButton(tool: EditorToolAction) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         Box {
             IconButton(onClick = tool.onClick) {
@@ -1909,7 +1793,7 @@ private fun EditorToolButton(tool: EditorToolAction) {
                     imageVector = tool.icon,
                     contentDescription = tool.label,
                     tint = Color.White,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(22.dp)
                 )
             }
             if (tool.hasBadge) {
@@ -1923,13 +1807,6 @@ private fun EditorToolButton(tool: EditorToolAction) {
                 )
             }
         }
-        Text(
-            text = tool.label,
-            color = Color.White,
-            style = MaterialTheme.typography.labelMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
     }
 }
 

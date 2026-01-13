@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.56] - 2026-01-09
+### Ajustado
+- Barra inferior del editor con iconos pequeños sin etiquetas y colocada debajo del timeline.
+- Timeline con vista de precisión sincronizada con la reproducción y con mejor aprovechamiento del espacio.
+
 ## [1.3.55] - 2026-01-09
 ### Ajustado
 - Renovación del panel inferior del editor con secciones de herramientas clásicas y nuevas, y accesos directos a filtros, capas, fotogramas, texto y recorte.
