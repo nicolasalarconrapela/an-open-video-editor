@@ -719,6 +719,8 @@ private fun TopControls(
     val projectOutputPath by viewModel.projectOutputPath.collectAsState()
     val projectSavingSupported by viewModel.projectSavingSupported.collectAsState()
     val videoTitle = remember(title()) { title() }
+    val dataStore = remember { SettingsDataStore(activity) }
+    val scope = rememberCoroutineScope()
     var showThreeDotMenu by remember { mutableStateOf(false) }
     var showExportDialog by rememberSaveable { mutableStateOf(false) }
 
@@ -751,6 +753,9 @@ private fun TopControls(
 
         if (projectOutputPath.isNotEmpty()) {
             transformManager.projectData.write(projectOutputPath, activity)
+            scope.launch {
+                dataStore.addRecentProject(projectOutputPath)
+            }
             viewModel.setProjectOutputPath("")
         }
 

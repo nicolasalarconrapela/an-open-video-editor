@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.46] - 2026-01-09
+### Añadido
+- Lista de proyectos recientes en la pantalla principal con acceso rápido.
+### Ajustado
+- Guardado automático de proyectos recientes al abrir o guardar proyectos.
+
 ## [1.3.45] - 2026-01-09
 ### Ajustado
 - Dependencia Material Components para resolver el tema Material3 en recursos.

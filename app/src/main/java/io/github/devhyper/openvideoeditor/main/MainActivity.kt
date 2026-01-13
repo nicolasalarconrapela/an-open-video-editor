@@ -13,10 +13,12 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.lifecycleScope
 import io.github.devhyper.openvideoeditor.misc.setImmersiveMode
 import io.github.devhyper.openvideoeditor.misc.setupSystemUi
 import io.github.devhyper.openvideoeditor.settings.SettingsDataStore
 import io.github.devhyper.openvideoeditor.videoeditor.VideoEditorActivity
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private lateinit var pickMedia: ActivityResultLauncher<PickVisualMediaRequest>
@@ -48,13 +50,25 @@ class MainActivity : ComponentActivity() {
             CustomOpenDocument()
         ) { uri ->
             if (uri != null) {
+                lifecycleScope.launch {
+                    dataStore.addRecentProject(uri.toString())
+                }
                 launchVideoEditor(uri)
             }
         }
 
         setContent {
             setImmersiveMode(false)
-            MainScreen(pickMedia, pickProject)
+            MainScreen(
+                pickMedia = pickMedia,
+                pickProject = pickProject,
+                onOpenProject = { projectUri ->
+                    lifecycleScope.launch {
+                        dataStore.addRecentProject(projectUri)
+                    }
+                    launchVideoEditor(Uri.parse(projectUri))
+                }
+            )
         }
     }
     
