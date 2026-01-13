@@ -91,4 +91,10 @@
     <string name="recent_projects">Recent projects</string>
     <string name="projects_title">Proyectos</string>
     <string name="add_project">Añadir proyecto</string>
+    <string name="project_options">Opciones del proyecto</string>
+    <string name="rename_project">Cambiar nombre</string>
+    <string name="delete_project">Eliminar</string>
+    <string name="confirm_delete_project">¿Eliminar este proyecto? Esta acción no se puede deshacer.</string>
+    <string name="confirm">Confirmar</string>
+    <string name="project_name">Nombre del proyecto</string>
 </resources>

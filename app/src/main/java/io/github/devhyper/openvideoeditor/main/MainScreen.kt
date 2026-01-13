@@ -26,20 +26,29 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -65,7 +74,11 @@ fun MainScreen(
     onOpenProject: (String) -> Unit
 ) {
     val activity = LocalContext.current as Activity
-    val projectEntries by produceState(initialValue = emptyList<ProjectEntry>()) {
+    var refreshToken by rememberSaveable { mutableStateOf(0) }
+    val projectEntries by produceState(
+        initialValue = emptyList<ProjectEntry>(),
+        key1 = refreshToken
+    ) {
         value = loadProjectEntries(activity)
     }
     val appVersion = rememberAppVersion()
@@ -111,6 +124,7 @@ fun MainScreen(
                                     )
                                 )
                             },
+                            onProjectsChanged = { refreshToken += 1 },
                             modifier = Modifier.align(Alignment.TopCenter)
                         )
                         Text(
@@ -139,6 +153,7 @@ private fun ProjectsGrid(
     projects: List<ProjectEntry>,
     onOpenProject: (String) -> Unit,
     onAddProject: () -> Unit,
+    onProjectsChanged: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -157,7 +172,8 @@ private fun ProjectsGrid(
             } else {
                 ProjectCard(
                     entry = entry,
-                    onOpenProject = onOpenProject
+                    onOpenProject = onOpenProject,
+                    onProjectsChanged = onProjectsChanged
                 )
             }
         }
@@ -167,9 +183,14 @@ private fun ProjectsGrid(
 @Composable
 private fun ProjectCard(
     entry: ProjectEntry,
-    onOpenProject: (String) -> Unit
+    onOpenProject: (String) -> Unit,
+    onProjectsChanged: () -> Unit
 ) {
     val thumbnail = rememberProjectThumbnail(entry.uri)
+    var menuExpanded by remember { mutableStateOf(false) }
+    var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
+    var showRenameDialog by rememberSaveable { mutableStateOf(false) }
+    var renameValue by rememberSaveable(entry.title) { mutableStateOf(entry.title) }
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -197,6 +218,37 @@ private fun ProjectCard(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                ) {
+                    IconButton(onClick = { menuExpanded = true }) {
+                        Icon(
+                            imageVector = Icons.Filled.MoreVert,
+                            contentDescription = stringResource(R.string.project_options)
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.rename_project)) },
+                            onClick = {
+                                menuExpanded = false
+                                showRenameDialog = true
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.delete_project)) },
+                            onClick = {
+                                menuExpanded = false
+                                showDeleteDialog = true
+                            }
+                        )
+                    }
+                }
             }
             Column(
                 modifier = Modifier.padding(12.dp),
@@ -215,6 +267,66 @@ private fun ProjectCard(
                 )
             }
         }
+    }
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text(stringResource(R.string.delete_project)) },
+            text = { Text(stringResource(R.string.confirm_delete_project)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val deleted = deleteProjectFile(entry.uri)
+                        if (deleted) {
+                            onProjectsChanged()
+                        }
+                        showDeleteDialog = false
+                    }
+                ) {
+                    Text(stringResource(R.string.confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+    if (showRenameDialog) {
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = { Text(stringResource(R.string.rename_project)) },
+            text = {
+                TextField(
+                    value = renameValue,
+                    onValueChange = { renameValue = it },
+                    label = { Text(stringResource(R.string.project_name)) },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val renamed = renameProjectFile(
+                            projectUri = entry.uri,
+                            newName = renameValue
+                        )
+                        if (renamed) {
+                            onProjectsChanged()
+                        }
+                        showRenameDialog = false
+                    }
+                ) {
+                    Text(stringResource(R.string.confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
     }
 }
 
@@ -344,4 +456,28 @@ private fun loadProjectThumbnail(
         retriever.release()
         bitmap.asImageBitmap()
     }.getOrNull()
+}
+
+private fun deleteProjectFile(projectUri: String): Boolean {
+    return runCatching {
+        val file = File(projectUri.toUri().path ?: return false)
+        file.delete()
+    }.getOrDefault(false)
+}
+
+private fun renameProjectFile(
+    projectUri: String,
+    newName: String
+): Boolean {
+    return runCatching {
+        val file = File(projectUri.toUri().path ?: return false)
+        val sanitized = newName.ifBlank { file.nameWithoutExtension }
+            .replace(Regex("[^A-Za-z0-9_-]"), "_")
+        val target = File(file.parentFile, "$sanitized.$PROJECT_FILE_EXT")
+        if (target.exists()) {
+            false
+        } else {
+            file.renameTo(target)
+        }
+    }.getOrDefault(false)
 }

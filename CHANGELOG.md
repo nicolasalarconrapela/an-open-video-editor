@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.49] - 2026-01-09
+### Añadido
+- Opciones para renombrar y eliminar proyectos desde la pantalla principal.
+
 ## [1.3.48] - 2026-01-09
 ### Añadido
 - Pantalla inicial en formato de cuadrícula con tarjetas de proyectos.
