@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.53] - 2026-01-09
+### Ajustado
+- Workflow con caching ampliado y opciones de Gradle para optimizar recursos y tiempos.
+
 ## [1.3.52] - 2026-01-09
 ### Ajustado
 - Pantalla inicial con estado vacío cuando no hay proyectos.

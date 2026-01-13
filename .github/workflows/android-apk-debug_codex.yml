@@ -17,7 +17,17 @@ concurrency:
 jobs:
   apk-debug:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
+
+    env:
+      GRADLE_OPTS: >-
+        -Dorg.gradle.caching=true
+        -Dorg.gradle.parallel=true
+        -Dorg.gradle.configureondemand=true
+        -Dkotlin.compiler.execution.strategy=in-process
+        -Dkotlin.incremental=true
+        -Dkotlin.daemon.jvmargs=-Xmx2g
+        -Dorg.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8
 
     steps:
       - uses: actions/checkout@v4
@@ -39,6 +49,9 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | sdkmanager --licenses
 
+      - name: Validate Gradle wrapper
+        uses: gradle/wrapper-validation-action@v2
+
       # Caché extra (más agresiva) para Gradle:
       - name: Cache Gradle (wrapper + caches)
         uses: actions/cache@v4
@@ -55,9 +68,12 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Warm Gradle cache
+        run: ./gradlew --no-daemon --stacktrace help
+
       # Recomendado para CI: evita daemon y reduce “ruido”
       - name: Build Debug APK
-        run: ./gradlew :app:assembleDebug --no-daemon
+        run: ./gradlew :app:assembleDebug --no-daemon --parallel --stacktrace
 
       - name: Set APK artifact name
         id: apk_name
