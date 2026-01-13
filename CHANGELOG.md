@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.50] - 2026-01-09
+### Corregido
+- Nombre de archivo en proyectos con URI de tipo archivo para evitar mostrar "null".
+
 ## [1.3.49] - 2026-01-09
 ### Añadido
 - Opciones para renombrar y eliminar proyectos desde la pantalla principal.
