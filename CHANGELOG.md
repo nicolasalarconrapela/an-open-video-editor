@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.55] - 2026-01-09
+### Ajustado
+- Renovación del panel inferior del editor con secciones de herramientas clásicas y nuevas, y accesos directos a filtros, capas, fotogramas, texto y recorte.
+
 ## [1.3.54] - 2026-01-09
 ### Ajustado
 - Mensajes de guardado de proyecto y refresco de la lista al volver a la pantalla principal.

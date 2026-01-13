@@ -11,8 +11,8 @@ android {
         applicationId = "io.github.devhyper.openvideoeditor"
         minSdk = 26
         targetSdk = 34
-        versionCode = 37
-        versionName = "1.3.54"
+        versionCode = 38
+        versionName = "1.3.55"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

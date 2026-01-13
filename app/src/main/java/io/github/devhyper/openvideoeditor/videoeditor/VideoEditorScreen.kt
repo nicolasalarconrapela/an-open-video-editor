@@ -59,17 +59,15 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Forward10
-import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.Filter
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Replay5
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -1007,10 +1005,59 @@ private fun BottomControls(
             )
         }
 
-        BottomToolbar(
+        val classicToolsTitle = stringResource(R.string.classic_tools)
+        val newToolsTitle = stringResource(R.string.new_tools)
+        EditorToolShelf(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 20.dp)
+                .padding(horizontal = 16.dp, vertical = 20.dp),
+            classicTitle = classicToolsTitle,
+            classicTools = listOf(
+                EditorToolAction(
+                    label = stringResource(R.string.video_filters),
+                    icon = Icons.Filled.Filter,
+                    onClick = { showFilterBottomSheet = true }
+                ),
+                EditorToolAction(
+                    label = stringResource(R.string.video_layers),
+                    icon = Icons.Filled.Layers,
+                    onClick = { showLayerBottomSheet = true }
+                ),
+                EditorToolAction(
+                    label = stringResource(R.string.frames),
+                    icon = Icons.Filled.PhotoCamera,
+                    onClick = { showFrameDialog = true }
+                )
+            ),
+            modernTitle = newToolsTitle,
+            modernTools = listOf(
+                EditorToolAction(
+                    label = stringResource(R.string.text),
+                    icon = Icons.Filled.TextFields,
+                    onClick = {
+                        val effect = onVideoUserEffectsArray.firstOrNull { effect ->
+                            effect.stringResId == R.string.text
+                        }
+                        if (effect != null) {
+                            viewModel.setCurrentEditingEffect(effect)
+                            viewModel.setControlsVisible(false)
+                        }
+                    }
+                ),
+                EditorToolAction(
+                    label = stringResource(R.string.crop),
+                    icon = Icons.Filled.ContentCut,
+                    onClick = {
+                        val effect = onVideoUserEffectsArray.firstOrNull { effect ->
+                            effect.stringResId == R.string.crop
+                        }
+                        if (effect != null) {
+                            viewModel.setCurrentEditingEffect(effect)
+                            viewModel.setControlsVisible(false)
+                        }
+                    }
+                )
+            )
         )
     }
     if (showFilterBottomSheet) {
@@ -1800,32 +1847,72 @@ private suspend fun saveFrame(context: Context, uri: String, timeMs: Long) {
     }
 }
 
+private data class EditorToolAction(
+    val label: String,
+    val icon: ImageVector,
+    val hasBadge: Boolean = false,
+    val onClick: () -> Unit
+)
+
 @Composable
-private fun BottomToolbar(modifier: Modifier = Modifier) {
-    Row(
+private fun EditorToolShelf(
+    modifier: Modifier = Modifier,
+    classicTitle: String,
+    classicTools: List<EditorToolAction>,
+    modernTitle: String,
+    modernTools: List<EditorToolAction>
+) {
+    Column(
         modifier = modifier,
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        ToolbarButton(icon = Icons.Filled.TextFields, label = "T")
-        ToolbarButton(icon = Icons.Filled.Face, label = "Sticker", hasBadge = true)
-        ToolbarButton(icon = Icons.Filled.Edit, label = "Edit")
-        ToolbarButton(icon = Icons.Filled.LibraryMusic, label = "Music")
-        ToolbarButton(icon = Icons.Filled.Settings, label = "Effects")
+        Text(
+            text = classicTitle,
+            color = Color.White,
+            style = MaterialTheme.typography.titleMedium
+        )
+        EditorToolRow(tools = classicTools)
+        Text(
+            text = modernTitle,
+            color = Color.White,
+            style = MaterialTheme.typography.titleMedium
+        )
+        EditorToolRow(tools = modernTools)
     }
 }
 
 @Composable
-private fun ToolbarButton(icon: ImageVector, label: String, hasBadge: Boolean = false) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+private fun EditorToolRow(
+    tools: List<EditorToolAction>,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        tools.forEach { tool ->
+            EditorToolButton(tool = tool)
+        }
+    }
+}
+
+@Composable
+private fun EditorToolButton(tool: EditorToolAction) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
         Box {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = Color.White,
-                modifier = Modifier.size(28.dp)
-            )
-            if (hasBadge) {
+            IconButton(onClick = tool.onClick) {
+                Icon(
+                    imageVector = tool.icon,
+                    contentDescription = tool.label,
+                    tint = Color.White,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+            if (tool.hasBadge) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
@@ -1836,6 +1923,13 @@ private fun ToolbarButton(icon: ImageVector, label: String, hasBadge: Boolean = 
                 )
             }
         }
+        Text(
+            text = tool.label,
+            color = Color.White,
+            style = MaterialTheme.typography.labelMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
