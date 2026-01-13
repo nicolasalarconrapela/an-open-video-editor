@@ -14,6 +14,7 @@ import android.provider.MediaStore
 import android.view.TextureView
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
@@ -59,17 +60,15 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Forward10
-import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.Filter
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Replay5
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -114,7 +113,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -157,31 +155,23 @@ import io.github.devhyper.openvideoeditor.ui.theme.GlassDark
 import io.github.devhyper.openvideoeditor.ui.theme.GlassWhite
 import io.github.devhyper.openvideoeditor.ui.theme.OpenVideoEditorTheme
 import io.github.devhyper.openvideoeditor.videoeditor.state.EditorState
-import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
-import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRepository
-import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.cache.BitmapMemoryCache
-import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.cache.DiskThumbnailCache
-import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.codec.MediaCodecFrameExtractor
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineClipType
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineUiClip
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineUiTrack
-import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineView
+import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelinePrecisionView
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.toImmutableList
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.ObjectOutputStream
-import kotlin.math.roundToInt
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun VideoEditorScreen(
     uri: String,
     createDocument: ActivityResultLauncher<String>,
-    createProject: ActivityResultLauncher<String>,
     requestVideoPermission: ActivityResultLauncher<String>
 ) {
     val viewModel = viewModel { VideoEditorViewModel() }
@@ -189,8 +179,6 @@ fun VideoEditorScreen(
     val screenScope = rememberCoroutineScope()
 
     val context = LocalContext.current
-
-    val dataStore = SettingsDataStore(context)
 
     val controlsVisible by viewModel.controlsVisible.collectAsState()
 
@@ -247,8 +235,6 @@ fun VideoEditorScreen(
     val startFilterSelected by viewModel.startFilterSelected.collectAsState()
 
     val timelineListState = rememberLazyListState()
-    val basePixelsPerSecond = 80f
-    val pixelsPerSecond = (basePixelsPerSecond * editorState.zoomLevel).coerceIn(20f, 200f)
     val videoTrackLabel = stringResource(R.string.timeline_track_video)
     val audioTrackLabel = stringResource(R.string.timeline_track_audio)
     val overlayTrackLabel = stringResource(R.string.timeline_track_overlay)
@@ -564,7 +550,6 @@ fun VideoEditorScreen(
                         title = { getFileNameFromUri(context, uri.toUri()) },
                         transformManager = transformManager,
                         createDocument = createDocument,
-                        createProject = createProject,
                         playbackState = { playbackState },
                         onReplayClick = { player.seekBack() },
                         onForwardClick = { player.seekForward() },
@@ -608,8 +593,6 @@ fun VideoEditorScreen(
                         .windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility)
                 ) {
                     BottomControls(
-                        uri = uri,
-                        screenScope = screenScope,
                         modifier = Modifier.fillMaxWidth(),
                         fpm = { fpm },
                         totalDuration = { totalDuration },
@@ -636,8 +619,6 @@ fun VideoEditorScreen(
                         editorState = editorState,
                         timelineTracks = timelineTracks,
                         timelineListState = timelineListState,
-                        basePixelsPerSecond = basePixelsPerSecond,
-                        pixelsPerSecond = pixelsPerSecond,
                         onPlayerSeek = { timeMs -> player.seekTo(timeMs) }
                     )
                 }
@@ -655,7 +636,6 @@ private fun PlayerControls(
     title: () -> String,
     transformManager: TransformManager,
     createDocument: ActivityResultLauncher<String>,
-    createProject: ActivityResultLauncher<String>,
     onReplayClick: () -> Unit,
     onForwardClick: () -> Unit,
     onPauseToggle: () -> Unit,
@@ -724,14 +704,13 @@ private fun TopControls(
     title: () -> String,
     transformManager: TransformManager,
     createDocument: ActivityResultLauncher<String>,
-    createProject: ActivityResultLauncher<String>,
     onCaptureClick: () -> Unit
 ) {
     val activity = LocalContext.current as Activity
     val viewModel = viewModel { VideoEditorViewModel() }
-    val projectOutputPath by viewModel.projectOutputPath.collectAsState()
     val projectSavingSupported by viewModel.projectSavingSupported.collectAsState()
     val videoTitle = remember(title()) { title() }
+    val scope = rememberCoroutineScope()
     var showThreeDotMenu by remember { mutableStateOf(false) }
     var showExportDialog by rememberSaveable { mutableStateOf(false) }
 
@@ -922,8 +901,6 @@ private fun CenterControls(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BottomControls(
-    uri: String,
-    screenScope: CoroutineScope,
     modifier: Modifier = Modifier,
     fpm: () -> Float,
     totalDuration: () -> Long,
@@ -935,8 +912,6 @@ private fun BottomControls(
     editorState: EditorState,
     timelineTracks: MutableList<TimelineUiTrack>,
     timelineListState: LazyListState,
-    basePixelsPerSecond: Float,
-    pixelsPerSecond: Float,
     onPlayerSeek: (Long) -> Unit
 ) {
     val context = LocalContext.current
@@ -1017,12 +992,10 @@ private fun BottomControls(
                     .fillMaxWidth()
                     .fillMaxHeight(),
                 tracks = timelineTracks,
-                pixelsPerSecond = pixelsPerSecond,
+                zoomLevel = editorState.zoomLevel,
+                currentTimeMs = editorState.currentTimeMs,
                 listState = timelineListState,
-                thumbnailRepository = thumbnailRepository,
-                thumbnailKeyProvider = thumbnailKeyProvider,
-                zoomBucket = thumbnailZoomBucket,
-                onZoomChange = { zoomDelta ->
+                onZoom = { zoomDelta ->
                     viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomByDelta(zoomDelta))
                 },
                 onClipSelected = { _, clip ->
@@ -1083,42 +1056,44 @@ private fun BottomControls(
         ) {
             LayerDrawer(transformManager)
         }
-    } else if (showFrameDialog) {
-        var newFrame by remember { mutableLongStateOf(-1L) }
-        ListDialog(
-            title = stringResource(R.string.frames),
-            dismissText = stringResource(R.string.dismiss),
-            acceptText = stringResource(R.string.accept),
-            onDismissRequest = { showFrameDialog = false },
-            onAcceptRequest = {
-                if (newFrame >= 0L) {
-                    showFrameDialog = false
-                    val timeMs = (newFrame / videoFpm) + 1F
-                    onSeekChanged(timeMs)
-                }
-            },
-            listItems = {
-                item {
-                    Text("$videoTimeFrames/$durationFrames")
-                    TextfieldSetting(
-                        name = stringResource(R.string.new_frame),
-                        keyboardType = KeyboardType.Number,
-                        onValueChanged = {
-                            val errorTxt = validateUInt(it)
-                            if (errorTxt.isEmpty()) {
-                                val newLongFrame = it.toLong()
-                                if (newLongFrame <= durationFrames) {
-                                    newFrame = newLongFrame
-                                } else {
-                                    newFrame = -1L
-                                    return@TextfieldSetting context.getString(R.string.input_frame_must_less_or_equal) + " $durationFrames"
+
+        showFrameDialog -> {
+            var newFrame by remember { mutableLongStateOf(-1L) }
+            ListDialog(
+                title = stringResource(R.string.frames),
+                dismissText = stringResource(R.string.dismiss),
+                acceptText = stringResource(R.string.accept),
+                onDismissRequest = { showFrameDialog = false },
+                onAcceptRequest = {
+                    if (newFrame >= 0L) {
+                        showFrameDialog = false
+                        val timeMs = (newFrame / videoFpm) + 1F
+                        onSeekChanged(timeMs)
+                    }
+                },
+                listItems = {
+                    item {
+                        Text("$videoTimeFrames/$durationFrames")
+                        TextfieldSetting(
+                            name = stringResource(R.string.new_frame),
+                            keyboardType = KeyboardType.Number,
+                            onValueChanged = {
+                                val errorTxt = validateUInt(it)
+                                if (errorTxt.isEmpty()) {
+                                    val newLongFrame = it.toLong()
+                                    if (newLongFrame <= durationFrames) {
+                                        newFrame = newLongFrame
+                                    } else {
+                                        newFrame = -1L
+                                        return@TextfieldSetting context.getString(R.string.input_frame_must_less_or_equal) + " $durationFrames"
+                                    }
                                 }
-                            }
-                            errorTxt
-                        })
+                                errorTxt
+                            })
+                    }
                 }
-            }
-        )
+            )
+        }
     }
 }
 
@@ -1904,6 +1879,13 @@ private suspend fun saveFrame(context: Context, uri: String, timeMs: Long) {
     }
 }
 
+private data class EditorToolAction(
+    val label: String,
+    val icon: ImageVector,
+    val hasBadge: Boolean = false,
+    val onClick: () -> Unit
+)
+
 @Composable
 private fun AddButton(modifier: Modifier = Modifier) {
     Surface(
@@ -1920,4 +1902,28 @@ private fun AddButton(modifier: Modifier = Modifier) {
             )
         }
     }
+}
+
+private fun createInternalProjectFile(context: Context, videoTitle: String): File {
+    val projectsDir = File(context.filesDir, "projects").apply { mkdirs() }
+    val baseName = videoTitle.substringBeforeLast('.').ifBlank { "project" }
+    val sanitized = baseName.replace(Regex("[^A-Za-z0-9_-]"), "_")
+    var projectFile = File(projectsDir, "$sanitized.$PROJECT_FILE_EXT")
+    if (projectFile.exists()) {
+        val timestamp = System.currentTimeMillis()
+        projectFile = File(projectsDir, "${sanitized}_$timestamp.$PROJECT_FILE_EXT")
+    }
+    return projectFile
+}
+
+private fun saveInternalProject(
+    activity: Activity,
+    transformManager: TransformManager,
+    videoTitle: String
+): Boolean {
+    return runCatching {
+        val projectFile = createInternalProjectFile(activity, videoTitle)
+        transformManager.projectData.write(projectFile.toUri().toString(), activity)
+        true
+    }.getOrDefault(false)
 }

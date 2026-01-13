@@ -22,6 +22,8 @@ class SettingsDataStore(private val context: Context) {
         val AMOLED_DARK_THEME = booleanPreferencesKey("amoled_dark_theme")
         val PROXY_ENABLED = booleanPreferencesKey("proxy_enabled")
         val PROXY_QUALITY = stringPreferencesKey("proxy_quality")
+        val RECENT_PROJECTS = stringPreferencesKey("recent_projects")
+        private const val MAX_RECENT_PROJECTS = 5
     }
 
     fun getThemeBlocking(): String {
@@ -121,6 +123,31 @@ class SettingsDataStore(private val context: Context) {
         context.dataStore.edit { preferences ->
             preferences[PROXY_QUALITY] = value
         }
+    }
+
+    fun getRecentProjectsAsync(): Flow<List<String>> {
+        return context.dataStore.data.map { preferences ->
+            parseRecentProjects(preferences[RECENT_PROJECTS])
+        }
+    }
+
+    suspend fun addRecentProject(uri: String) {
+        context.dataStore.edit { preferences ->
+            val current = parseRecentProjects(preferences[RECENT_PROJECTS])
+            val updated = buildList {
+                add(uri)
+                current.filterNot { it == uri }.forEach { add(it) }
+            }.take(MAX_RECENT_PROJECTS)
+            preferences[RECENT_PROJECTS] = updated.joinToString("\n")
+        }
+    }
+
+    private fun parseRecentProjects(value: String?): List<String> {
+        return value
+            ?.split("\n")
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            ?: emptyList()
     }
 
 }

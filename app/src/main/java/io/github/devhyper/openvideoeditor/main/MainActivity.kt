@@ -12,6 +12,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import io.github.devhyper.openvideoeditor.misc.setImmersiveMode
 import io.github.devhyper.openvideoeditor.misc.setupSystemUi
 import io.github.devhyper.openvideoeditor.settings.SettingsDataStore
@@ -19,16 +20,16 @@ import io.github.devhyper.openvideoeditor.videoeditor.VideoEditorActivity
 
 class MainActivity : ComponentActivity() {
     private lateinit var pickMedia: ActivityResultLauncher<PickVisualMediaRequest>
-    private lateinit var pickProject: ActivityResultLauncher<Array<String>>
     private lateinit var requestPermissions: ActivityResultLauncher<Array<String>>
     
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
 
         setupSystemUi()
 
         val dataStore = SettingsDataStore(this)
-        
+
         // Request all required permissions at startup
         requestPermissions = registerForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
@@ -42,17 +43,12 @@ class MainActivity : ComponentActivity() {
                     launchVideoEditor(uri)
                 }
             }
-        pickProject = registerForActivityResult(
-            CustomOpenDocument()
-        ) { uri ->
-            if (uri != null) {
-                launchVideoEditor(uri)
-            }
-        }
-
         setContent {
             setImmersiveMode(false)
-            MainScreen(pickMedia, pickProject)
+            MainScreen(
+                pickMedia = pickMedia,
+                onOpenProject = { projectUri -> launchVideoEditor(Uri.parse(projectUri)) }
+            )
         }
     }
     
