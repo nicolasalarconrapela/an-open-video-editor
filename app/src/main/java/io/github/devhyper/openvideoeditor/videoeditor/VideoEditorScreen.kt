@@ -334,6 +334,13 @@ fun VideoEditorScreen(
 
     val videoTitle = remember(uri) { getFileNameFromUri(context, uri.toUri()) }
 
+    LaunchedEffect(uri) {
+        val path = Uri.parse(uri).path
+        if (path != null && File(path).exists() && path.endsWith(".$PROJECT_FILE_EXT", ignoreCase = true)) {
+            viewModel.setProjectOutputPath(path)
+        }
+    }
+
     val workManager = remember { WorkManager.getInstance(context) }
     // We observe all video_export works
     val exportWorkInfos by workManager.getWorkInfosByTagFlow("video_export")
@@ -739,6 +746,7 @@ private fun TopControls(
 ) {
     val activity = LocalContext.current as Activity
     val viewModel = viewModel { VideoEditorViewModel() }
+    val projectOutputPath by viewModel.projectOutputPath.collectAsState()
     val projectSavingSupported by viewModel.projectSavingSupported.collectAsState()
     val videoTitle = remember(title()) { title() }
     val scope = rememberCoroutineScope()
@@ -797,22 +805,29 @@ private fun TopControls(
                         onClick = {
                             showThreeDotMenu = false
                             scope.launch(Dispatchers.IO) {
-                                val saved = saveInternalProject(
+                                val savedPath = saveInternalProject(
                                     activity = activity,
                                     transformManager = transformManager,
-                                    videoTitle = videoTitle
+                                    videoTitle = videoTitle,
+                                    existingPath = projectOutputPath
                                 )
-                                val messageId = if (saved) {
-                                    R.string.project_saved
+                                if (savedPath != null) {
+                                    viewModel.setProjectOutputPath(savedPath)
+                                    activity.runOnUiThread {
+                                        Toast.makeText(
+                                            activity,
+                                            activity.getString(R.string.project_saved),
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
                                 } else {
-                                    R.string.project_save_failed
-                                }
-                                activity.runOnUiThread {
-                                    Toast.makeText(
-                                        activity,
-                                        activity.getString(messageId),
-                                        Toast.LENGTH_SHORT
-                                    ).show()
+                                    activity.runOnUiThread {
+                                        Toast.makeText(
+                                            activity,
+                                            activity.getString(R.string.project_save_failed),
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
                                 }
                             }
                         })
@@ -1898,11 +1913,16 @@ private fun createInternalProjectFile(context: Context, videoTitle: String): Fil
 private fun saveInternalProject(
     activity: Activity,
     transformManager: TransformManager,
-    videoTitle: String
-): Boolean {
+    videoTitle: String,
+    existingPath: String?
+): String? {
     return runCatching {
-        val projectFile = createInternalProjectFile(activity, videoTitle)
+        val projectFile = if (!existingPath.isNullOrEmpty()) {
+            File(existingPath)
+        } else {
+            createInternalProjectFile(activity, videoTitle)
+        }
         transformManager.projectData.write(projectFile.toUri().toString(), activity)
-        true
-    }.getOrDefault(false)
+        projectFile.absolutePath
+    }.getOrNull()
 }

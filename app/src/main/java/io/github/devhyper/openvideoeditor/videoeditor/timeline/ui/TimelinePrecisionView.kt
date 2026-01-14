@@ -60,6 +60,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import kotlin.math.abs
@@ -114,9 +115,35 @@ fun TimelinePrecisionView(
         val horizontalPadding = PaddingValues(horizontal = halfWidthDp)
 
         LaunchedEffect(currentTimeMs, pixelsPerSecond, masterClips) {
-            if (masterClips.isEmpty()) return@LaunchedEffect
+            if (masterClips.isEmpty() || listState.isScrollInProgress) return@LaunchedEffect
             if (abs(currentTimeMs - lastScrollMs) < 120L) return@LaunchedEffect
-            // Auto-scroll logic could be refined here using halfWidthDp
+
+            var remainingMs = currentTimeMs
+            var targetIndex = 0
+            masterClips.forEachIndexed { index, clip ->
+                if (remainingMs <= clip.durationMs) {
+                    targetIndex = index
+                    return@forEachIndexed
+                }
+                remainingMs -= clip.durationMs
+            }
+            val offsetPx = ((remainingMs / 1000f) * pixelsPerSecond).toInt()
+            listState.scrollToItem(targetIndex, offsetPx)
+            lastScrollMs = currentTimeMs
+        }
+
+        LaunchedEffect(listState, masterClips, pixelsPerSecond) {
+            snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+                .collect { (index, offset) ->
+                    if (listState.isScrollInProgress) {
+                        var timeMs = 0L
+                        for (i in 0 until index) {
+                            timeMs += masterClips.getOrNull(i)?.durationMs ?: 0L
+                        }
+                        val offsetMs = ((offset / pixelsPerSecond) * 1000).toLong()
+                        onSeek(timeMs + offsetMs)
+                    }
+                }
         }
 
         Column(
