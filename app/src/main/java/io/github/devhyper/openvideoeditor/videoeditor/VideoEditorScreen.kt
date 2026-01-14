@@ -170,6 +170,7 @@ import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineUiTrac
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineView
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -1523,13 +1524,13 @@ private fun FilterDialog(
                                 val index = args.indexOf(arg)
                                 val newArgs = args.toMutableList()
                                 newArgs[index] = newArg
-                                viewModel.setFilterDialogArgs(newArgs.toImmutableList())
+                                viewModel.setFilterDialogArgs(newArgs.toPersistentList())
                             } else {
                                 val newArg = arg.copy(selection = "")
                                 val index = args.indexOf(arg)
                                 val newArgs = args.toMutableList()
                                 newArgs[index] = newArg
-                                viewModel.setFilterDialogArgs(newArgs.toImmutableList())
+                                viewModel.setFilterDialogArgs(newArgs.toPersistentList())
                             }
                             error
                         })
@@ -1544,7 +1545,7 @@ private fun FilterDialog(
                         val index = args.indexOf(arg)
                         val newArgs = args.toMutableList()
                         newArgs[index] = newArg
-                        viewModel.setFilterDialogArgs(newArgs.toImmutableList())
+                        viewModel.setFilterDialogArgs(newArgs.toPersistentList())
                     }
                 }
             }

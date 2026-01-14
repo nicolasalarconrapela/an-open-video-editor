@@ -53,14 +53,13 @@ typealias ImageConstructor = () -> ImageVector
 typealias EffectConstructor = () -> Effect
 typealias Editor = @Composable (MutableStateFlow<EffectConstructor?>) -> Unit
 
-class EffectDialogSetting(
+data class EffectDialogSetting(
     val key: String,
     val stringResId: Int,
     val textfieldValidation: ((String) -> String)? = null,
-    val dropdownOptions: MutableList<String>? = null
-) {
-    var selection = ""
-}
+    val dropdownOptions: MutableList<String>? = null,
+    var selection: String = ""
+)
 
 class ExportSettings {
     var exportAudio = true
