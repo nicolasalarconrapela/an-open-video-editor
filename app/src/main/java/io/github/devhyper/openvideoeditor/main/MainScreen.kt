@@ -19,6 +19,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -27,7 +28,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -39,9 +39,7 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -54,6 +52,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -71,7 +70,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
@@ -81,6 +79,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.github.devhyper.openvideoeditor.R
 import io.github.devhyper.openvideoeditor.misc.PROJECT_FILE_EXT
 import io.github.devhyper.openvideoeditor.settings.SettingsActivity
+import io.github.devhyper.openvideoeditor.ui.theme.AbsoluteBlack
 import io.github.devhyper.openvideoeditor.ui.theme.ElectricBlue
 import io.github.devhyper.openvideoeditor.ui.theme.GlassBackground
 import io.github.devhyper.openvideoeditor.ui.theme.GlassBorder
@@ -118,11 +117,11 @@ fun MainScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     OpenVideoEditorTheme {
-        // Use a Box to support the absolute black background and potentially other overlay effects
+        // Use a Box to support the absolute black background
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black)
+                .background(AbsoluteBlack)
         ) {
             Scaffold(
                 containerColor = Color.Transparent,
@@ -179,7 +178,7 @@ fun MainScreen(
                     if (projectEntries.isEmpty()) {
                         EmptyProjectsState(
                             modifier = Modifier
-                                .fillMaxSize()
+                                .weight(1f) // Fix layout issue by using weight instead of fillMaxSize
                                 .padding(horizontal = 24.dp)
                         )
                     } else {
@@ -226,7 +225,7 @@ private fun ProjectsGrid(
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 100.dp)
+        contentPadding = PaddingValues(bottom = 100.dp)
     ) {
         items(projects) { entry ->
             ProjectCard(
@@ -325,7 +324,7 @@ private fun ProjectCard(
                     }
                 }
 
-                // Overlay gradient for text readability if needed, or just style
+                // Overlay gradient for text readability if needed
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -355,25 +354,28 @@ private fun ProjectCard(
                             modifier = Modifier.size(20.dp)
                         )
                     }
-                    DropdownMenu(
-                        expanded = menuExpanded,
-                        onDismissRequest = { menuExpanded = false },
-                        containerColor = Color(0xFF1E1E1E) // Dark menu background
+                    MaterialTheme(
+                        colorScheme = MaterialTheme.colorScheme.copy(surface = Color(0xFF1E1E1E))
                     ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.rename_project), color = TextWhite) },
-                            onClick = {
-                                menuExpanded = false
-                                showRenameDialog = true
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.delete_project), color = TextWhite) },
-                            onClick = {
-                                menuExpanded = false
-                                showDeleteDialog = true
-                            }
-                        )
+                         DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.rename_project), color = TextWhite) },
+                                onClick = {
+                                    menuExpanded = false
+                                    showRenameDialog = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.delete_project), color = TextWhite) },
+                                onClick = {
+                                    menuExpanded = false
+                                    showDeleteDialog = true
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -400,7 +402,7 @@ private fun ProjectCard(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            containerColor = Color(0xFF1E1E1E),
+            // Removed containerColor to prevent build error
             title = { Text(stringResource(R.string.delete_project), color = TextWhite) },
             text = { Text(stringResource(R.string.confirm_delete_project), color = TextGray) },
             confirmButton = {
@@ -426,7 +428,7 @@ private fun ProjectCard(
     if (showRenameDialog) {
         AlertDialog(
             onDismissRequest = { showRenameDialog = false },
-            containerColor = Color(0xFF1E1E1E),
+            // Removed containerColor to prevent build error
             title = { Text(stringResource(R.string.rename_project), color = TextWhite) },
             text = {
                 TextField(
@@ -434,7 +436,7 @@ private fun ProjectCard(
                     onValueChange = { renameValue = it },
                     label = { Text(stringResource(R.string.project_name), color = TextGray) },
                     singleLine = true,
-                    colors = androidx.compose.material3.TextFieldDefaults.colors(
+                    colors = TextFieldDefaults.colors(
                         focusedTextColor = TextWhite,
                         unfocusedTextColor = TextWhite,
                         focusedContainerColor = Color.Transparent,
