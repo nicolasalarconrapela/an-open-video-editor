@@ -6,6 +6,7 @@ on:
       - "codex/2026-01-11/17-39-50/create-timelineview-composable"
       - "codex/2026-01-12/02-38-18/fix-unresolved-references-in-videoeditorscreen"
       - "codex/2026-01-12/14-39-17/implementar-sistema-de-miniaturas-de-linea-de-tiempo"
+      - "codex/2026-01-12/22-00-29/explore-ui-2027-highlights"
       - "work"
   workflow_dispatch:
 
@@ -16,7 +17,17 @@ concurrency:
 jobs:
   apk-debug:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
+
+    env:
+      GRADLE_OPTS: >-
+        -Dorg.gradle.caching=true
+        -Dorg.gradle.parallel=true
+        -Dorg.gradle.configureondemand=true
+        -Dkotlin.compiler.execution.strategy=in-process
+        -Dkotlin.incremental=true
+        -Dkotlin.daemon.jvmargs=-Xmx2g
+        -Dorg.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8
 
     steps:
       - uses: actions/checkout@v4
@@ -38,6 +49,9 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | sdkmanager --licenses
 
+      - name: Validate Gradle wrapper
+        uses: gradle/wrapper-validation-action@v2
+
       # Caché extra (más agresiva) para Gradle:
       - name: Cache Gradle (wrapper + caches)
         uses: actions/cache@v4
@@ -54,12 +68,22 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Warm Gradle cache
+        run: ./gradlew --no-daemon --stacktrace help
+
       # Recomendado para CI: evita daemon y reduce “ruido”
       - name: Build Debug APK
-        run: ./gradlew :app:assembleDebug --no-daemon
+        run: ./gradlew :app:assembleDebug --no-daemon --parallel --stacktrace
+
+      - name: Set APK artifact name
+        id: apk_name
+        run: |
+          VERSION_NAME=$(./gradlew -q :app:properties --no-daemon | awk -F': ' '/^versionName/ {print $2}' | tr -d '\r')
+          VERSION_CODE=$(./gradlew -q :app:properties --no-daemon | awk -F': ' '/^versionCode/ {print $2}' | tr -d '\r')
+          echo "name=open-video-editor-${VERSION_NAME}(${VERSION_CODE})-debug-apk" >> "$GITHUB_OUTPUT"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: open-video-editor-debug-apk
+          name: ${{ steps.apk_name.outputs.name }}
           path: app/build/outputs/apk/debug/*.apk

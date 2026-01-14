@@ -18,7 +18,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.ShortText
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Title
 import androidx.compose.material.icons.filled.Widgets
@@ -61,12 +60,9 @@ fun TimelineBlocksView(
                             MaterialTheme.colorScheme.primaryContainer
                         } else {
                             MaterialTheme.colorScheme.surfaceVariant
-                        },
-                        shape = RoundedCornerShape(12.dp)
+                        }, shape = RoundedCornerShape(12.dp)
                     )
-                    .padding(12.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
+                    .padding(12.dp), contentAlignment = Alignment.CenterStart) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         modifier = Modifier.size(20.dp),
@@ -95,12 +91,11 @@ fun TimelineBlocksView(
     }
 }
 
-private fun blockIconAndLabel(block: TimelineBlock): Pair<ImageVector, String> =
-    when (block) {
-        is TimelineBlock.Intro -> Icons.Filled.Movie to block.label
-        is TimelineBlock.Roll -> Icons.Filled.Star to block.label
-        is TimelineBlock.Outro -> Icons.Filled.Movie to block.label
-        is TimelineBlock.LowerThird -> Icons.Filled.Title to block.label
-        is TimelineBlock.Logo -> Icons.Filled.Widgets to block.label
-        is TimelineBlock.AudioBed -> Icons.Filled.MusicNote to block.label
-    }
+private fun blockIconAndLabel(block: TimelineBlock): Pair<ImageVector, String> = when (block) {
+    is TimelineBlock.Intro -> Icons.Filled.Movie to block.label
+    is TimelineBlock.Roll -> Icons.Filled.Star to block.label
+    is TimelineBlock.Outro -> Icons.Filled.Movie to block.label
+    is TimelineBlock.LowerThird -> Icons.Filled.Title to block.label
+    is TimelineBlock.Logo -> Icons.Filled.Widgets to block.label
+    is TimelineBlock.AudioBed -> Icons.Filled.MusicNote to block.label
+}

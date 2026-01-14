@@ -25,11 +25,12 @@
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.DeviceDefault.DayNight"
+        android:theme="@style/Theme.OpenVideoEditor"
         tools:targetApi="34">
         <activity
             android:name=".main.MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:theme="@style/Theme.OpenVideoEditor.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

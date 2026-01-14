@@ -152,20 +152,21 @@ fun TextEditor(effectFlow: MutableStateFlow<EffectConstructor?>) {
                 )
             }
             updateFlow()
-            BasicTextField(modifier = Modifier
-                .absoluteOffset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
-                .pointerInput(Unit) {
-                    detectDragGestures { change, dragAmount ->
-                        change.consume()
-                        if (offsetX + dragAmount.x > 0 && offsetX + dragAmount.x < videoWidth) {
-                            offsetX += dragAmount.x
+            BasicTextField(
+                modifier = Modifier
+                    .absoluteOffset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
+                    .pointerInput(Unit) {
+                        detectDragGestures { change, dragAmount ->
+                            change.consume()
+                            if (offsetX + dragAmount.x > 0 && offsetX + dragAmount.x < videoWidth) {
+                                offsetX += dragAmount.x
+                            }
+                            if (offsetY + dragAmount.y > 0 && offsetY + dragAmount.y < videoHeight) {
+                                offsetY += dragAmount.y
+                            }
+                            updateFlow()
                         }
-                        if (offsetY + dragAmount.y > 0 && offsetY + dragAmount.y < videoHeight) {
-                            offsetY += dragAmount.y
-                        }
-                        updateFlow()
-                    }
-                },
+                    },
                 textStyle = TextStyle.Default.copy(
                     fontFamily = textFont?.toFontFamily(),
                     fontSize = textSize.sp,

@@ -40,13 +40,16 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
         const val KEY_OUTPUT_PATH = "outputPath"
         const val NOTIFICATION_ID = 1
         const val COMPLETION_NOTIFICATION_ID = 2
-        
+
         // Global state for pause/resume of exports
         private val _isPaused = MutableStateFlow(false)
         val isPausedFlow = _isPaused.asStateFlow()
-        
+
         fun setPaused(paused: Boolean) {
-            android.util.Log.d("ExportDebug", "${if (paused) "⏸️" else "▶️"} VideoExportWorker.setPaused: $paused")
+            android.util.Log.d(
+                "ExportDebug",
+                "${if (paused) "⏸️" else "▶️"} VideoExportWorker.setPaused: $paused"
+            )
             _isPaused.value = paused
         }
     }
@@ -64,7 +67,8 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
 
     override suspend fun doWork(): Result {
         val projectDataPath = inputData.getString(KEY_PROJECT_DATA_PATH) ?: return Result.failure()
-        val exportSettingsPath = inputData.getString(KEY_EXPORT_SETTINGS_PATH) ?: return Result.failure()
+        val exportSettingsPath =
+            inputData.getString(KEY_EXPORT_SETTINGS_PATH) ?: return Result.failure()
 
         val projectData = readObject<ProjectData>(projectDataPath)
         val exportSettings = readObject<ExportSettings>(exportSettingsPath)
@@ -105,7 +109,7 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
                             android.util.Log.d("ExportDebug", "⏸️ Progress poller stopped (paused)")
                             break
                         }
-                        
+
                         val progress = exportManager.getProgress()
                         if (progress >= 0) {
                             // 3. Mantenemos esta llamada para ACTUALIZAR la notificación existente.
@@ -135,25 +139,38 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
                             }
                         }
                     )
-                    
 
-                    
+
+
                     continuation.invokeOnCancellation { cause ->
-                        android.util.Log.d("ExportDebug", "🚱 VideoExportWorker invokeOnCancellation triggered!")
+                        android.util.Log.d(
+                            "ExportDebug",
+                            "🚱 VideoExportWorker invokeOnCancellation triggered!"
+                        )
                         android.util.Log.d("ExportDebug", "🚱 Cancellation cause: $cause")
                         android.util.Log.d("ExportDebug", "🚱 isPaused: ${_isPaused.value}")
                         android.util.Log.d("ExportDebug", "🚱 projectDataPath: $projectDataPath")
-                        android.util.Log.d("ExportDebug", "🚱 exportSettingsPath: $exportSettingsPath")
-                        
+                        android.util.Log.d(
+                            "ExportDebug",
+                            "🚱 exportSettingsPath: $exportSettingsPath"
+                        )
+
                         exportManager.cancel()
                         progressJob.cancel()
-                        
+
                         if (_isPaused.value) {
                             android.util.Log.d("ExportDebug", "⏸️ Showing paused notification...")
-                            showPausedNotification(projectDataPath, exportSettingsPath, exportManager.getProgress())
+                            showPausedNotification(
+                                projectDataPath,
+                                exportSettingsPath,
+                                exportManager.getProgress()
+                            )
                             android.util.Log.d("ExportDebug", "⏸️ Paused notification shown!")
                         } else {
-                            android.util.Log.d("ExportDebug", "🛑 Cancelling (not paused), cleaning up...")
+                            android.util.Log.d(
+                                "ExportDebug",
+                                "🛑 Cancelling (not paused), cleaning up..."
+                            )
                             // Cleanup segments if cancelled and NOT paused
                             exportManager.cleanupSegments(context, outputPath)
                             showCompletionNotification(outputPath, Status.CANCELLED)
@@ -165,7 +182,10 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
             android.util.Log.e("ExportDebug", "⚠️ VideoExportWorker exception: $e")
             // La posición de tu cursor estaba aquí. Esta lógica para manejar la pausa parece correcta.
             if (!kotlin.coroutines.coroutineContext.isActive && _isPaused.value) {
-                android.util.Log.d("ExportDebug", "⏸️ VideoExportWorker stopped for pause (success result)")
+                android.util.Log.d(
+                    "ExportDebug",
+                    "⏸️ VideoExportWorker stopped for pause (success result)"
+                )
                 Result.success() // Stopped for pause
             } else {
                 // Cleanup segments on error
@@ -176,7 +196,7 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
         } finally {
             // Capture pause state at entry to finally block to avoid race conditions
             val wasPausedAtFinally = _isPaused.value
-            
+
             // Cleanup temp files only if NOT paused
             if (!wasPausedAtFinally) {
                 try {
@@ -195,13 +215,15 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
     enum class Status { SUCCESS, FAILED, CANCELLED }
 
     private var startTimeMs: Long = 0L
+
     // Este método ya estaba bien preparado, especialmente con la comprobación para Android 14 (API 34)
     private fun createForegroundInfo(progress: Float, paused: Boolean): ForegroundInfo {
         val channelId = "export_channel"
         val title = if (paused) "⏸️ Pausado" else "🎬 " + context.getString(R.string.exporting)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(channelId, "Export", NotificationManager.IMPORTANCE_LOW)
+            val channel =
+                NotificationChannel(channelId, "Export", NotificationManager.IMPORTANCE_LOW)
             notificationManager.createNotificationChannel(channel)
         }
 
@@ -227,8 +249,11 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
             putExtra("projectDataPath", inputData.getString(KEY_PROJECT_DATA_PATH))
             putExtra("exportSettingsPath", inputData.getString(KEY_EXPORT_SETTINGS_PATH))
         }
-        val pauseResumePendingIntent = PendingIntent.getBroadcast(
-            context, 0, pauseResumeIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        PendingIntent.getBroadcast(
+            context,
+            0,
+            pauseResumeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val builder = NotificationCompat.Builder(context, channelId)
@@ -238,26 +263,38 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setProgress(100, progressInt, false)
-            .addAction(android.R.drawable.ic_delete, context.getString(R.string.cancel), androidx.work.WorkManager.getInstance(context).createCancelPendingIntent(id))
-            // TODO: Re-enable pause functionality when properly implemented
-            // .addAction(
-            //     if (paused) android.R.drawable.ic_media_play else android.R.drawable.ic_media_pause,
-            //     if (paused) context.getString(R.string.resume) else context.getString(R.string.pause),
-            //     pauseResumePendingIntent
-            // )
+            .addAction(
+                android.R.drawable.ic_delete,
+                context.getString(R.string.cancel),
+                androidx.work.WorkManager.getInstance(context).createCancelPendingIntent(id)
+            )
+        // TODO: Re-enable pause functionality when properly implemented
+        // .addAction(
+        //     if (paused) android.R.drawable.ic_media_play else android.R.drawable.ic_media_pause,
+        //     if (paused) context.getString(R.string.resume) else context.getString(R.string.pause),
+        //     pauseResumePendingIntent
+        // )
 
         val notification = builder.build()
-        
+
         if (Build.VERSION.SDK_INT >= 34) {
-            return ForegroundInfo(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            return ForegroundInfo(
+                NOTIFICATION_ID,
+                notification,
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            )
         }
         return ForegroundInfo(NOTIFICATION_ID, notification)
     }
-    
-    private fun showPausedNotification(projectDataPath: String, settingsPath: String, progress: Float) {
+
+    private fun showPausedNotification(
+        projectDataPath: String,
+        settingsPath: String,
+        progress: Float
+    ) {
         val channelId = "export_channel"
         val progressInt = (progress * 100).toInt()
-        
+
         val resumeIntent = Intent(context, ExportActionReceiver::class.java).apply {
             action = "RESUME"
             putExtra("projectDataPath", projectDataPath)
@@ -268,9 +305,19 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
             putExtra("projectDataPath", projectDataPath)
             putExtra("exportSettingsPath", settingsPath)
         }
-        
-        val resumePI = PendingIntent.getBroadcast(context, 1, resumeIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val cancelPI = PendingIntent.getBroadcast(context, 2, cancelIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+        val resumePI = PendingIntent.getBroadcast(
+            context,
+            1,
+            resumeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val cancelPI = PendingIntent.getBroadcast(
+            context,
+            2,
+            cancelIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
 
         val notification = NotificationCompat.Builder(context, channelId)
             .setContentTitle("⏸️ Exportación Pausada")
@@ -278,55 +325,68 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setOngoing(true)
             .setProgress(100, progressInt, false)
-            .addAction(android.R.drawable.ic_media_play, context.getString(R.string.resume), resumePI)
+            .addAction(
+                android.R.drawable.ic_media_play,
+                context.getString(R.string.resume),
+                resumePI
+            )
             .addAction(android.R.drawable.ic_delete, context.getString(R.string.cancel), cancelPI)
             .build()
-            
+
         notificationManager.notify(NOTIFICATION_ID, notification)
     }
 
-    private fun showCompletionNotification(outputPath: String, status: Status, errorMsg: String? = null) {
+    private fun showCompletionNotification(
+        outputPath: String,
+        status: Status,
+        errorMsg: String? = null
+    ) {
         val channelId = "export_complete_channel"
-        
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(channelId, "Export Complete", NotificationManager.IMPORTANCE_DEFAULT)
+            val channel = NotificationChannel(
+                channelId,
+                "Export Complete",
+                NotificationManager.IMPORTANCE_DEFAULT
+            )
             notificationManager.createNotificationChannel(channel)
         }
-        
+
         // Extract filename from URI
         // TODO : mejorar
         val videoName = try {
             val uri = outputPath.toUri()
             context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
-                    val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    val nameIndex =
+                        cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
                     if (nameIndex >= 0) cursor.getString(nameIndex) else null
                 } else null
             } ?: uri.lastPathSegment ?: "unknown.mp4"
         } catch (e: Exception) {
             "unknown.mp4"
         }
-        
+
         // Create intent to open the video
         val openVideoIntent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(outputPath.toUri(), "video/*")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-        
+
         val pendingIntent = PendingIntent.getActivity(
             context,
             0,
             openVideoIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        
+
         val notificationTitle = when (status) {
             Status.SUCCESS -> "✅ " + context.getString(R.string.export_complete)
             Status.FAILED -> "❌ " + context.getString(R.string.export_failed)
             Status.CANCELLED -> "🛑 " + context.getString(R.string.export_cancelled)
         }
-        
+
         val notificationText = if (status == Status.FAILED && errorMsg != null) {
             errorMsg
         } else {
@@ -344,7 +404,7 @@ class VideoExportWorker(val context: Context, parameters: WorkerParameters) :
                 }
             }
             .build()
-        
+
         notificationManager.notify(COMPLETION_NOTIFICATION_ID, notification)
     }
 

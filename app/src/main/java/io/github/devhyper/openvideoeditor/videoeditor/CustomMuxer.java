@@ -31,6 +31,33 @@ import java.nio.ByteBuffer;
 @UnstableApi
 public final class CustomMuxer implements Muxer {
 
+    private final Muxer muxer;
+
+    private CustomMuxer(Muxer muxer) {
+        this.muxer = muxer;
+    }
+
+    @Override
+    public TrackToken addTrack(Format format) throws MuxerException {
+        return muxer.addTrack(format);
+    }
+
+    @Override
+    public void writeSampleData(TrackToken trackToken, ByteBuffer byteBuffer, BufferInfo bufferInfo)
+            throws MuxerException {
+        muxer.writeSampleData(trackToken, byteBuffer, bufferInfo);
+    }
+
+    @Override
+    public void addMetadataEntry(Metadata.Entry metadataEntry) {
+        muxer.addMetadataEntry(metadataEntry);
+    }
+
+    @Override
+    public void close() throws MuxerException {
+        muxer.close();
+    }
+
     /**
      * A {@link Muxer.Factory} for {@link CustomMuxer}.
      */
@@ -68,32 +95,5 @@ public final class CustomMuxer implements Muxer {
         public ImmutableList<String> getSupportedSampleMimeTypes(@C.TrackType int trackType) {
             return muxerFactory.getSupportedSampleMimeTypes(trackType);
         }
-    }
-
-    private final Muxer muxer;
-
-    private CustomMuxer(Muxer muxer) {
-        this.muxer = muxer;
-    }
-
-    @Override
-    public TrackToken addTrack(Format format) throws MuxerException {
-        return muxer.addTrack(format);
-    }
-
-    @Override
-    public void writeSampleData(TrackToken trackToken, ByteBuffer byteBuffer, BufferInfo bufferInfo)
-            throws MuxerException {
-        muxer.writeSampleData(trackToken, byteBuffer, bufferInfo);
-    }
-
-    @Override
-    public void addMetadataEntry(Metadata.Entry metadataEntry) {
-        muxer.addMetadataEntry(metadataEntry);
-    }
-
-    @Override
-    public void close() throws MuxerException {
-        muxer.close();
     }
 }

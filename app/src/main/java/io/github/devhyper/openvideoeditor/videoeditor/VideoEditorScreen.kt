@@ -1,14 +1,20 @@
 package io.github.devhyper.openvideoeditor.videoeditor
 
 import android.app.Activity
+import android.content.ContentValues
+import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.media.MediaMetadataRetriever
-import android.media.MediaScannerConnection
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper.getMainLooper
+import android.provider.MediaStore
 import android.view.TextureView
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
@@ -19,8 +25,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,8 +37,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.size
@@ -40,26 +45,30 @@ import androidx.compose.foundation.layout.systemBarsIgnoringVisibility
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Filter
 import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.Filter
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Replay5
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
@@ -72,36 +81,36 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ProgressIndicatorDefaults
-import androidx.compose.material3.RangeSlider
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -115,32 +124,16 @@ import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.Player.COMMAND_GET_CURRENT_MEDIA_ITEM
 import androidx.media3.common.Player.Commands
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.media3.common.PlaybackParameters
-import androidx.compose.ui.graphics.Color
-import androidx.media3.transformer.Composition
-import androidx.media3.transformer.ExportException
-import androidx.media3.transformer.ExportResult
-import androidx.media3.transformer.Transformer.Listener
-import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineClipType
-import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelinePrecisionView
-import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineUiClip
-import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineUiTrack
-import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineView
-import io.github.devhyper.openvideoeditor.videoeditor.state.EditorState
-import io.github.devhyper.openvideoeditor.videoeditor.state.EditorMode
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import androidx.work.workDataOf
 import io.github.devhyper.openvideoeditor.R
-import io.github.devhyper.openvideoeditor.misc.AcceptDeclineRow
 import io.github.devhyper.openvideoeditor.misc.DropdownSetting
 import io.github.devhyper.openvideoeditor.misc.ListDialog
 import io.github.devhyper.openvideoeditor.misc.PLAYER_SEEK_BACK_INCREMENT
@@ -151,46 +144,29 @@ import io.github.devhyper.openvideoeditor.misc.SwitchSetting
 import io.github.devhyper.openvideoeditor.misc.TextfieldSetting
 import io.github.devhyper.openvideoeditor.misc.formatMinSec
 import io.github.devhyper.openvideoeditor.misc.getFileNameFromUri
-import io.github.devhyper.openvideoeditor.misc.repeatingClickable
 import io.github.devhyper.openvideoeditor.misc.toLongPair
 import io.github.devhyper.openvideoeditor.misc.validateUFloatAndNonzero
 import io.github.devhyper.openvideoeditor.misc.validateUInt
 import io.github.devhyper.openvideoeditor.settings.SettingsActivity
-import io.github.devhyper.openvideoeditor.settings.SettingsDataStore
 import io.github.devhyper.openvideoeditor.ui.theme.OpenVideoEditorTheme
-import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
-import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRepository
-import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.cache.BitmapMemoryCache
-import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.cache.DiskThumbnailCache
-import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.codec.MediaCodecFrameExtractor
+import io.github.devhyper.openvideoeditor.videoeditor.state.EditorState
+import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineClipType
+import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineUiClip
+import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineUiTrack
+import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelinePrecisionView
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import android.content.Context
-import androidx.compose.runtime.SideEffect
 import kotlinx.coroutines.withContext
-import androidx.work.WorkManager
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.workDataOf
-import androidx.work.WorkInfo
 import java.io.File
 import java.io.ObjectOutputStream
-import androidx.compose.material.icons.filled.PhotoCamera
-import android.content.ContentValues
-import android.graphics.Bitmap
-import android.graphics.Matrix
-import android.provider.MediaStore
-import android.net.Uri
-import androidx.compose.ui.platform.LocalDensity
-import kotlin.math.roundToInt
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun VideoEditorScreen(
     uri: String,
     createDocument: ActivityResultLauncher<String>,
-    createProject: ActivityResultLauncher<String>,
     requestVideoPermission: ActivityResultLauncher<String>
 ) {
     val viewModel = viewModel { VideoEditorViewModel() }
@@ -198,8 +174,6 @@ fun VideoEditorScreen(
     val screenScope = rememberCoroutineScope()
 
     val context = LocalContext.current
-
-    val dataStore = SettingsDataStore(context)
 
     val controlsVisible by viewModel.controlsVisible.collectAsState()
 
@@ -249,9 +223,6 @@ fun VideoEditorScreen(
 
     val currentEditingEffect by viewModel.currentEditingEffect.collectAsState()
 
-    val useUiCascadingEffect by dataStore.getUiCascadingEffectAsync()
-        .collectAsState(dataStore.getUiCascadingEffectBlocking())
-
     val filterDurationEditorEnabled by viewModel.filterDurationEditorEnabled.collectAsState()
 
     val filterDurationEditorSliderPosition by viewModel.filterDurationEditorSliderPosition.collectAsState()
@@ -259,8 +230,6 @@ fun VideoEditorScreen(
     val startFilterSelected by viewModel.startFilterSelected.collectAsState()
 
     val timelineListState = rememberLazyListState()
-    val basePixelsPerSecond = 80f
-    val pixelsPerSecond = (basePixelsPerSecond * editorState.zoomLevel).coerceIn(20f, 200f)
     val videoTrackLabel = stringResource(R.string.timeline_track_video)
     val audioTrackLabel = stringResource(R.string.timeline_track_audio)
     val overlayTrackLabel = stringResource(R.string.timeline_track_overlay)
@@ -360,30 +329,31 @@ fun VideoEditorScreen(
     }
 
     val videoTitle = remember(uri) { getFileNameFromUri(context, uri.toUri()) }
-    
+
     val workManager = remember { WorkManager.getInstance(context) }
     // We observe all video_export works
-    val exportWorkInfos by workManager.getWorkInfosByTagFlow("video_export").collectAsState(initial = emptyList())
-    
+    val exportWorkInfos by workManager.getWorkInfosByTagFlow("video_export")
+        .collectAsState(initial = emptyList())
+
     // Track work ID from ViewModel (persists across recompositions)
     val currentExportWorkId by viewModel.currentExportWorkId.collectAsState()
     var showCompletionDialog by rememberSaveable { mutableStateOf(false) }
-    
+
     // Find active export (RUNNING or ENQUEUED)
-    val activeExport = exportWorkInfos.firstOrNull { 
-        it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED 
+    val activeExport = exportWorkInfos.firstOrNull {
+        it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED
     }
-    
+
     // Check if our session's export just finished
     val sessionExport = if (currentExportWorkId != null) {
         exportWorkInfos.firstOrNull { it.id.toString() == currentExportWorkId }
     } else null
-    
+
     // Trigger completion dialog when our export finishes successfully
     if (sessionExport?.state == WorkInfo.State.SUCCEEDED && !showCompletionDialog) {
         showCompletionDialog = true
     }
-    
+
     // Show progress dialog only for active exports
     if (activeExport != null) {
         ExportProgressDialog(activeExport, videoTitle, isFinished = false) {
@@ -417,7 +387,11 @@ fun VideoEditorScreen(
                     val listener =
                         object : Player.Listener {
                             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                                android.util.Log.e("VideoEditor", "Player error: ${error.message}", error)
+                                android.util.Log.e(
+                                    "VideoEditor",
+                                    "Player error: ${error.message}",
+                                    error
+                                )
                             }
 
                             override fun onAvailableCommandsChanged(
@@ -569,7 +543,6 @@ fun VideoEditorScreen(
                         title = { getFileNameFromUri(context, uri.toUri()) },
                         transformManager = transformManager,
                         createDocument = createDocument,
-                        createProject = createProject,
                         playbackState = { playbackState },
                         onReplayClick = { player.seekBack() },
                         onForwardClick = { player.seekForward() },
@@ -607,7 +580,7 @@ fun VideoEditorScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(320.dp)
+                        .height(280.dp)
                         .windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility)
                 ) {
                     BottomControls(
@@ -637,8 +610,6 @@ fun VideoEditorScreen(
                         editorState = editorState,
                         timelineTracks = timelineTracks,
                         timelineListState = timelineListState,
-                        basePixelsPerSecond = basePixelsPerSecond,
-                        pixelsPerSecond = pixelsPerSecond,
                         onPlayerSeek = { timeMs -> player.seekTo(timeMs) }
                     )
                 }
@@ -656,7 +627,6 @@ private fun PlayerControls(
     title: () -> String,
     transformManager: TransformManager,
     createDocument: ActivityResultLauncher<String>,
-    createProject: ActivityResultLauncher<String>,
     onReplayClick: () -> Unit,
     onForwardClick: () -> Unit,
     onPauseToggle: () -> Unit,
@@ -693,7 +663,6 @@ private fun PlayerControls(
                     title = title,
                     transformManager = transformManager,
                     createDocument = createDocument,
-                    createProject = createProject,
                     onCaptureClick = onCaptureClick
                 )
 
@@ -720,14 +689,13 @@ private fun TopControls(
     title: () -> String,
     transformManager: TransformManager,
     createDocument: ActivityResultLauncher<String>,
-    createProject: ActivityResultLauncher<String>,
     onCaptureClick: () -> Unit
 ) {
     val activity = LocalContext.current as Activity
     val viewModel = viewModel { VideoEditorViewModel() }
-    val projectOutputPath by viewModel.projectOutputPath.collectAsState()
     val projectSavingSupported by viewModel.projectSavingSupported.collectAsState()
     val videoTitle = remember(title()) { title() }
+    val scope = rememberCoroutineScope()
     var showThreeDotMenu by remember { mutableStateOf(false) }
     var showExportDialog by rememberSaveable { mutableStateOf(false) }
 
@@ -758,11 +726,6 @@ private fun TopControls(
             modifier = Modifier.weight(1f, false)
         )
 
-        if (projectOutputPath.isNotEmpty()) {
-            transformManager.projectData.write(projectOutputPath, activity)
-            viewModel.setProjectOutputPath("")
-        }
-
         IconButton(onClick = { showThreeDotMenu = !showThreeDotMenu }) {
             Icon(
                 imageVector = Icons.Filled.MoreVert,
@@ -787,10 +750,25 @@ private fun TopControls(
                         text = { Text(stringResource(R.string.save_project)) },
                         onClick = {
                             showThreeDotMenu = false
-                            val dotIndex: Int = videoTitle.lastIndexOf('.')
-                            val projectName: String =
-                                videoTitle.substring(0, dotIndex) + "." + PROJECT_FILE_EXT
-                            createProject.launch(projectName)
+                            scope.launch(Dispatchers.IO) {
+                                val saved = saveInternalProject(
+                                    activity = activity,
+                                    transformManager = transformManager,
+                                    videoTitle = videoTitle
+                                )
+                                val messageId = if (saved) {
+                                    R.string.project_saved
+                                } else {
+                                    R.string.project_save_failed
+                                }
+                                activity.runOnUiThread {
+                                    Toast.makeText(
+                                        activity,
+                                        activity.getString(messageId),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
                         })
                 })
         }
@@ -831,19 +809,19 @@ private fun CenterControls(
             Icon(
                 modifier = Modifier.fillMaxSize(),
                 imageVector =
-                when {
-                    isVideoPlaying -> {
-                        Icons.Filled.Pause
-                    }
+                    when {
+                        isVideoPlaying -> {
+                            Icons.Filled.Pause
+                        }
 
-                    isVideoPlaying.not() && playerState == Player.STATE_ENDED -> {
-                        Icons.Filled.Replay
-                    }
+                        isVideoPlaying.not() && playerState == Player.STATE_ENDED -> {
+                            Icons.Filled.Replay
+                        }
 
-                    else -> {
-                        Icons.Filled.PlayArrow
-                    }
-                },
+                        else -> {
+                            Icons.Filled.PlayArrow
+                        }
+                    },
                 contentDescription = stringResource(R.string.play_pause),
             )
         }
@@ -898,8 +876,6 @@ private fun BottomControls(
     editorState: EditorState,
     timelineTracks: MutableList<TimelineUiTrack>,
     timelineListState: LazyListState,
-    basePixelsPerSecond: Float,
-    pixelsPerSecond: Float,
     onPlayerSeek: (Long) -> Unit
 ) {
     val context = LocalContext.current
@@ -911,375 +887,160 @@ private fun BottomControls(
     var showFrameDialog by remember { mutableStateOf(false) }
 
     val videoFpm = remember(fpm()) { fpm() }
-    val duration = remember(totalDuration()) { totalDuration() }
+    remember(totalDuration()) { totalDuration() }
     val durationFrames = remember(totalDurationFrames()) { totalDurationFrames() }
-    val videoTime = remember(currentTime()) { currentTime() }
+    remember(currentTime()) { currentTime() }
     val videoTimeFrames = remember(currentTimeFrames()) { currentTimeFrames() }
 
     val viewModel = viewModel { VideoEditorViewModel() }
 
-    val currentEditingEffect by viewModel.currentEditingEffect.collectAsState()
-
-    val filterDurationEditorEnabled by viewModel.filterDurationEditorEnabled.collectAsState()
-    val filterDurationCallback by viewModel.filterDurationCallback.collectAsState()
-    val filterDurationEditorSliderPosition by viewModel.filterDurationEditorSliderPosition.collectAsState()
-
     Column(
         modifier = modifier
-            .padding(horizontal = 16.dp)
-            .padding(bottom = 16.dp)
+            .padding(bottom = 0.dp)
+            .background(Color.Black)
     ) {
-        Row(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .weight(1f)
+                .background(Color(0xFF0E0F12))
         ) {
-            Text(
-                text = stringResource(R.string.timeline_mode_precision),
-                style = MaterialTheme.typography.labelMedium,
-                color = colorScheme.onBackground
-            )
-            Switch(
-                checked = editorState.mode == EditorMode.PRECISION,
-                onCheckedChange = { enabled ->
-                    val nextMode = if (enabled) EditorMode.PRECISION else EditorMode.BLOCKS
-                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.ToggleMode(nextMode))
-                }
-            )
-        }
-        Text(
-            text = stringResource(R.string.timeline_zoom),
-            style = MaterialTheme.typography.labelMedium,
-            color = colorScheme.onBackground
-        )
-        Slider(
-            modifier = Modifier
-                .fillMaxWidth(),
-            value = pixelsPerSecond,
-            onValueChange = { value ->
-                val zoomLevel = (value / basePixelsPerSecond).coerceIn(0.5f, 4f)
-                viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomChanged(zoomLevel))
-            },
-            valueRange = 20f..200f,
-            colors = SliderDefaults.colors(
-                inactiveTrackColor = colorScheme.inversePrimary
-            )
-        )
-        if (editorState.mode == EditorMode.PRECISION) {
             TimelinePrecisionView(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp, bottom = 12.dp),
+                    .fillMaxHeight(),
                 tracks = timelineTracks,
                 zoomLevel = editorState.zoomLevel,
-                currentTimeMs = currentTime(),
+                currentTimeMs = editorState.currentTimeMs,
                 listState = timelineListState,
                 onZoom = { zoomDelta ->
                     viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomByDelta(zoomDelta))
                 },
-                onTrim = { clipId, trimIn, trimOut ->
-                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.Trim(trimIn, trimOut))
-                },
-                onSeek = { timeMs ->
-                    onPlayerSeek(timeMs)
-                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.Seek(timeMs))
-                }
-            )
-        } else {
-            val density = LocalDensity.current
-            val thumbnailWidthPx = remember(density) { with(density) { 56.dp.toPx().toInt() } }
-            val thumbnailHeightPx = remember(density) { with(density) { 40.dp.toPx().toInt() } }
-            val thumbnailZoomBucket = remember(editorState.zoomLevel) { (editorState.zoomLevel * 10f).roundToInt() }
-            val thumbnailRepository = remember(uri, context, screenScope) {
-                val extractor = MediaCodecFrameExtractor()
-                ThumbnailRepository(
-                    scope = screenScope,
-                    dispatcher = Dispatchers.IO,
-                    memoryCache = BitmapMemoryCache(),
-                    diskCache = DiskThumbnailCache(context),
-                    decode = { key ->
-                        extractor.extractFrame(
-                            context = context,
-                            uriString = key.videoIdOrUri,
-                            timeUs = key.timeUs,
-                            targetWidth = key.targetWidth,
-                            targetHeight = key.targetHeight,
-                            rotationDegrees = key.rotationDegrees
-                        )
-                    }
-                )
-            }
-            val thumbnailKeyProvider = remember(uri, thumbnailWidthPx, thumbnailHeightPx) {
-                { timeUs: Long, _: TimelineUiClip, zoomBucket: Int ->
-                    ThumbnailKey(
-                        videoIdOrUri = uri,
-                        timeUs = timeUs,
-                        targetWidth = thumbnailWidthPx,
-                        targetHeight = thumbnailHeightPx,
-                        rotationDegrees = 0,
-                        zoomBucket = zoomBucket
-                    )
-                }
-            }
-            TimelineView(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp, bottom = 12.dp),
-                tracks = timelineTracks,
-                pixelsPerSecond = pixelsPerSecond,
-                listState = timelineListState,
-                thumbnailRepository = thumbnailRepository,
-                thumbnailKeyProvider = thumbnailKeyProvider,
-                zoomBucket = thumbnailZoomBucket,
-                onZoomChange = { zoomDelta ->
-                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomByDelta(zoomDelta))
-                },
-                onClipSelected = { _, clip ->
-                    timelineTracks.forEachIndexed { trackIndex, track ->
-                        val updatedClips = track.clips.map { item ->
-                            item.copy(isSelected = item.id == clip.id)
-                        }
-                        timelineTracks[trackIndex] = track.copy(clips = updatedClips)
-                    }
-                },
-                onClipMoved = { trackId, fromId, toIndex ->
-                    val trackIndex = timelineTracks.indexOfFirst { it.id == trackId }
-                    if (trackIndex == -1) return@TimelineView
-                    val track = timelineTracks[trackIndex]
-                    val fromIndex = track.clips.indexOfFirst { it.id == fromId }
-                    if (fromIndex == -1) return@TimelineView
-                    val boundedIndex = toIndex.coerceIn(0, track.clips.lastIndex)
-                    if (fromIndex == boundedIndex) return@TimelineView
-                    val updatedClips = track.clips.toMutableList()
-                    val clipToMove = updatedClips.removeAt(fromIndex)
-                    val insertIndex = if (fromIndex < boundedIndex) boundedIndex - 1 else boundedIndex
-                    updatedClips.add(insertIndex, clipToMove)
-                    timelineTracks[trackIndex] = track.copy(clips = updatedClips)
-                }
+                onTrim = { _, _, _ -> },
+                onSeek = { timeMs -> onPlayerSeek(timeMs) }
             )
         }
 
-        MiniPreviewStrip(
+        EditorToolRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(64.dp),
-            transformManager = transformManager,
-            durationMs = duration,
-            currentTimeMs = videoTime
-        )
-
-        Box(modifier = Modifier.fillMaxWidth()) {
-            if (filterDurationEditorEnabled) {
-                RangeSlider(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp),
-                    value = filterDurationEditorSliderPosition,
-                    onValueChange = { rangeArg ->
-                        var range = rangeArg
-                        if (range.endInclusive == 0f) {
-                            range = range.start..1f
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            tools = listOf(
+                EditorToolAction(
+                    label = stringResource(R.string.video_filters),
+                    icon = Icons.Filled.Filter,
+                    onClick = { showFilterBottomSheet = true }
+                ),
+                EditorToolAction(
+                    label = stringResource(R.string.video_layers),
+                    icon = Icons.Filled.Layers,
+                    onClick = { showLayerBottomSheet = true }
+                ),
+                EditorToolAction(
+                    label = stringResource(R.string.frames),
+                    icon = Icons.Filled.PhotoCamera,
+                    onClick = { showFrameDialog = true }
+                ),
+                EditorToolAction(
+                    label = stringResource(R.string.text),
+                    icon = Icons.Filled.TextFields,
+                    onClick = {
+                        val effect = onVideoUserEffectsArray.firstOrNull { effect ->
+                            effect.stringResId == R.string.text
                         }
-                        if (filterDurationEditorSliderPosition.start != range.start) {
-                            transformManager.player.seekTo(range.start.toLong())
-                            viewModel.setStartFilterSelected(true)
-                        } else {
-                            transformManager.player.seekTo(range.endInclusive.toLong())
-                            viewModel.setStartFilterSelected(false)
+                        if (effect != null) {
+                            viewModel.setCurrentEditingEffect(effect)
+                            viewModel.setControlsVisible(false)
                         }
-                        viewModel.setFilterDurationEditorSliderPosition(range)
-                    },
-                    colors = SliderDefaults.colors(
-                        inactiveTrackColor = colorScheme.inversePrimary
-                    ),
-                    valueRange = 0f..duration.toFloat(),
+                    }
+                ),
+                EditorToolAction(
+                    label = stringResource(R.string.crop),
+                    icon = Icons.Filled.ContentCut,
+                    onClick = {
+                        val effect = onVideoUserEffectsArray.firstOrNull { effect ->
+                            effect.stringResId == R.string.crop
+                        }
+                        if (effect != null) {
+                            viewModel.setCurrentEditingEffect(effect)
+                            viewModel.setControlsVisible(false)
+                        }
+                    }
                 )
-            } else {
-                Slider(
-                    modifier = Modifier
-                        .fillMaxWidth(),
-                    value = videoTime.toFloat(),
-                    onValueChange = onSeekChanged,
-                    colors = SliderDefaults.colors(
-                        inactiveTrackColor = colorScheme.inversePrimary
-                    ),
-                    valueRange = 0f..duration.toFloat(),
-                )
-            }
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                modifier = Modifier
-                    .weight(2f, false),
-                text = videoTime.formatMinSec() + "/" + duration.formatMinSec()
             )
-            Row(
-                modifier = Modifier.weight(2f, false),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    modifier = Modifier
-                        .weight(1f, false)
-                        .repeatingClickable(
-                            remember { MutableInteractionSource() },
-                            true,
-                            onClick = {
-                                onSeekChanged((videoTime.toFloat() - (1F / videoFpm)) + 1F)
-                            }), onClick = {}) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                        contentDescription = stringResource(R.string.decrement_frame)
-                    )
-                }
-                Text(
-                    modifier = Modifier
-                        .weight(1f, false)
-                        .clickable { showFrameDialog = true },
-                    text = "$videoTimeFrames/$durationFrames",
-                    textAlign = TextAlign.Center,
-                    overflow = TextOverflow.Ellipsis,
-                    maxLines = 1
-                )
-                IconButton(
-                    modifier = Modifier
-                        .weight(1f, false)
-                        .repeatingClickable(
-                            remember { MutableInteractionSource() },
-                            true,
-                            onClick = {
-                                onSeekChanged((videoTime.toFloat() + (1F / videoFpm)) + 1F)
-                            }), onClick = {}) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = stringResource(R.string.increment_frame)
-                    )
-                }
-            }
-
-            if (filterDurationEditorEnabled || currentEditingEffect != null) {
-                AcceptDeclineRow(
-                    modifier = Modifier.weight(1f),
-                    acceptDescription = stringResource(R.string.accept_filter),
-                    acceptOnClick = {
-                        val currentEditingEffectLocal = currentEditingEffect
-                        if (currentEditingEffectLocal != null) {
-                            currentEditingEffectLocal.runCallback()
-                            viewModel.setCurrentEditingEffect(null)
-                        } else {
-                            viewModel.setFilterDurationEditorEnabled(false)
-                            filterDurationCallback(
-                                LongRange(
-                                    filterDurationEditorSliderPosition.start.toLong(),
-                                    filterDurationEditorSliderPosition.endInclusive.toLong()
-                                )
-                            )
-                        }
-                    },
-                    declineDescription = stringResource(R.string.decline_filter),
-                    declineOnClick = {
-                        viewModel.setCurrentEditingEffect(null)
-                        viewModel.setFilterDurationEditorEnabled(false)
-                    }
-                )
-            } else {
-                Row(
-                    modifier = Modifier.weight(1f),
-                ) {
-                    IconButton(modifier = Modifier.weight(1f), onClick = {
-                        showLayerBottomSheet = true
-                    }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Layers,
-                            contentDescription = stringResource(R.string.open_layer_drawer)
-                        )
-                    }
-                    IconButton(modifier = Modifier.weight(1f), onClick = {
-                        showFilterBottomSheet = true
-                    }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Filter,
-                            contentDescription = stringResource(R.string.open_filter_drawer)
-                        )
-                    }
-                }
-            }
-        }
-    }
-    if (showFilterBottomSheet) {
-        ModalBottomSheet(
-            modifier = Modifier.fillMaxSize(),
-            onDismissRequest = {
-                showFilterBottomSheet = false
-            },
-            sheetState = filterSheetState
-        ) {
-            FilterDrawer(transformManager) {
-                scope.launch { filterSheetState.hide() }.invokeOnCompletion {
-                    if (!filterSheetState.isVisible) {
-                        showFilterBottomSheet = false
-                    }
-                }
-            }
-        }
-    } else if (showLayerBottomSheet) {
-        ModalBottomSheet(
-            modifier = Modifier.fillMaxSize(),
-            onDismissRequest = {
-                showLayerBottomSheet = false
-            },
-            sheetState = layerSheetState
-        ) {
-            LayerDrawer(transformManager)
-        }
-    } else if (showFrameDialog) {
-        var newFrame by remember { mutableLongStateOf(-1L) }
-        ListDialog(
-            title = stringResource(R.string.frames),
-            dismissText = stringResource(R.string.dismiss),
-            acceptText = stringResource(R.string.accept),
-            onDismissRequest = { showFrameDialog = false },
-            onAcceptRequest = {
-                if (newFrame >= 0L) {
-                    showFrameDialog = false
-                    val timeMs = (newFrame / videoFpm) + 1F
-                    onSeekChanged(timeMs)
-                }
-            },
-            listItems = {
-                item {
-                    Text("$videoTimeFrames/$durationFrames")
-                    TextfieldSetting(
-                        name = stringResource(R.string.new_frame),
-                        keyboardType = KeyboardType.Number,
-                        onValueChanged = {
-                            val errorTxt = validateUInt(it)
-                            if (errorTxt.isEmpty()) {
-                                val newLongFrame = it.toLong()
-                                if (newLongFrame <= durationFrames) {
-                                    newFrame = newLongFrame
-                                } else {
-                                    newFrame = -1L
-                                    return@TextfieldSetting context.getString(R.string.input_frame_must_less_or_equal) + " $durationFrames"
-                                }
-                            }
-                            errorTxt
-                        })
-                }
-            }
         )
+    }
+    when {
+        showFilterBottomSheet -> {
+            ModalBottomSheet(
+                modifier = Modifier.fillMaxSize(),
+                onDismissRequest = {
+                    showFilterBottomSheet = false
+                },
+                sheetState = filterSheetState
+            ) {
+                FilterDrawer(transformManager) {
+                    scope.launch { filterSheetState.hide() }.invokeOnCompletion {
+                        if (!filterSheetState.isVisible) {
+                            showFilterBottomSheet = false
+                        }
+                    }
+                }
+            }
+        }
+
+        showLayerBottomSheet -> {
+            ModalBottomSheet(
+                modifier = Modifier.fillMaxSize(),
+                onDismissRequest = {
+                    showLayerBottomSheet = false
+                },
+                sheetState = layerSheetState
+            ) {
+                LayerDrawer(transformManager)
+            }
+        }
+
+        showFrameDialog -> {
+            var newFrame by remember { mutableLongStateOf(-1L) }
+            ListDialog(
+                title = stringResource(R.string.frames),
+                dismissText = stringResource(R.string.dismiss),
+                acceptText = stringResource(R.string.accept),
+                onDismissRequest = { showFrameDialog = false },
+                onAcceptRequest = {
+                    if (newFrame >= 0L) {
+                        showFrameDialog = false
+                        val timeMs = (newFrame / videoFpm) + 1F
+                        onSeekChanged(timeMs)
+                    }
+                },
+                listItems = {
+                    item {
+                        Text("$videoTimeFrames/$durationFrames")
+                        TextfieldSetting(
+                            name = stringResource(R.string.new_frame),
+                            keyboardType = KeyboardType.Number,
+                            onValueChanged = {
+                                val errorTxt = validateUInt(it)
+                                if (errorTxt.isEmpty()) {
+                                    val newLongFrame = it.toLong()
+                                    if (newLongFrame <= durationFrames) {
+                                        newFrame = newLongFrame
+                                    } else {
+                                        newFrame = -1L
+                                        return@TextfieldSetting context.getString(R.string.input_frame_must_less_or_equal) + " $durationFrames"
+                                    }
+                                }
+                                errorTxt
+                            })
+                    }
+                }
+            )
+        }
     }
 }
+
 @Composable
 private fun MiniPreviewStrip(
     modifier: Modifier = Modifier,
@@ -1289,7 +1050,11 @@ private fun MiniPreviewStrip(
 ) {
     val context = LocalContext.current
     val previewSource = remember(durationMs) { transformManager.getPreviewSource(context) }
-    val previewFrames by produceState(initialValue = emptyList<androidx.compose.ui.graphics.ImageBitmap>(), previewSource, durationMs) {
+    val previewFrames by produceState(
+        initialValue = emptyList<androidx.compose.ui.graphics.ImageBitmap>(),
+        previewSource,
+        durationMs
+    ) {
         value = withContext(Dispatchers.IO) {
             if (durationMs <= 0L) {
                 emptyList()
@@ -1324,7 +1089,10 @@ private fun MiniPreviewStrip(
         }
     }
     val progress =
-        if (durationMs > 0L) (currentTimeMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f
+        if (durationMs > 0L) (currentTimeMs.toFloat() / durationMs.toFloat()).coerceIn(
+            0f,
+            1f
+        ) else 0f
     Box(
         modifier = modifier
             .padding(vertical = 8.dp)
@@ -1642,7 +1410,7 @@ private fun ExportDialog(
         viewModel.setOutputPath("")
         activity.recreate()
     }
-    
+
     val context = LocalContext.current
     val exportSettings: ExportSettings by remember { mutableStateOf(ExportSettings()) }
     var exportString: String? by remember { mutableStateOf(null) }
@@ -1654,16 +1422,16 @@ private fun ExportDialog(
                 exportString = null; exportDismissRequest()
             }
         } else {
-             // Trigger WorkManager
-             SideEffect {
-                 val workId = startExportWork(context, transformManager, exportSettings)
-                 if (workId != null) {
-                     viewModel.setCurrentExportWorkId(workId)
-                 }
-                 // Clear outputPath so the settings dialog shows again on next export
-                 viewModel.setOutputPath("")
-                 onDismissRequest() // Close the settings dialog
-             }
+            // Trigger WorkManager
+            SideEffect {
+                val workId = startExportWork(context, transformManager, exportSettings)
+                if (workId != null) {
+                    viewModel.setCurrentExportWorkId(workId)
+                }
+                // Clear outputPath so the settings dialog shows again on next export
+                viewModel.setOutputPath("")
+                onDismissRequest() // Close the settings dialog
+            }
         }
     } else {
         ListDialog(
@@ -1790,7 +1558,7 @@ fun ExportProgressDialog(
     onDismissOrCancel: () -> Unit
 ) {
     val progress = workInfo.progress.getFloat(VideoExportWorker.KEY_PROGRESS, 0f)
-    
+
     val animatedProgress = animateFloatAsState(
         targetValue = if (isFinished) 1f else progress,
         animationSpec = ProgressIndicatorDefaults.ProgressAnimationSpec,
@@ -1815,15 +1583,15 @@ fun ExportProgressDialog(
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
-                
+
                 if (isFinished) {
-                     Text(
+                    Text(
                         text = videoTitle,
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
                 }
-                
+
                 LinearProgressIndicator(
                     progress = { animatedProgress },
                     modifier = Modifier
@@ -1831,15 +1599,15 @@ fun ExportProgressDialog(
                         .padding(vertical = 8.dp),
                     trackColor = colorScheme.inversePrimary,
                 )
-                
+
                 Text(
-                    text = "${((if(isFinished) 1f else progress) * 100).toInt()}%",
+                    text = "${((if (isFinished) 1f else progress) * 100).toInt()}%",
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier
                         .align(Alignment.End)
                         .padding(bottom = 16.dp)
                 )
-                
+
                 if (isFinished) {
                     TextButton(
                         onClick = onDismissOrCancel,
@@ -1859,12 +1627,16 @@ fun ExportProgressDialog(
                         ) {
                             Text(stringResource(R.string.cancel))
                         }
-                        
+
                         TextButton(
                             onClick = { VideoExportWorker.setPaused(!globalPaused) },
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text(if (globalPaused) stringResource(R.string.resume) else stringResource(R.string.pause))
+                            Text(
+                                if (globalPaused) stringResource(R.string.resume) else stringResource(
+                                    R.string.pause
+                                )
+                            )
                         }
                     }
                 }
@@ -1873,16 +1645,20 @@ fun ExportProgressDialog(
     }
 }
 
-private fun startExportWork(context: Context, transformManager: TransformManager, exportSettings: ExportSettings): String? {
+private fun startExportWork(
+    context: Context,
+    transformManager: TransformManager,
+    exportSettings: ExportSettings
+): String? {
     // Use unique filenames to prevent conflicts if multiple exports are triggered
     val uniqueId = java.util.UUID.randomUUID().toString()
     val projectDataFile = File(context.cacheDir, "project_data_$uniqueId.tmp")
     val settingsFile = File(context.cacheDir, "export_settings_$uniqueId.tmp")
-    
+
     try {
         ObjectOutputStream(projectDataFile.outputStream()).use { it.writeObject(transformManager.projectData) }
         ObjectOutputStream(settingsFile.outputStream()).use { it.writeObject(exportSettings) }
-        
+
         val inputData = workDataOf(
             VideoExportWorker.KEY_PROJECT_DATA_PATH to projectDataFile.absolutePath,
             VideoExportWorker.KEY_EXPORT_SETTINGS_PATH to settingsFile.absolutePath
@@ -1939,7 +1715,8 @@ private suspend fun saveFrame(context: Context, uri: String, timeMs: Long) {
         val retriever = MediaMetadataRetriever()
         try {
             retriever.setDataSource(context, Uri.parse(uri))
-            val bitmap = retriever.getFrameAtTime(timeMs * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+            val bitmap =
+                retriever.getFrameAtTime(timeMs * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
             if (bitmap != null) {
                 val filename = "frame_${System.currentTimeMillis()}.jpg"
                 val contentValues = ContentValues().apply {
@@ -1948,27 +1725,134 @@ private suspend fun saveFrame(context: Context, uri: String, timeMs: Long) {
                     put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/OpenVideoEditor")
                 }
                 val resolver = context.contentResolver
-                val imageUri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+                val imageUri =
+                    resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
                 if (imageUri != null) {
                     resolver.openOutputStream(imageUri)?.use { stream ->
                         bitmap.compress(Bitmap.CompressFormat.JPEG, 100, stream)
                     }
                     withContext(Dispatchers.Main) {
-                        android.widget.Toast.makeText(context, "Frame saved to Pictures", android.widget.Toast.LENGTH_SHORT).show()
+                        android.widget.Toast.makeText(
+                            context,
+                            "Frame saved to Pictures",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
                     }
                 }
             } else {
-                 withContext(Dispatchers.Main) {
-                    android.widget.Toast.makeText(context, "Failed to capture frame", android.widget.Toast.LENGTH_SHORT).show()
-                 }
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(
+                        context,
+                        "Failed to capture frame",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
             withContext(Dispatchers.Main) {
-                 android.widget.Toast.makeText(context, "Error: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(
+                    context,
+                    "Error: ${e.message}",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
             }
         } finally {
             retriever.release()
         }
     }
+}
+
+private data class EditorToolAction(
+    val label: String,
+    val icon: ImageVector,
+    val hasBadge: Boolean = false,
+    val onClick: () -> Unit
+)
+
+@Composable
+private fun EditorToolRow(
+    tools: List<EditorToolAction>,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        tools.forEach { tool ->
+            EditorToolButton(tool = tool)
+        }
+    }
+}
+
+@Composable
+private fun EditorToolButton(tool: EditorToolAction) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Box {
+            IconButton(onClick = tool.onClick) {
+                Icon(
+                    imageVector = tool.icon,
+                    contentDescription = tool.label,
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+            if (tool.hasBadge) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFFF5252))
+                        .offset(x = 2.dp, y = (-2).dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddButton(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.size(48.dp),
+        shape = RoundedCornerShape(8.dp),
+        color = Color(0xFFECECEC)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = "Añadir",
+                tint = Color.Black,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
+private fun createInternalProjectFile(context: Context, videoTitle: String): File {
+    val projectsDir = File(context.filesDir, "projects").apply { mkdirs() }
+    val baseName = videoTitle.substringBeforeLast('.').ifBlank { "project" }
+    val sanitized = baseName.replace(Regex("[^A-Za-z0-9_-]"), "_")
+    var projectFile = File(projectsDir, "$sanitized.$PROJECT_FILE_EXT")
+    if (projectFile.exists()) {
+        val timestamp = System.currentTimeMillis()
+        projectFile = File(projectsDir, "${sanitized}_$timestamp.$PROJECT_FILE_EXT")
+    }
+    return projectFile
+}
+
+private fun saveInternalProject(
+    activity: Activity,
+    transformManager: TransformManager,
+    videoTitle: String
+): Boolean {
+    return runCatching {
+        val projectFile = createInternalProjectFile(activity, videoTitle)
+        transformManager.projectData.write(projectFile.toUri().toString(), activity)
+        true
+    }.getOrDefault(false)
 }

@@ -4,7 +4,6 @@ import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineClipTy
 
 enum class EditorMode {
     BLOCKS,
-    PRECISION
 }
 
 sealed class TimelineBlock(
@@ -57,10 +56,7 @@ sealed class TimelineBlock(
 }
 
 data class ClipRef(
-    val id: String,
-    val type: TimelineClipType,
-    val durationMs: Long,
-    val label: String
+    val id: String, val type: TimelineClipType, val durationMs: Long, val label: String
 )
 
 data class ClipUi(
@@ -78,29 +74,4 @@ data class EditorState(
     val mode: EditorMode = EditorMode.BLOCKS,
     val zoomLevel: Float = 1f,
     val blocks: List<TimelineBlock> = emptyList()
-) {
-    fun expandedClips(): List<ClipUi> {
-        val block = blocks.firstOrNull { it.id == selectedBlockId }
-        val clips = block?.clipRefs.orEmpty()
-        if (clips.isEmpty()) {
-            return listOf(
-                ClipUi(
-                    id = "placeholder-${selectedBlockId ?: "empty"}",
-                    type = TimelineClipType.Video,
-                    durationMs = 1_000L,
-                    label = "Placeholder",
-                    isPlaceholder = true
-                )
-            )
-        }
-        return clips.map { clip ->
-            ClipUi(
-                id = clip.id,
-                type = clip.type,
-                durationMs = clip.durationMs,
-                label = clip.label,
-                isPlaceholder = false
-            )
-        }
-    }
-}
+)

@@ -36,18 +36,19 @@ val dialogUserEffectsArray: ImmutableList<DialogUserEffect> = persistentListOf(
                 validateUIntAndNonzero(it)
             }
             ),
-            EffectDialogSetting(key = "Height", R.string.height, textfieldValidation =
-            {
-                validateUIntAndNonzero(it)
-            }
+            EffectDialogSetting(
+                key = "Height", R.string.height, textfieldValidation =
+                    {
+                        validateUIntAndNonzero(it)
+                    }
             ),
             EffectDialogSetting(
                 key = "Layout", R.string.layout, dropdownOptions =
-                mutableListOf(
-                    "Scale to fit",
-                    "Scale to fit with crop",
-                    "Stretch to fit",
-                )
+                    mutableListOf(
+                        "Scale to fit",
+                        "Scale to fit with crop",
+                        "Stretch to fit",
+                    )
             )
         )
     ) { args ->
@@ -69,10 +70,11 @@ val dialogUserEffectsArray: ImmutableList<DialogUserEffect> = persistentListOf(
                 validateFloatAndNonzero(it)
             }
             ),
-            EffectDialogSetting(key = "Y", R.string.y, textfieldValidation =
-            {
-                validateFloatAndNonzero(it)
-            }
+            EffectDialogSetting(
+                key = "Y", R.string.y, textfieldValidation =
+                    {
+                        validateFloatAndNonzero(it)
+                    }
             )
         )
     ) { args ->

@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,12 +17,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Brush
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.LibraryMusic
-import androidx.compose.material.icons.filled.StickyNote2
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -40,10 +42,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.consumePositionChange
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
@@ -54,9 +58,7 @@ import kotlinx.coroutines.flow.update
 import kotlin.math.roundToInt
 
 enum class TrackType {
-    Video,
-    Text,
-    Music
+    Video, Text, Music
 }
 
 data class EditorClip(
@@ -69,10 +71,7 @@ data class EditorClip(
 )
 
 data class EditorTrack(
-    val id: String,
-    val label: String,
-    val type: TrackType,
-    val clips: List<EditorClip>
+    val id: String, val label: String, val type: TrackType, val clips: List<EditorClip>
 )
 
 data class EditorUiState(
@@ -100,8 +99,7 @@ class EditorTimelineViewModel : ViewModel() {
                             trackType = TrackType.Video
                         )
                     )
-                ),
-                EditorTrack(
+                ), EditorTrack(
                     id = "track-text",
                     label = "Pista de texto",
                     type = TrackType.Text,
@@ -114,8 +112,7 @@ class EditorTimelineViewModel : ViewModel() {
                             trackType = TrackType.Text
                         )
                     )
-                ),
-                EditorTrack(
+                ), EditorTrack(
                     id = "track-music",
                     label = "Pista de música",
                     type = TrackType.Music,
@@ -150,11 +147,7 @@ class EditorTimelineViewModel : ViewModel() {
         _state.update { current ->
             val updatedTracks = current.tracks.map { track ->
                 val updatedClips = track.clips.map { clip ->
-                    if (clip.id == clipId) {
-                        clip.copy(offsetPx = clip.offsetPx + deltaPx)
-                    } else {
-                        clip
-                    }
+                    if (clip.id == clipId) clip.copy(offsetPx = clip.offsetPx + deltaPx) else clip
                 }
                 track.copy(clips = updatedClips)
             }
@@ -165,15 +158,17 @@ class EditorTimelineViewModel : ViewModel() {
 
 @Composable
 fun EditorTimelineScreen(
-    modifier: Modifier = Modifier,
-    viewModel: EditorTimelineViewModel = viewModel()
+    modifier: Modifier = Modifier, viewModel: EditorTimelineViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsState()
     val scrollState = rememberScrollState()
 
     LaunchedEffect(scrollState) {
-        snapshotFlow { scrollState.value.toFloat() }
-            .collect { scrollPx -> viewModel.onScrollChanged(scrollPx) }
+        snapshotFlow { scrollState.value.toFloat() }.collect { scrollPx ->
+            viewModel.onScrollChanged(
+                scrollPx
+            )
+        }
     }
 
     Column(
@@ -189,18 +184,7 @@ fun EditorTimelineScreen(
             onClipSelected = viewModel::onClipSelected,
             onClipDragged = viewModel::onClipDragged
         )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .background(Color.Black)
-        ) {
-            AddButton(
-                modifier = Modifier
-                    .padding(16.dp)
-                    .align(Alignment.TopStart)
-            )
-        }
+
         BottomToolbar(
             modifier = Modifier
                 .fillMaxWidth()
@@ -221,14 +205,14 @@ fun TimelineTopArea(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(220.dp)
+            .height(280.dp)
             .background(Color(0xFF0E0F12))
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = 16.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             tracks.forEach { track ->
                 TrackLane(
@@ -241,6 +225,13 @@ fun TimelineTopArea(
                 )
             }
         }
+
+        AddButton(
+            modifier = Modifier
+                .padding(top = 16.dp, start = 16.dp)
+                .align(Alignment.TopStart)
+        )
+
         PlayheadOverlay(modifier = Modifier.align(Alignment.Center))
     }
 }
@@ -256,9 +247,7 @@ fun TrackLane(
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            text = track.label,
-            color = Color.White,
-            style = MaterialTheme.typography.labelSmall
+            text = track.label, color = Color.White, style = MaterialTheme.typography.labelSmall
         )
         Row(
             modifier = Modifier
@@ -289,8 +278,14 @@ fun ClipItem(
     onClipDragged: (String, Float) -> Unit
 ) {
     var dragOffset by remember(clip.id) { mutableStateOf(clip.offsetPx) }
+
+    LaunchedEffect(clip.offsetPx) {
+        dragOffset = clip.offsetPx
+    }
+
     val borderColor = if (selected) Color.White else Color.Transparent
     val shape = RoundedCornerShape(12.dp)
+
     Box(
         modifier = Modifier
             .width(width.coerceAtLeast(120.dp))
@@ -305,14 +300,12 @@ fun ClipItem(
                     onDragCancel = { dragOffset = clip.offsetPx },
                     onDragStart = { onClipSelected(clip.id) },
                     onDrag = { change, dragAmount ->
-                        change.consume()
+                        change.consumePositionChange()
                         dragOffset += dragAmount.x
                         onClipDragged(clip.id, dragAmount.x)
-                    }
-                )
+                    })
             }
-            .padding(8.dp)
-    ) {
+            .padding(8.dp)) {
         if (clip.trackType == TrackType.Video) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 repeat(6) {
@@ -325,68 +318,112 @@ fun ClipItem(
                 }
             }
         }
-        Text(
-            text = clip.label,
-            color = Color.White,
-            fontSize = 12.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.align(Alignment.BottomStart)
-        )
+
+        Row(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(start = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            when (clip.trackType) {
+                TrackType.Text -> Icon(
+                    imageVector = Icons.Filled.TextFields,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp)
+                )
+
+                TrackType.Music -> Icon(
+                    imageVector = Icons.Filled.LibraryMusic,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp)
+                )
+
+                else -> Unit
+            }
+
+            Text(
+                text = clip.label,
+                color = Color.White,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
 @Composable
 fun PlayheadOverlay(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxHeight()
-            .width(3.dp)
-            .background(Color.White)
-    )
+    Box(modifier = modifier.fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(2.dp)
+                .background(Color.White)
+        )
+        Box(
+            modifier = Modifier
+                .size(12.dp)
+                .offset(y = (-4).dp)
+                .clip(CircleShape)
+                .background(Color.White)
+        )
+    }
 }
 
 @Composable
 fun BottomToolbar(modifier: Modifier = Modifier) {
     Row(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(36.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        ToolbarButton(icon = Icons.Filled.TextFields, label = "Texto")
-        ToolbarButton(icon = Icons.Filled.StickyNote2, label = "Stickers")
-        ToolbarButton(icon = Icons.Filled.Brush, label = "Dibujar")
-        ToolbarButton(icon = Icons.Filled.LibraryMusic, label = "Música")
+        ToolbarButton(icon = Icons.Filled.TextFields, label = "T")
+        ToolbarButton(icon = Icons.Filled.Face, label = "Sticker", hasBadge = true)
+        ToolbarButton(icon = Icons.Filled.Edit, label = "Edit")
+        ToolbarButton(icon = Icons.Filled.LibraryMusic, label = "Music")
+        ToolbarButton(icon = Icons.Filled.Settings, label = "Effects")
     }
 }
 
 @Composable
-fun ToolbarButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String) {
+fun ToolbarButton(icon: ImageVector, label: String, hasBadge: Boolean = false) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = Color.White,
-            modifier = Modifier.size(32.dp)
-        )
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(text = label, color = Color.White, fontSize = 12.sp)
+        Box {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = Color.White,
+                modifier = Modifier.size(28.dp)
+            )
+            if (hasBadge) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFFF5252))
+                        .offset(x = 2.dp, y = (-2).dp)
+                )
+            }
+        }
     }
 }
 
 @Composable
 fun AddButton(modifier: Modifier = Modifier) {
     Surface(
-        modifier = modifier.size(56.dp),
-        shape = RoundedCornerShape(12.dp),
-        color = Color(0xFFECECEC)
+        modifier = modifier.size(48.dp), shape = RoundedCornerShape(8.dp), color = Color(0xFFECECEC)
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
                 imageVector = Icons.Filled.Add,
                 contentDescription = "Añadir",
                 tint = Color.Black,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(24.dp)
             )
         }
     }
