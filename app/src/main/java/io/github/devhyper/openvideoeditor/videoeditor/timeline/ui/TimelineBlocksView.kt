@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import io.github.devhyper.openvideoeditor.videoeditor.state.TimelineBlock
@@ -50,6 +51,10 @@ fun TimelineBlocksView(
             val widthDp = max((block.durationMs / 1000f) * 80f, 72f).dp
             val isSelected = block.id == selectedId
             val (icon, label) = blockIconAndLabel(block)
+
+            val electricBlue = Color(0xFF2979FF)
+            val darkGrey = Color(0xFF1E1E1E)
+
             Box(
                 modifier = Modifier
                     .width(widthDp)
@@ -57,10 +62,10 @@ fun TimelineBlocksView(
                     .clickable { onSelect(block) }
                     .background(
                         color = if (isSelected) {
-                            MaterialTheme.colorScheme.primaryContainer
+                            electricBlue
                         } else {
-                            MaterialTheme.colorScheme.surfaceVariant
-                        }, shape = RoundedCornerShape(12.dp)
+                            darkGrey
+                        }, shape = RoundedCornerShape(16.dp)
                     )
                     .padding(12.dp), contentAlignment = Alignment.CenterStart) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -68,21 +73,13 @@ fun TimelineBlocksView(
                         modifier = Modifier.size(20.dp),
                         imageVector = icon,
                         contentDescription = null,
-                        tint = if (isSelected) {
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        }
+                        tint = Color.White
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = label,
                         style = MaterialTheme.typography.labelMedium,
-                        color = if (isSelected) {
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
+                        color = Color.White,
                         maxLines = 1
                     )
                 }

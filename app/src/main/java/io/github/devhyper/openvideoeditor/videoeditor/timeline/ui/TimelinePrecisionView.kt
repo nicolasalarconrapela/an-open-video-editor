@@ -88,6 +88,7 @@ fun TimelinePrecisionView(
         modifier = modifier
             .fillMaxWidth()
             .clipToBounds()
+            .background(Color.Black)
             .pointerInput(Unit) {
                 detectTransformGestures { _, _, zoom, _ ->
                     if (zoom != 1f) {
@@ -118,7 +119,7 @@ fun TimelinePrecisionView(
                         Text(
                             text = track.label,
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onBackground
+                            color = Color.White
                         )
                         LazyRow(
                             modifier = Modifier
@@ -138,7 +139,7 @@ fun TimelinePrecisionView(
                                         .width(widthDp)
                                         .height(if (isAudio) waveformHeight else clipHeight)
                                         .background(
-                                            color = MaterialTheme.colorScheme.surfaceVariant,
+                                            color = Color(0xFF1E1E1E),
                                             shape = RoundedCornerShape(8.dp)
                                         )
                                         .padding(8.dp)
@@ -149,7 +150,7 @@ fun TimelinePrecisionView(
                                                 .fillMaxWidth()
                                                 .height(24.dp)
                                                 .background(
-                                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                                    color = Color(0xFFE91E63), // Pink for Audio
                                                     shape = RoundedCornerShape(6.dp)
                                                 )
                                         )
@@ -159,7 +160,7 @@ fun TimelinePrecisionView(
                                                 .fillMaxWidth()
                                                 .height(32.dp)
                                                 .background(
-                                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                                    color = Color(0xFF9C27B0), // Purple for others
                                                     shape = RoundedCornerShape(6.dp)
                                                 )
                                         )
@@ -168,7 +169,7 @@ fun TimelinePrecisionView(
                                         modifier = Modifier.align(Alignment.BottomStart),
                                         text = clip.label,
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = Color.White
                                     )
                                     if (clip.isSelected) {
                                         TrimHandles(
@@ -191,7 +192,7 @@ fun TimelinePrecisionView(
                 .align(Alignment.Center)
                 .width(2.dp)
                 .height(clipHeight + 24.dp)
-                .background(MaterialTheme.colorScheme.tertiary)
+                .background(Color.White)
         )
     }
 }
@@ -220,7 +221,7 @@ private fun TimelineTimeRuler(
                     Text(
                         text = "${index}s",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onBackground
+                        color = Color.White
                     )
                 }
             }

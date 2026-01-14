@@ -238,13 +238,8 @@ fun TimelineView(
     remember(tracks) {
         tracks.maxOfOrNull { track -> track.clips.sumOf { it.durationMs } } ?: 0L
     }
-    stringResource(
-        R.string.timeline_current_time,
-        currentTimeMs / 1000
-    )
-    MaterialTheme.colorScheme.outline
-    MaterialTheme.colorScheme.onBackground
-    with(density) { 12.dp.toPx() }
+    val electricBlue = Color(0xFF2979FF)
+    val absoluteBlack = Color.Black
 
     if (thumbnailRepository != null && thumbnailKeyProvider != null) {
         val requestedRange = viewportRangeMs
@@ -281,6 +276,7 @@ fun TimelineView(
         modifier = modifier
             .fillMaxWidth()
             .clipToBounds()
+            .background(absoluteBlack)
             .pointerInput(Unit) {
                 detectTransformGestures { _, _, zoom, _ ->
                     if (zoom != 1f) {
@@ -291,12 +287,12 @@ fun TimelineView(
     ) {
         // Single continuous track design
         val videoTrack = tracks.firstOrNull() ?: return
-        
+
         // Build clip boundaries for selection detection
         val clipBoundaries = remember(videoTrack.clips, clipStartTimes) {
             buildClipBoundaries(videoTrack.clips, clipStartTimes)
         }
-        
+
         // Build filmstrip cells (only visible ones)
         val filmstripCells = remember(
             videoTrack.clips,
@@ -318,7 +314,7 @@ fun TimelineView(
                 emptyList()
             }
         }
-        
+
         Box(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Single continuous card with filmstrip
@@ -326,13 +322,7 @@ fun TimelineView(
                     modifier = Modifier
                         .fillMaxWidth()
                         .fillMaxHeight(0.85f)
-                        .padding(horizontal = 12.dp, vertical = 4.dp)
-                        .background(
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            shape = RoundedCornerShape(1.dp)
-                        )
-                        .clip(RoundedCornerShape(1.dp))
-                        .padding(2.dp)
+                        .padding(horizontal = 0.dp, vertical = 8.dp)
                 ) {
                     LazyRow(
                         modifier = Modifier.fillMaxSize(),
@@ -346,8 +336,18 @@ fun TimelineView(
                             // Render thumbnail cell
                             val bitmap = thumbnailState[cell.thumbnailKey.keyString()]
                             val nextCell = filmstripCells.getOrNull(index + 1)
-                            val boundary = isClipBoundary(cell, clipBoundaries, nextCell)
+                            val prevCell = filmstripCells.getOrNull(index - 1)
+
+                            val isStart = prevCell?.clipId != cell.clipId
+                            val isEnd = nextCell?.clipId != cell.clipId
                             
+                            val shape = RoundedCornerShape(
+                                topStart = if (isStart) 8.dp else 0.dp,
+                                bottomStart = if (isStart) 8.dp else 0.dp,
+                                topEnd = if (isEnd) 8.dp else 0.dp,
+                                bottomEnd = if (isEnd) 8.dp else 0.dp
+                            )
+
                             Row(
                                 modifier = Modifier.fillMaxHeight(),
                                 verticalAlignment = Alignment.CenterVertically
@@ -355,6 +355,7 @@ fun TimelineView(
                                 Box(
                                     modifier = Modifier
                                         .size(thumbnailWidth, thumbnailHeight)
+                                        .clip(shape)
                                         .clickable {
                                             val clip = findClipAtTime(clipBoundaries, cell.timeMs)
                                             clip?.let { onClipSelected(videoTrack.id, it) }
@@ -372,18 +373,18 @@ fun TimelineView(
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxSize()
-                                                .background(Color.Black.copy(alpha = 0.1f))
+                                                .background(Color(0xFF1E1E1E))
                                         )
                                     }
                                 }
-                                
-                                // Optional separator at clip boundary
-                                if (boundary) {
+
+                                // Separator at clip boundary
+                                if (isEnd) {
                                     Box(
                                         modifier = Modifier
-                                            .width(1.dp)
+                                            .width(4.dp)
                                             .fillMaxHeight()
-                                            .background(Color.White.copy(alpha = 0.3f))
+                                            .background(Color.Transparent)
                                     )
                                 }
                             }
@@ -392,28 +393,18 @@ fun TimelineView(
                 }
             }
 
-            // Playhead overlay (centered vertical line + circle)
+            // Playhead overlay (centered vertical line)
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .fillMaxHeight(),
-                contentAlignment = Alignment.TopCenter
+                contentAlignment = Alignment.Center
             ) {
                 // Vertical line
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
                         .width(2.dp)
-                        .background(Color.White)
-                )
-
-                // Circle handle at top
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .size(12.dp)
-                        .offset(y = 10.dp)
-                        .clip(CircleShape)
                         .background(Color.White)
                 )
             }
