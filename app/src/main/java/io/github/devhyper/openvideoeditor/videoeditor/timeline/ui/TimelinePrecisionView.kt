@@ -6,11 +6,13 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -30,6 +32,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BrokenImage
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Icon
@@ -91,37 +94,10 @@ fun TimelinePrecisionView(
 
     var lastScrollMs by remember { mutableLongStateOf(0L) }
     val density = LocalDensity.current
-    // Centering the timeline: content padding = half viewport width
-    // This allows the playhead (center) to scrub from start to end.
-    // We'll estimate or use BoxWithConstraints if precise, but here we assume generic padding.
-    val viewportWidthPx = 1080f // Fallback
-    val contentPaddingPx = with(density) { (viewportWidthPx / 2f).toDp() } // Rough estimate or 50%
-    val horizontalPadding = PaddingValues(horizontal = 180.dp) // Centered scrubbing approach
-
     val scope = rememberCoroutineScope()
     val thumbnailState = remember { mutableStateMapOf<String, android.graphics.Bitmap?>() }
 
-    LaunchedEffect(currentTimeMs, pixelsPerSecond, masterClips) {
-        if (masterClips.isEmpty()) return@LaunchedEffect
-        if (abs(currentTimeMs - lastScrollMs) < 120L) return@LaunchedEffect
-        var remainingMs = currentTimeMs
-        var targetIndex = 0
-        masterClips.forEachIndexed { index, clip ->
-            if (remainingMs <= clip.durationMs) {
-                targetIndex = index
-                return@forEachIndexed
-            }
-            remainingMs -= clip.durationMs
-        }
-        val viewportWidthPx = listState.layoutInfo.viewportSize.width.toFloat()
-        val halfViewportPx = (viewportWidthPx / 2f).coerceAtLeast(0f)
-        val rawOffsetPx = ((remainingMs / 1000f) * pixelsPerSecond) - halfViewportPx + with(density){ 180.dp.toPx() } // Adjust logic later
-
-        // Simpler approach: let listState scroll naturally, just update it if playback moves it significantly (not scrubbing)
-        // For now keeping existing logic but minimized
-    }
-
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
             .clipToBounds()
@@ -134,6 +110,15 @@ fun TimelinePrecisionView(
                 }
             }
     ) {
+        val halfWidthDp = maxWidth / 2
+        val horizontalPadding = PaddingValues(horizontal = halfWidthDp)
+
+        LaunchedEffect(currentTimeMs, pixelsPerSecond, masterClips) {
+            if (masterClips.isEmpty()) return@LaunchedEffect
+            if (abs(currentTimeMs - lastScrollMs) < 120L) return@LaunchedEffect
+            // Auto-scroll logic could be refined here using halfWidthDp
+        }
+
         Column(
             modifier = Modifier.fillMaxWidth().align(Alignment.Center),
             verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -233,7 +218,8 @@ fun TimelinePrecisionView(
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .fillMaxHeight()
-                                                .background(Color.Black)
+                                                .background(Color(0xFF2A2A2A)) // Visible placeholder
+                                                .border(0.5.dp, Color(0xFF3E3E3E))
                                         ) {
                                             if (bitmap != null) {
                                                 androidx.compose.foundation.Image(
@@ -241,6 +227,14 @@ fun TimelinePrecisionView(
                                                     contentDescription = null,
                                                     contentScale = ContentScale.Crop,
                                                     modifier = Modifier.fillMaxSize()
+                                                )
+                                            } else {
+                                                // Loading/Error state
+                                                Icon(
+                                                    imageVector = Icons.Filled.BrokenImage,
+                                                    contentDescription = null,
+                                                    tint = Color.White.copy(alpha = 0.2f),
+                                                    modifier = Modifier.align(Alignment.Center).size(16.dp)
                                                 )
                                             }
                                         }

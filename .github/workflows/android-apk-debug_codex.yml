@@ -7,7 +7,7 @@ on:
       - "codex/2026-01-12/02-38-18/fix-unresolved-references-in-videoeditorscreen"
       - "codex/2026-01-12/14-39-17/implementar-sistema-de-miniaturas-de-linea-de-tiempo"
       - "codex/2026-01-12/22-00-29/explore-ui-2027-highlights"
-      - "jules-redesign-2026-13380855417231273474"
+      - "work"
   workflow_dispatch:
 
 concurrency:
