@@ -20,69 +20,61 @@ import androidx.core.view.WindowCompat
 import io.github.devhyper.openvideoeditor.settings.SettingsDataStore
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
+    primary = ElectricBlue,
     secondary = PurpleGrey80,
-    tertiary = Pink80
+    tertiary = Pink80,
+    background = AbsoluteBlack,
+    surface = AbsoluteBlack,
+    onPrimary = Color.White,
+    onBackground = TextWhite,
+    onSurface = TextWhite
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
+    primary = ElectricBlue, // Keep branding even in light (though we will force dark)
     secondary = PurpleGrey40,
     tertiary = Pink40
 
     /* Other default colors to override
-background = Color(0xFFFFFBFE),
-surface = Color(0xFFFFFBFE),
-onPrimary = Color.White,
-onSecondary = Color.White,
-onTertiary = Color.White,
-onBackground = Color(0xFF1C1B1F),
-onSurface = Color(0xFF1C1B1F),
-*/
+    background = Color(0xFFFFFBFE),
+    surface = Color(0xFFFFFBFE),
+    onPrimary = Color.White,
+    onSecondary = Color.White,
+    onTertiary = Color.White,
+    onBackground = Color(0xFF1C1B1F),
+    onSurface = Color(0xFF1C1B1F),
+    */
 )
 
 @Composable
 fun OpenVideoEditorTheme(
-    forceDarkTheme: Boolean = false,
-    forceBlackStatusBar: Boolean = false,
+    forceDarkTheme: Boolean = true, // Default to true for 2026 aesthetic
+    forceBlackStatusBar: Boolean = true, // Default to true
     // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false, // Disable dynamic color to enforce our palette
     content: @Composable () -> Unit
 ) {
     val dataStore = SettingsDataStore(LocalContext.current)
+    // We override user prefs for now to enforce the new design,
+    // or we can treat them as "soft" preferences.
+    // Given the request "revise el diseño... 2026", we prioritize the new look.
     val theme by dataStore.getThemeAsync().collectAsState(dataStore.getThemeBlocking())
     val amoled by dataStore.getAmoledAsync().collectAsState(dataStore.getAmoledBlocking())
 
-    val darkTheme = if (forceDarkTheme) {
-        true
-    } else {
-        when (theme) {
-            "Light" -> false
-            "Dark" -> true
-            else -> isSystemInDarkTheme()
-        }
-    }
+    // Enforce dark theme for the 2026 look
+    val darkTheme = true
 
-    var colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
-    if (darkTheme && amoled) {
-        colorScheme = colorScheme.copy(background = Color.Black, surface = Color.Black)
-    }
+    val colorScheme = DarkColorScheme.copy(
+        background = AbsoluteBlack,
+        surface = AbsoluteBlack
+    )
 
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor =
-                if (forceBlackStatusBar) Color.Black.toArgb() else colorScheme.background.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            window.statusBarColor = AbsoluteBlack.toArgb()
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
         }
     }
 

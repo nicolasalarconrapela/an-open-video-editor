@@ -4,46 +4,58 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
 import android.media.MediaMetadataRetriever
+import android.os.Build
 import android.text.format.DateUtils
 import android.text.format.Formatter
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Button
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -53,11 +65,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
@@ -66,11 +81,16 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.github.devhyper.openvideoeditor.R
 import io.github.devhyper.openvideoeditor.misc.PROJECT_FILE_EXT
 import io.github.devhyper.openvideoeditor.settings.SettingsActivity
+import io.github.devhyper.openvideoeditor.ui.theme.ElectricBlue
+import io.github.devhyper.openvideoeditor.ui.theme.GlassBackground
+import io.github.devhyper.openvideoeditor.ui.theme.GlassBorder
 import io.github.devhyper.openvideoeditor.ui.theme.OpenVideoEditorTheme
+import io.github.devhyper.openvideoeditor.ui.theme.TextGray
+import io.github.devhyper.openvideoeditor.ui.theme.TextWhite
 import io.github.devhyper.openvideoeditor.videoeditor.ProjectData
-import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,7 +108,7 @@ fun MainScreen(
         value = loadProjectEntries(activity)
     }
     val appVersion = rememberAppVersion()
-    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+    DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 refreshToken += 1
@@ -98,63 +118,80 @@ fun MainScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     OpenVideoEditorTheme {
-        Surface(
+        // Use a Box to support the absolute black background and potentially other overlay effects
+        Box(
             modifier = Modifier
-                .fillMaxSize(),
-            color = MaterialTheme.colorScheme.background
+                .fillMaxSize()
+                .background(Color.Black)
         ) {
             Scaffold(
-                topBar = {
-                    TopAppBar(
-                        title = {
-                            Text(
-                                stringResource(R.string.projects_title),
+                containerColor = Color.Transparent,
+                floatingActionButton = {
+                    FloatingActionButton(
+                        onClick = {
+                            pickMedia.launch(
+                                PickVisualMediaRequest(
+                                    ActivityResultContracts.PickVisualMedia.VideoOnly
+                                )
                             )
                         },
-                        actions = {
-                            IconButton(onClick = {
-                                val intent = Intent(activity, SettingsActivity::class.java)
-                                activity.startActivity(intent)
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Filled.Settings,
-                                    contentDescription = stringResource(R.string.settings)
-                                )
-                            }
-                        }
-                    )
-                }, content = { innerPadding ->
-                    Box(
-                        modifier = Modifier
-                            .padding(innerPadding)
-                            .fillMaxSize()
+                        containerColor = ElectricBlue,
+                        contentColor = Color.White,
+                        modifier = Modifier.padding(bottom = 16.dp, end = 16.dp)
                     ) {
-                        if (projectEntries.isEmpty()) {
-                            EmptyProjectsState(
-                                onAddProject = {
-                                    pickMedia.launch(
-                                        PickVisualMediaRequest(
-                                            ActivityResultContracts.PickVisualMedia.VideoOnly
-                                        )
-                                    )
-                                },
-                                modifier = Modifier.align(Alignment.TopCenter)
-                            )
-                        } else {
-                            ProjectsGrid(
-                                projects = projectEntries,
-                                onOpenProject = onOpenProject,
-                                onAddProject = {
-                                    pickMedia.launch(
-                                        PickVisualMediaRequest(
-                                            ActivityResultContracts.PickVisualMedia.VideoOnly
-                                        )
-                                    )
-                                },
-                                onProjectsChanged = { refreshToken += 1 },
-                                modifier = Modifier.align(Alignment.TopCenter)
+                        Icon(
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = stringResource(R.string.new_project)
+                        )
+                    }
+                }
+            ) { innerPadding ->
+                Column(
+                    modifier = Modifier
+                        .padding(innerPadding)
+                        .fillMaxSize()
+                ) {
+                    // Custom Header
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 32.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = stringResource(R.string.projects_title),
+                            style = MaterialTheme.typography.headlineLarge,
+                            color = TextWhite
+                        )
+                        IconButton(onClick = {
+                            val intent = Intent(activity, SettingsActivity::class.java)
+                            activity.startActivity(intent)
+                        }) {
+                            Icon(
+                                imageVector = Icons.Filled.Settings,
+                                contentDescription = stringResource(R.string.settings),
+                                tint = TextGray
                             )
                         }
+                    }
+
+                    if (projectEntries.isEmpty()) {
+                        EmptyProjectsState(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 24.dp)
+                        )
+                    } else {
+                        ProjectsGrid(
+                            projects = projectEntries,
+                            onOpenProject = onOpenProject,
+                            onProjectsChanged = { refreshToken += 1 },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    if (projectEntries.isNotEmpty()) {
                         Text(
                             text = stringResource(
                                 R.string.app_version,
@@ -162,16 +199,15 @@ fun MainScreen(
                                 appVersion.code
                             ),
                             modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .padding(bottom = 24.dp)
-                                .widthIn(max = 320.dp),
-                            style = MaterialTheme.typography.bodyMedium,
+                                .fillMaxWidth()
+                                .padding(bottom = 24.dp),
+                            style = MaterialTheme.typography.bodySmall,
                             textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = TextGray
                         )
                     }
                 }
-            )
+            }
         }
     }
 }
@@ -180,80 +216,56 @@ fun MainScreen(
 private fun ProjectsGrid(
     projects: List<ProjectEntry>,
     onOpenProject: (String) -> Unit,
-    onAddProject: () -> Unit,
     onProjectsChanged: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
-    val gridItems = remember(projects) { projects + ProjectEntry.addNew(context) }
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 140.dp),
+        columns = GridCells.Adaptive(minSize = 160.dp),
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 100.dp)
     ) {
-        items(gridItems) { entry ->
-            if (entry.isAddCard) {
-                AddProjectCard(onAddProject = onAddProject)
-            } else {
-                ProjectCard(
-                    entry = entry,
-                    onOpenProject = onOpenProject,
-                    onProjectsChanged = onProjectsChanged
-                )
-            }
+        items(projects) { entry ->
+            ProjectCard(
+                entry = entry,
+                onOpenProject = onOpenProject,
+                onProjectsChanged = onProjectsChanged
+            )
         }
     }
 }
 
 @Composable
 private fun EmptyProjectsState(
-    onAddProject: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(24.dp)
-    ) {
-        Button(
-            onClick = onAddProject,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Add,
-                contentDescription = null,
-                modifier = Modifier.padding(end = 8.dp)
-            )
-            Text(stringResource(R.string.new_project))
-        }
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.padding(top = 80.dp)
+            verticalArrangement = Arrangement.Center
         ) {
             Icon(
                 imageVector = Icons.Filled.FolderOpen,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 8.dp)
+                tint = TextGray,
+                modifier = Modifier
+                    .size(64.dp)
+                    .padding(bottom = 16.dp)
             )
             Text(
                 text = stringResource(R.string.create_first_project),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleMedium,
+                color = TextWhite,
                 textAlign = TextAlign.Center
             )
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = stringResource(R.string.create_first_project_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = TextGray,
                 textAlign = TextAlign.Center
             )
         }
@@ -271,57 +283,92 @@ private fun ProjectCard(
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var showRenameDialog by rememberSaveable { mutableStateOf(false) }
     var renameValue by rememberSaveable(entry.title) { mutableStateOf(entry.title) }
-    Card(
+
+    // Glassmorphism Card
+    Box(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(GlassBackground)
+            .border(
+                BorderStroke(1.dp, GlassBorder),
+                RoundedCornerShape(16.dp)
+            )
             .clickable { onOpenProject(entry.uri) }
     ) {
         Column {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(0.75f),
+                    .aspectRatio(16f / 9f),
                 contentAlignment = Alignment.Center
             ) {
                 if (thumbnail != null) {
-                    androidx.compose.foundation.Image(
+                    Image(
                         bitmap = thumbnail,
                         contentDescription = null,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(MaterialTheme.shapes.medium)
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
                     )
                 } else {
-                    Icon(
-                        imageVector = Icons.Filled.FolderOpen,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0xFF111111)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.FolderOpen,
+                            contentDescription = null,
+                            tint = TextGray
+                        )
+                    }
                 }
+
+                // Overlay gradient for text readability if needed, or just style
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))
+                            )
+                        )
+                )
+
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(4.dp)
                 ) {
-                    IconButton(onClick = { menuExpanded = true }) {
+                    IconButton(
+                        onClick = { menuExpanded = true },
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.4f))
+                            .size(32.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.Filled.MoreVert,
-                            contentDescription = stringResource(R.string.project_options)
+                            contentDescription = stringResource(R.string.project_options),
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                     DropdownMenu(
                         expanded = menuExpanded,
-                        onDismissRequest = { menuExpanded = false }
+                        onDismissRequest = { menuExpanded = false },
+                        containerColor = Color(0xFF1E1E1E) // Dark menu background
                     ) {
                         DropdownMenuItem(
-                            text = { Text(stringResource(R.string.rename_project)) },
+                            text = { Text(stringResource(R.string.rename_project), color = TextWhite) },
                             onClick = {
                                 menuExpanded = false
                                 showRenameDialog = true
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text(stringResource(R.string.delete_project)) },
+                            text = { Text(stringResource(R.string.delete_project), color = TextWhite) },
                             onClick = {
                                 menuExpanded = false
                                 showDeleteDialog = true
@@ -337,22 +384,25 @@ private fun ProjectCard(
                 Text(
                     text = entry.title,
                     style = MaterialTheme.typography.titleMedium,
+                    color = TextWhite,
                     maxLines = 1
                 )
                 Text(
                     text = entry.subtitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = TextGray,
                     maxLines = 1
                 )
             }
         }
     }
+
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text(stringResource(R.string.delete_project)) },
-            text = { Text(stringResource(R.string.confirm_delete_project)) },
+            containerColor = Color(0xFF1E1E1E),
+            title = { Text(stringResource(R.string.delete_project), color = TextWhite) },
+            text = { Text(stringResource(R.string.confirm_delete_project), color = TextGray) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -363,12 +413,12 @@ private fun ProjectCard(
                         showDeleteDialog = false
                     }
                 ) {
-                    Text(stringResource(R.string.confirm))
+                    Text(stringResource(R.string.confirm), color = ElectricBlue)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text(stringResource(R.string.cancel))
+                    Text(stringResource(R.string.cancel), color = TextGray)
                 }
             }
         )
@@ -376,13 +426,23 @@ private fun ProjectCard(
     if (showRenameDialog) {
         AlertDialog(
             onDismissRequest = { showRenameDialog = false },
-            title = { Text(stringResource(R.string.rename_project)) },
+            containerColor = Color(0xFF1E1E1E),
+            title = { Text(stringResource(R.string.rename_project), color = TextWhite) },
             text = {
                 TextField(
                     value = renameValue,
                     onValueChange = { renameValue = it },
-                    label = { Text(stringResource(R.string.project_name)) },
-                    singleLine = true
+                    label = { Text(stringResource(R.string.project_name), color = TextGray) },
+                    singleLine = true,
+                    colors = androidx.compose.material3.TextFieldDefaults.colors(
+                        focusedTextColor = TextWhite,
+                        unfocusedTextColor = TextWhite,
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        cursorColor = ElectricBlue,
+                        focusedIndicatorColor = ElectricBlue,
+                        focusedLabelColor = ElectricBlue
+                    )
                 )
             },
             confirmButton = {
@@ -398,39 +458,15 @@ private fun ProjectCard(
                         showRenameDialog = false
                     }
                 ) {
-                    Text(stringResource(R.string.confirm))
+                    Text(stringResource(R.string.confirm), color = ElectricBlue)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showRenameDialog = false }) {
-                    Text(stringResource(R.string.cancel))
+                    Text(stringResource(R.string.cancel), color = TextGray)
                 }
             }
         )
-    }
-}
-
-@Composable
-private fun AddProjectCard(
-    onAddProject: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onAddProject() }
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(0.75f),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Add,
-                contentDescription = stringResource(R.string.add_project),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
     }
 }
 
@@ -469,20 +505,8 @@ private fun loadAppVersion(context: Context): AppVersion {
 private data class ProjectEntry(
     val uri: String,
     val title: String,
-    val subtitle: String,
-    val isAddCard: Boolean = false
-) {
-    companion object {
-        fun addNew(context: Context): ProjectEntry {
-            return ProjectEntry(
-                uri = "",
-                title = context.getString(R.string.add_project),
-                subtitle = "",
-                isAddCard = true
-            )
-        }
-    }
-}
+    val subtitle: String
+)
 
 private suspend fun loadProjectEntries(context: Context): List<ProjectEntry> {
     return withContext(Dispatchers.IO) {
