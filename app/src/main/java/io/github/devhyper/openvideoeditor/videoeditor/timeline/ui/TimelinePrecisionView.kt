@@ -32,6 +32,17 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -44,7 +55,9 @@ fun TimelinePrecisionView(
     onZoom: (Float) -> Unit,
     onTrim: (clipId: String, trimInMs: Long, trimOutMs: Long) -> Unit,
     onSeek: (timeMs: Long) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    thumbnailRepository: ThumbnailRepository? = null,
+    thumbnailKeyProvider: ((timeUs: Long, clip: TimelineUiClip, zoomBucket: Int) -> ThumbnailKey)? = null
 ) {
     val basePixelsPerSecond = 80f
     val pixelsPerSecond = (basePixelsPerSecond * zoomLevel).coerceIn(20f, 200f)
@@ -55,6 +68,8 @@ fun TimelinePrecisionView(
     var lastScrollMs by remember { mutableLongStateOf(0L) }
     val density = LocalDensity.current
     val contentPaddingPx = with(density) { 16.dp.toPx() }
+    val scope = rememberCoroutineScope()
+    val thumbnailState = remember { mutableStateMapOf<String, android.graphics.Bitmap?>() }
 
     LaunchedEffect(currentTimeMs, pixelsPerSecond, masterClips) {
         if (masterClips.isEmpty()) return@LaunchedEffect
@@ -135,6 +150,8 @@ fun TimelinePrecisionView(
                                     .coerceAtLeast(48f)
                                     .dp
                                 val isAudio = clip.type == TimelineClipType.Audio
+                                val isVideo = clip.type == TimelineClipType.Video
+
                                 Box(
                                     modifier = Modifier
                                         .width(widthDp)
@@ -143,28 +160,84 @@ fun TimelinePrecisionView(
                                             color = Color(0xFF1E1E1E),
                                             shape = RoundedCornerShape(8.dp)
                                         )
-                                        .padding(8.dp)
+                                        .padding(0.dp) // Removed padding to let thumbnails fill
+                                        .clipToBounds()
                                 ) {
-                                    if (isAudio) {
+                                    if (isVideo && thumbnailRepository != null && thumbnailKeyProvider != null) {
+                                        // Render Filmstrip
+                                        val thumbnailCount = (widthDp.value / 48f).toInt().coerceAtLeast(1)
+                                        val intervalMs = clip.durationMs / thumbnailCount
+
+                                        Row(modifier = Modifier.fillMaxSize()) {
+                                            repeat(thumbnailCount) { i ->
+                                                val timeMs = i * intervalMs
+                                                val key = thumbnailKeyProvider(timeMs * 1000, clip, 0)
+                                                val bitmap = thumbnailState[key.keyString()]
+
+                                                LaunchedEffect(key) {
+                                                    if (thumbnailState[key.keyString()] == null) {
+                                                        val bmp = thumbnailRepository.getOrRequest(key)
+                                                        if (bmp != null) {
+                                                            thumbnailState[key.keyString()] = bmp
+                                                        }
+                                                    }
+                                                }
+
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .fillMaxHeight()
+                                                        .background(Color.Black)
+                                                ) {
+                                                    if (bitmap != null) {
+                                                        androidx.compose.foundation.Image(
+                                                            bitmap = bitmap.asImageBitmap(),
+                                                            contentDescription = null,
+                                                            contentScale = ContentScale.Crop,
+                                                            modifier = Modifier.fillMaxSize()
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        // Overlay for selection/text readability
                                         Box(
                                             modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(24.dp)
-                                                .background(
-                                                    color = Color(0xFFE91E63), // Pink for Audio
-                                                    shape = RoundedCornerShape(6.dp)
-                                                )
+                                                .fillMaxSize()
+                                                .background(Color.Black.copy(alpha = 0.3f))
                                         )
+                                    } else if (isAudio) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(8.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(24.dp)
+                                                    .background(
+                                                        color = Color(0xFFE91E63), // Pink for Audio
+                                                        shape = RoundedCornerShape(6.dp)
+                                                    )
+                                            )
+                                        }
                                     } else {
                                         Box(
                                             modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(32.dp)
-                                                .background(
-                                                    color = Color(0xFF9C27B0), // Purple for others
-                                                    shape = RoundedCornerShape(6.dp)
-                                                )
-                                        )
+                                                .fillMaxSize()
+                                                .padding(8.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(32.dp)
+                                                    .background(
+                                                        color = Color(0xFF9C27B0), // Purple for others
+                                                        shape = RoundedCornerShape(6.dp)
+                                                    )
+                                            )
+                                        }
                                     }
                                     Text(
                                         modifier = Modifier.align(Alignment.BottomStart),

@@ -150,6 +150,10 @@ import io.github.devhyper.openvideoeditor.misc.validateUInt
 import io.github.devhyper.openvideoeditor.settings.SettingsActivity
 import io.github.devhyper.openvideoeditor.ui.theme.OpenVideoEditorTheme
 import io.github.devhyper.openvideoeditor.videoeditor.state.EditorState
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRepository
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.cache.BitmapMemoryCache
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.cache.DiskThumbnailCache
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineClipType
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineUiClip
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineUiTrack
@@ -367,6 +371,48 @@ fun VideoEditorScreen(
             viewModel.setCurrentExportWorkId(null)
             // Prune old completed works
             workManager.pruneWork()
+        }
+    }
+
+    // Initialize ThumbnailRepository
+    val memoryCache = remember { BitmapMemoryCache() }
+    val diskCache = remember { DiskThumbnailCache(context) }
+    val thumbnailRepository = remember(context, screenScope) {
+        ThumbnailRepository(
+            scope = screenScope,
+            dispatcher = Dispatchers.IO,
+            memoryCache = memoryCache,
+            diskCache = diskCache,
+            decode = { key ->
+                val retriever = MediaMetadataRetriever()
+                try {
+                    retriever.setDataSource(context, Uri.parse(key.videoIdOrUri))
+                    retriever.getFrameAtTime(key.timeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)?.let { original ->
+                        if (key.targetWidth > 0 && key.targetHeight > 0) {
+                             Bitmap.createScaledBitmap(original, key.targetWidth, key.targetHeight, true)
+                        } else {
+                             original
+                        }
+                    }
+                } catch (e: Exception) {
+                    null
+                } finally {
+                    retriever.release()
+                }
+            }
+        )
+    }
+
+    val thumbnailKeyProvider: (Long, TimelineUiClip, Int) -> ThumbnailKey = remember {
+        { timeUs, clip, zoom ->
+             ThumbnailKey(
+                 videoIdOrUri = uri,
+                 timeUs = timeUs,
+                 targetWidth = 120,
+                 targetHeight = 120,
+                 rotationDegrees = 0,
+                 zoomBucket = zoom
+             )
         }
     }
 
@@ -876,7 +922,9 @@ private fun BottomControls(
     editorState: EditorState,
     timelineTracks: MutableList<TimelineUiTrack>,
     timelineListState: LazyListState,
-    onPlayerSeek: (Long) -> Unit
+    onPlayerSeek: (Long) -> Unit,
+    thumbnailRepository: ThumbnailRepository? = null,
+    thumbnailKeyProvider: ((timeUs: Long, clip: TimelineUiClip, zoomBucket: Int) -> ThumbnailKey)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -917,7 +965,9 @@ private fun BottomControls(
                     viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomByDelta(zoomDelta))
                 },
                 onTrim = { _, _, _ -> },
-                onSeek = { timeMs -> onPlayerSeek(timeMs) }
+                onSeek = { timeMs -> onPlayerSeek(timeMs) },
+                thumbnailRepository = thumbnailRepository,
+                thumbnailKeyProvider = thumbnailKeyProvider
             )
         }
 
