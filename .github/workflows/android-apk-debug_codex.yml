@@ -42,7 +42,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Validate Gradle wrapper
+      - name: Validate Gradle Wrapper
         uses: gradle/wrapper-validation-action@v2
 
       - name: Set up JDK 17
@@ -109,6 +109,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.apk_name.outputs.name }}
-          path: |
-            app/build/outputs/apk/debug/*.apk
+          path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
