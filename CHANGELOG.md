@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.74] - 2026-01-09
+### Ajustado
+- Timeline ahora carga clips reales desde ProjectData.
+
 ## [1.3.73] - 2026-01-09
 ### Ajustado
 - Timeline ahora deriva sus clips desde el estado del editor.

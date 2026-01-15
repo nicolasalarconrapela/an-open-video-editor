@@ -256,7 +256,7 @@ fun VideoEditorScreen(
 
     LaunchedEffect(uri) {
         if (viewModel.state.value.clips.isEmpty()) {
-            viewModel.setClips(defaultClips(uri))
+            viewModel.setClips(transformManager.buildClipSources(context))
         }
         val path = Uri.parse(uri).path
         if (path != null && File(path).exists() && path.endsWith(".$PROJECT_FILE_EXT", ignoreCase = true)) {
@@ -1064,23 +1064,6 @@ private fun ClipSource.toUiClip(): TimelineUiClip = TimelineUiClip(
     type = type,
     mediaUri = mediaUri
 )
-
-private fun defaultClips(uri: String): List<ClipSource> {
-    return listOf(
-        ClipSource("clip-1", 3_000L, "Intro", TimelineClipType.Video, uri),
-        ClipSource("clip-2", 6_500L, "Entrevista", TimelineClipType.Video, uri),
-        ClipSource("clip-3", 4_000L, "B-roll", TimelineClipType.Video, uri),
-        ClipSource("clip-4", 2_500L, "Outro", TimelineClipType.Video, uri),
-        ClipSource("clip-5", 3_000L, "Música", TimelineClipType.Audio, uri),
-        ClipSource("clip-6", 6_500L, "Ambiente", TimelineClipType.Audio, uri),
-        ClipSource("clip-7", 4_000L, "FX", TimelineClipType.Audio, uri),
-        ClipSource("clip-8", 2_500L, "Cierre", TimelineClipType.Audio, uri),
-        ClipSource("clip-9", 3_000L, "Texto", TimelineClipType.Overlay, uri),
-        ClipSource("clip-10", 6_500L, "Sticker", TimelineClipType.Overlay, uri),
-        ClipSource("clip-11", 4_000L, "Lower third", TimelineClipType.Overlay, uri),
-        ClipSource("clip-12", 2_500L, "Logo", TimelineClipType.Overlay, uri)
-    )
-}
 
 @Composable
 private fun MiniPreviewStrip(
