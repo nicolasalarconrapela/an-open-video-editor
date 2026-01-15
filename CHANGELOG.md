@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.60] - 2026-01-09
+### Añadido
+- Reporte de posibles fallos del timeline.
+
 ## [1.3.59] - 2026-01-09
 ### Corregido
 - Error de compilación en la pantalla del editor por cierre de bloque fuera de lugar.
