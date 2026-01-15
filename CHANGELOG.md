@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.79] - 2026-01-09
+### Ajustado
+- Gestos del timeline conectados con eventos de recorte, split, selección y reordenado en el estado del editor.
+- Recorte por long-press ahora evita aplicar cambios cuando el playhead está fuera del clip.
+
 ## [1.3.78] - 2026-01-09
 ### Ajustado
 - Gestos del timeline conectados con eventos de recorte, split, selección y reordenado en el estado del editor.

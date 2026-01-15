@@ -274,8 +274,9 @@ fun TimelinePrecisionView(
                                         val offsetMs =
                                             (currentTimeMs - clipStartMs)
                                                 .coerceIn(0L, clip.durationMs)
-                                        val trimOutMs = offsetMs.coerceIn(1L, clip.durationMs)
-                                        onTrim(clip.id, 0L, trimOutMs)
+                                        if (offsetMs in 1 until clip.durationMs) {
+                                            onTrim(clip.id, 0L, offsetMs)
+                                        }
                                     }
                                 )
                         ) {
