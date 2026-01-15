@@ -8,6 +8,8 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.graphics.Color
@@ -16,7 +18,6 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,11 +25,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -43,6 +44,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -53,13 +55,13 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRequestCoordinator
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.IntOffset
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 @Composable
 fun TimelinePrecisionView(
@@ -69,6 +71,9 @@ fun TimelinePrecisionView(
     listState: LazyListState,
     onZoom: (Float) -> Unit,
     onTrim: (clipId: String, trimInMs: Long, trimOutMs: Long) -> Unit,
+    onSplit: (clipId: String, atMs: Long) -> Unit,
+    onMove: (fromIndex: Int, toIndex: Int) -> Unit,
+    onClipSelected: (clip: TimelineUiClip) -> Unit,
     onSeek: (timeMs: Long) -> Unit,
     modifier: Modifier = Modifier,
     thumbnailCoordinator: ThumbnailRequestCoordinator,
@@ -83,6 +88,14 @@ fun TimelinePrecisionView(
     val videoTrack = tracks.firstOrNull { it.clips.any { clip -> clip.type == TimelineClipType.Video } }
     val audioTrack = tracks.firstOrNull { it.clips.any { clip -> clip.type == TimelineClipType.Audio } }
     val masterClips = videoTrack?.clips.orEmpty()
+    val clipStartTimes = remember(masterClips) {
+        var accumulated = 0L
+        masterClips.associate { clip ->
+            val start = accumulated
+            accumulated += clip.durationMs
+            clip.id to start
+        }
+    }
 
     // View States (Controlled by external actions in real app, internal for now)
     var showControls by remember { mutableStateOf(false) }
@@ -209,10 +222,12 @@ fun TimelinePrecisionView(
                     contentPadding = horizontalPadding,
                     horizontalArrangement = Arrangement.spacedBy(spacing)
                 ) {
-                    items(videoTrack.clips, key = { it.id }) { clip ->
+                    itemsIndexed(videoTrack.clips, key = { _, clip -> clip.id }) { index, clip ->
                         val widthDp = ((clip.durationMs / 1000f) * pixelsPerSecond)
                             .coerceAtLeast(48f)
                             .dp
+                        val widthPx = with(density) { widthDp.toPx() }
+                        var dragOffsetPx by remember(clip.id) { mutableFloatStateOf(0f) }
 
                         Box(
                             modifier = Modifier
@@ -220,6 +235,49 @@ fun TimelinePrecisionView(
                                 .fillMaxHeight()
                                 .background(Color(0xFF1E1E1E))
                                 .clipToBounds()
+                                .offset { IntOffset(dragOffsetPx.roundToInt(), 0) }
+                                .pointerInput(clip.id, widthPx) {
+                                    detectDragGestures(
+                                        onDragEnd = {
+                                            val shift = (dragOffsetPx / widthPx).roundToInt()
+                                            if (shift != 0) {
+                                                val targetIndex = (index + shift).coerceIn(
+                                                    0,
+                                                    videoTrack.clips.lastIndex
+                                                )
+                                                if (targetIndex != index) {
+                                                    onMove(index, targetIndex)
+                                                }
+                                            }
+                                            dragOffsetPx = 0f
+                                        },
+                                        onDragCancel = { dragOffsetPx = 0f },
+                                        onDrag = { change, dragAmount ->
+                                            change.consume()
+                                            dragOffsetPx += dragAmount.x
+                                        }
+                                    )
+                                }
+                                .combinedClickable(
+                                    onClick = { onClipSelected(clip) },
+                                    onDoubleClick = {
+                                        val clipStartMs = clipStartTimes[clip.id] ?: 0L
+                                        val offsetMs =
+                                            (currentTimeMs - clipStartMs)
+                                                .coerceIn(0L, clip.durationMs)
+                                        if (offsetMs in 1 until clip.durationMs) {
+                                            onSplit(clip.id, offsetMs)
+                                        }
+                                    },
+                                    onLongClick = {
+                                        val clipStartMs = clipStartTimes[clip.id] ?: 0L
+                                        val offsetMs =
+                                            (currentTimeMs - clipStartMs)
+                                                .coerceIn(0L, clip.durationMs)
+                                        val trimOutMs = offsetMs.coerceIn(1L, clip.durationMs)
+                                        onTrim(clip.id, 0L, trimOutMs)
+                                    }
+                                )
                         ) {
                             if (thumbnailKeyProvider != null) {
                                 val thumbnailCount = (widthDp.value / 48f).toInt().coerceAtLeast(1)

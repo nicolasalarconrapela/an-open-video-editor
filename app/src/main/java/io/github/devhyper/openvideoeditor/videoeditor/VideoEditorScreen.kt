@@ -918,7 +918,20 @@ private fun BottomControls(
                 onZoom = { zoomDelta ->
                     viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomByDelta(zoomDelta))
                 },
-                onTrim = { _, _, _ -> },
+                onTrim = { clipId, trimInMs, trimOutMs ->
+                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.SelectBlock(clipId))
+                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.Trim(trimInMs, trimOutMs))
+                },
+                onSplit = { clipId, atMs ->
+                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.SelectBlock(clipId))
+                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.Split(atMs))
+                },
+                onMove = { fromIndex, toIndex ->
+                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.MoveBlock(fromIndex, toIndex))
+                },
+                onClipSelected = { clip ->
+                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.SelectBlock(clip.id))
+                },
                 onSeek = { timeMs -> onPlayerSeek(timeMs) },
                 thumbnailCoordinator = thumbnailCoordinator,
                 thumbnailKeyProvider = thumbnailKeyProvider
