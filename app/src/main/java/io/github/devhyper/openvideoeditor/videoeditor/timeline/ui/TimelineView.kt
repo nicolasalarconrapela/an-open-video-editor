@@ -248,10 +248,9 @@ fun TimelineView(
             if (masterClips.isEmpty()) return@LaunchedEffect
             delay(120)
             if (requestedRange != viewportRangeMs) return@LaunchedEffect
-            thumbnailRepository.cancelAll()
             thumbnailJob?.cancel()
-            thumbnailState.clear()
             val job = scope.launch(Dispatchers.IO) {
+                val neededKeys = mutableSetOf<String>()
                 masterClips.forEach { clip ->
                     val clipStartMs = clipStartTimes[clip.id] ?: 0L
                     val clipEndMs = clipStartMs + clip.durationMs
@@ -261,13 +260,17 @@ fun TimelineView(
                     var timeMs = startMs
                     while (timeMs <= endMs) {
                         val key = thumbnailKeyProvider(timeMs * 1000, clip, zoomBucket)
+                        val keyString = key.keyString()
+                        neededKeys.add(keyString)
                         val bitmap = thumbnailRepository.getOrRequest(key)
                         if (bitmap != null) {
-                            thumbnailState[key.keyString()] = bitmap
+                            thumbnailState[keyString] = bitmap
                         }
                         timeMs += thumbnailIntervalMs
                     }
                 }
+                val staleKeys = thumbnailState.keys - neededKeys
+                staleKeys.forEach { thumbnailState.remove(it) }
             }
             thumbnailJob = job
         }

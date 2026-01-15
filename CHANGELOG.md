@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.67] - 2026-01-09
+### Corregido
+- Reducido el thrashing de miniaturas al desplazar el timeline.
+
 ## [1.3.66] - 2026-01-09
 ### Corregido
 - Permitir miniaturas por clip usando URI específica en el timeline.
