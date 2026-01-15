@@ -2,10 +2,10 @@
 
 ## Observaciones principales
 
-1. **Zoom del timeline no se aplica al estado del editor**
-   - El gesto de zoom en `TimelinePrecisionView` llama a `onZoom`, pero en `BottomControls` se crea un `VideoEditorViewModel` nuevo distinto al que mantiene `editorState`. Como resultado, los cambios de `zoomLevel` no impactan el estado que renderiza el timeline.
+1. **Zoom del timeline no se aplica al estado del editor (corregido)**
+   - Corregido: se unificó el `VideoEditorViewModel` para evitar instancias duplicadas en los controles, el diálogo de exportación y los paneles del editor.
    - Archivos implicados:
-     - `VideoEditorScreen.kt` (instancia nueva de ViewModel en `BottomControls` y uso en `onZoom`).
+     - `VideoEditorScreen.kt` (ahora recibe el ViewModel compartido y lo propaga a subcomponentes).
 
 2. **Tracks del timeline son datos estáticos (placeholders)**
    - Los `TimelineUiTrack` se inicializan con clips fijos (Intro/Entrevista/B-roll/Outro) y no reflejan el proyecto actual ni sus ediciones. Esto genera una desconexión entre el editor y el timeline real.

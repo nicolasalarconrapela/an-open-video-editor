@@ -123,7 +123,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.Player.COMMAND_GET_CURRENT_MEDIA_ITEM
@@ -171,9 +170,9 @@ import java.io.ObjectOutputStream
 fun VideoEditorScreen(
     uri: String,
     createDocument: ActivityResultLauncher<String>,
-    requestVideoPermission: ActivityResultLauncher<String>
+    requestVideoPermission: ActivityResultLauncher<String>,
+    viewModel: VideoEditorViewModel
 ) {
-    val viewModel = viewModel { VideoEditorViewModel() }
     val editorState by viewModel.state.collectAsState()
     val screenScope = rememberCoroutineScope()
 
@@ -626,7 +625,8 @@ fun VideoEditorScreen(
                             screenScope.launch(Dispatchers.IO) {
                                 saveFrame(context, uri, currentTime)
                             }
-                        }
+                        },
+                        viewModel = viewModel
                     )
                 }
 
@@ -663,7 +663,8 @@ fun VideoEditorScreen(
                         editorState = editorState,
                         timelineTracks = timelineTracks,
                         timelineListState = timelineListState,
-                        onPlayerSeek = { timeMs -> player.seekTo(timeMs) }
+                        onPlayerSeek = { timeMs -> player.seekTo(timeMs) },
+                        viewModel = viewModel
                     )
                 }
             }
@@ -686,7 +687,8 @@ private fun PlayerControls(
     playbackState: () -> Int,
     playbackSpeed: () -> Float,
     onPlaybackSpeedChange: (Float) -> Unit,
-    onCaptureClick: () -> Unit
+    onCaptureClick: () -> Unit,
+    viewModel: VideoEditorViewModel
 ) {
 
     val visible = remember(isVisible()) { isVisible() }
@@ -716,7 +718,8 @@ private fun PlayerControls(
                     title = title,
                     transformManager = transformManager,
                     createDocument = createDocument,
-                    onCaptureClick = onCaptureClick
+                    onCaptureClick = onCaptureClick,
+                    viewModel = viewModel
                 )
 
                 CenterControls(
@@ -742,10 +745,10 @@ private fun TopControls(
     title: () -> String,
     transformManager: TransformManager,
     createDocument: ActivityResultLauncher<String>,
-    onCaptureClick: () -> Unit
+    onCaptureClick: () -> Unit,
+    viewModel: VideoEditorViewModel
 ) {
     val activity = LocalContext.current as Activity
-    val viewModel = viewModel { VideoEditorViewModel() }
     val projectOutputPath by viewModel.projectOutputPath.collectAsState()
     val projectSavingSupported by viewModel.projectSavingSupported.collectAsState()
     val videoTitle = remember(title()) { title() }
@@ -836,7 +839,7 @@ private fun TopControls(
     }
 
     if (showExportDialog) {
-        ExportDialog(transformManager, createDocument, videoTitle, activity) {
+        ExportDialog(transformManager, createDocument, videoTitle, activity, viewModel) {
             showExportDialog = false
         }
     }
@@ -938,6 +941,7 @@ private fun BottomControls(
     timelineTracks: MutableList<TimelineUiTrack>,
     timelineListState: LazyListState,
     onPlayerSeek: (Long) -> Unit,
+    viewModel: VideoEditorViewModel,
     thumbnailRepository: ThumbnailRepository? = null,
     thumbnailKeyProvider: ((timeUs: Long, clip: TimelineUiClip, zoomBucket: Int) -> ThumbnailKey)? = null
 ) {
@@ -954,8 +958,6 @@ private fun BottomControls(
     val durationFrames = remember(totalDurationFrames()) { totalDurationFrames() }
     remember(currentTime()) { currentTime() }
     val videoTimeFrames = remember(currentTimeFrames()) { currentTimeFrames() }
-
-    val viewModel = viewModel { VideoEditorViewModel() }
 
     Column(
         modifier = modifier
@@ -1044,7 +1046,7 @@ private fun BottomControls(
                 },
                 sheetState = filterSheetState
             ) {
-                FilterDrawer(transformManager) {
+                FilterDrawer(transformManager, viewModel) {
                     scope.launch { filterSheetState.hide() }.invokeOnCompletion {
                         if (!filterSheetState.isVisible) {
                             showFilterBottomSheet = false
@@ -1288,8 +1290,11 @@ private fun LayerDrawerItem(
 }
 
 @Composable
-private fun FilterDrawer(transformManager: TransformManager, onDismissRequest: () -> Unit) {
-    val viewModel = viewModel { VideoEditorViewModel() }
+private fun FilterDrawer(
+    transformManager: TransformManager,
+    viewModel: VideoEditorViewModel,
+    onDismissRequest: () -> Unit
+) {
     Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             stringResource(R.string.video_filters),
@@ -1330,6 +1335,7 @@ private fun FilterDrawer(transformManager: TransformManager, onDismissRequest: (
                         icon,
                         args,
                         transformManager,
+                        viewModel,
                         callback
                     )
                 }
@@ -1356,16 +1362,16 @@ private fun DialogFilterDrawerItem(
     icon: ImageConstructor,
     args: PersistentList<EffectDialogSetting>,
     transformManager: TransformManager,
+    viewModel: VideoEditorViewModel,
     callback: (Map<String, String>) -> EffectConstructor
 ) {
-    val viewModel = viewModel { VideoEditorViewModel() }
     var showFilterDialog by remember { mutableStateOf(false) }
     FilterDrawerItem(
         stringResId,
         icon(),
         onClick = { showFilterDialog = true; viewModel.setFilterDialogArgs(args) })
     if (showFilterDialog) {
-        FilterDialog(stringResId = stringResId, { argMap ->
+        FilterDialog(stringResId = stringResId, viewModel = viewModel, callback = { argMap ->
             val effect = callback(argMap)
             UserEffect(stringResId, icon, effect)
         }, transformManager) {
@@ -1398,11 +1404,11 @@ private fun FilterDrawerItem(
 @Composable
 private fun FilterDialog(
     stringResId: Int,
+    viewModel: VideoEditorViewModel,
     callback: (Map<String, String>) -> UserEffect,
     transformManager: TransformManager,
     onDismissRequest: () -> Unit
 ) {
-    val viewModel = viewModel { VideoEditorViewModel() }
     val args by viewModel.filterDialogArgs.collectAsState()
     ListDialog(
         title = stringResource(stringResId),
@@ -1466,9 +1472,9 @@ private fun ExportDialog(
     createDocument: ActivityResultLauncher<String>,
     title: String,
     activity: Activity,
+    viewModel: VideoEditorViewModel,
     onDismissRequest: () -> Unit
 ) {
-    val viewModel = viewModel { VideoEditorViewModel() }
     val outputPath by viewModel.outputPath.collectAsState()
     val exportDismissRequest = {
         onDismissRequest()

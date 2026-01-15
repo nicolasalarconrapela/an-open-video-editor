@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.61] - 2026-01-09
+### Corregido
+- Unificación del VideoEditorViewModel para el flujo del timeline y exportación.
+
 ## [1.3.60] - 2026-01-09
 ### Añadido
 - Reporte de posibles fallos del timeline.
