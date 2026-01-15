@@ -52,14 +52,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
-import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRepository
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRequestCoordinator
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -76,7 +71,7 @@ fun TimelinePrecisionView(
     onTrim: (clipId: String, trimInMs: Long, trimOutMs: Long) -> Unit,
     onSeek: (timeMs: Long) -> Unit,
     modifier: Modifier = Modifier,
-    thumbnailRepository: ThumbnailRepository? = null,
+    thumbnailCoordinator: ThumbnailRequestCoordinator,
     thumbnailKeyProvider: ((timeUs: Long, clip: TimelineUiClip, zoomBucket: Int) -> ThumbnailKey)? = null
 ) {
     val basePixelsPerSecond = 80f
@@ -95,9 +90,7 @@ fun TimelinePrecisionView(
 
     var lastScrollMs by remember { mutableLongStateOf(0L) }
     val density = LocalDensity.current
-    val scope = rememberCoroutineScope()
-    val thumbnailState = remember { mutableStateMapOf<String, android.graphics.Bitmap?>() }
-    val neededKeys = remember { mutableSetOf<String>() }
+    val thumbnailState = thumbnailCoordinator.state()
 
     BoxWithConstraints(
         modifier = modifier
@@ -147,15 +140,7 @@ fun TimelinePrecisionView(
                 }
         }
 
-        LaunchedEffect(videoTrack, pixelsPerSecond, listState.firstVisibleItemIndex) {
-            if (thumbnailRepository == null || thumbnailKeyProvider == null || videoTrack == null) {
-                return@LaunchedEffect
-            }
-        val currentKeys = neededKeys.toSet()
-        val staleKeys = thumbnailState.keys - currentKeys
-        staleKeys.forEach { thumbnailState.remove(it) }
-        neededKeys.clear()
-        }
+        // Thumbnail cleanup handled by ThumbnailRequestCoordinator.
 
         Column(
             modifier = Modifier.fillMaxWidth().align(Alignment.Center),
@@ -236,25 +221,16 @@ fun TimelinePrecisionView(
                                 .background(Color(0xFF1E1E1E))
                                 .clipToBounds()
                         ) {
-                            if (thumbnailRepository != null && thumbnailKeyProvider != null) {
+                            if (thumbnailKeyProvider != null) {
                                 val thumbnailCount = (widthDp.value / 48f).toInt().coerceAtLeast(1)
                                 val intervalMs = clip.durationMs / thumbnailCount
+                                val keys = mutableListOf<ThumbnailKey>()
                                 Row(modifier = Modifier.fillMaxSize()) {
                                     repeat(thumbnailCount) { i ->
                                         val timeMs = i * intervalMs
                                         val key = thumbnailKeyProvider(timeMs * 1000, clip, 0)
                                         val bitmap = thumbnailState[key.keyString()]
-                                        val keyString = key.keyString()
-                                        SideEffect {
-                                            neededKeys.add(keyString)
-                                        }
-
-                                        LaunchedEffect(key) {
-                                            if (thumbnailState[keyString] == null) {
-                                                val bmp = thumbnailRepository.getOrRequest(key)
-                                                if (bmp != null) thumbnailState[keyString] = bmp
-                                            }
-                                        }
+                                        keys.add(key)
 
                                         Box(
                                             modifier = Modifier
@@ -281,6 +257,9 @@ fun TimelinePrecisionView(
                                             }
                                         }
                                     }
+                                }
+                                LaunchedEffect(keys) {
+                                    thumbnailCoordinator.requestPrecision(keys)
                                 }
                             }
                         }

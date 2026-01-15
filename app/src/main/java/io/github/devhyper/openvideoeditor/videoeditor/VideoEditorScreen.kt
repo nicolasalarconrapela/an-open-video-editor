@@ -153,6 +153,7 @@ import io.github.devhyper.openvideoeditor.videoeditor.state.EditorState
 import io.github.devhyper.openvideoeditor.videoeditor.state.ClipSource
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRepository
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRequestCoordinator
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.cache.BitmapMemoryCache
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.cache.DiskThumbnailCache
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineClipType
@@ -330,6 +331,14 @@ fun VideoEditorScreen(
                     retriever.release()
                 }
             }
+        )
+    }
+    val thumbnailCoordinator = remember(thumbnailRepository, screenScope) {
+        ThumbnailRequestCoordinator(
+            repository = thumbnailRepository,
+            scope = screenScope,
+            ioDispatcher = Dispatchers.IO,
+            mainDispatcher = Dispatchers.Main
         )
     }
 
@@ -591,7 +600,8 @@ fun VideoEditorScreen(
                         timelineTracks = timelineTracks,
                         timelineListState = timelineListState,
                         onPlayerSeek = { timeMs -> player.seekTo(timeMs) },
-                        viewModel = viewModel
+                        viewModel = viewModel,
+                        thumbnailCoordinator = thumbnailCoordinator
                     )
                 }
             }
@@ -869,7 +879,7 @@ private fun BottomControls(
     timelineListState: LazyListState,
     onPlayerSeek: (Long) -> Unit,
     viewModel: VideoEditorViewModel,
-    thumbnailRepository: ThumbnailRepository? = null,
+    thumbnailCoordinator: ThumbnailRequestCoordinator,
     thumbnailKeyProvider: ((timeUs: Long, clip: TimelineUiClip, zoomBucket: Int) -> ThumbnailKey)? = null
 ) {
     val context = LocalContext.current
@@ -910,7 +920,7 @@ private fun BottomControls(
                 },
                 onTrim = { _, _, _ -> },
                 onSeek = { timeMs -> onPlayerSeek(timeMs) },
-                thumbnailRepository = thumbnailRepository,
+                thumbnailCoordinator = thumbnailCoordinator,
                 thumbnailKeyProvider = thumbnailKeyProvider
             )
         }

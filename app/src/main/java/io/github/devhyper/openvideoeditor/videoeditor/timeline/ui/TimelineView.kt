@@ -34,10 +34,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,11 +53,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.devhyper.openvideoeditor.R
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
-import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRepository
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRequestCoordinator
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -176,15 +171,14 @@ fun TimelineView(
     pixelsPerSecond: Float,
     listState: LazyListState,
     modifier: Modifier = Modifier,
-    thumbnailRepository: ThumbnailRepository? = null,
-    thumbnailKeyProvider: ((timeUs: Long, clip: TimelineUiClip, zoomBucket: Int) -> ThumbnailKey)? = null,
+    thumbnailCoordinator: ThumbnailRequestCoordinator,
+    thumbnailKeyProvider: ((timeUs: Long, clip: TimelineUiClip, zoomBucket: Int) -> ThumbnailKey),
     zoomBucket: Int = 0,
     onClipSelected: (trackId: String, clip: TimelineUiClip) -> Unit = { _, _ -> },
     onClipMoved: (trackId: String, fromId: String, toIndex: Int) -> Unit = { _, _, _ -> },
     onZoomChange: (zoomDelta: Float) -> Unit = {}
 ) {
     val density = LocalDensity.current
-    val scope = rememberCoroutineScope()
     val clipMinWidthDp = 48.dp
     val clipHeight = 80.dp
     val thumbnailHeight = 72.dp
@@ -192,8 +186,7 @@ fun TimelineView(
     var draggingClipId by remember { mutableStateOf<String?>(null) }
     var dragOffsetPx by remember { mutableFloatStateOf(0f) }
     val masterClips = tracks.firstOrNull()?.clips.orEmpty()
-    val thumbnailState = remember { mutableStateMapOf<String, android.graphics.Bitmap?>() }
-    var thumbnailJob by remember { mutableStateOf<Job?>(null) }
+    val thumbnailState = thumbnailCoordinator.state()
     val currentTimeMs by remember(masterClips, pixelsPerSecond, listState) {
         derivedStateOf {
             if (masterClips.isEmpty()) {
@@ -242,42 +235,19 @@ fun TimelineView(
     val electricBlue = Color(0xFF2979FF)
     val absoluteBlack = Color.Black
 
-    if (thumbnailRepository != null && thumbnailKeyProvider != null) {
-        val requestedRange = viewportRangeMs
-        LaunchedEffect(requestedRange, zoomBucket, thumbnailIntervalMs, masterClips) {
-            if (masterClips.isEmpty()) return@LaunchedEffect
-            delay(120)
-            if (requestedRange != viewportRangeMs) return@LaunchedEffect
-            thumbnailJob?.cancel()
-            val job = scope.launch(Dispatchers.IO) {
-                val neededKeys = mutableSetOf<String>()
-                masterClips.forEach { clip ->
-                    val clipStartMs = clipStartTimes[clip.id] ?: 0L
-                    val clipEndMs = clipStartMs + clip.durationMs
-                    val startMs = max(clipStartMs, requestedRange.first)
-                    val endMs = min(clipEndMs, requestedRange.last)
-                    if (endMs <= startMs) return@forEach
-                    var timeMs = startMs
-                    while (timeMs <= endMs) {
-                        val key = thumbnailKeyProvider(timeMs * 1000, clip, zoomBucket)
-                        val keyString = key.keyString()
-                        neededKeys.add(keyString)
-                        val bitmap = thumbnailRepository.getOrRequest(key)
-                        if (bitmap != null) {
-                            withContext(Dispatchers.Main) {
-                                thumbnailState[keyString] = bitmap
-                            }
-                        }
-                        timeMs += thumbnailIntervalMs
-                    }
-                }
-                withContext(Dispatchers.Main) {
-                    val staleKeys = thumbnailState.keys - neededKeys
-                    staleKeys.forEach { thumbnailState.remove(it) }
-                }
-            }
-            thumbnailJob = job
-        }
+    val requestedRange = viewportRangeMs
+    LaunchedEffect(requestedRange, zoomBucket, thumbnailIntervalMs, masterClips) {
+        if (masterClips.isEmpty()) return@LaunchedEffect
+        delay(120)
+        if (requestedRange != viewportRangeMs) return@LaunchedEffect
+        thumbnailCoordinator.requestFilmstrip(
+            clips = masterClips,
+            clipStartTimes = clipStartTimes,
+            viewportRangeMs = requestedRange,
+            thumbnailIntervalMs = thumbnailIntervalMs,
+            zoomBucket = zoomBucket,
+            thumbnailKeyProvider = thumbnailKeyProvider
+        )
     }
 
     Box(

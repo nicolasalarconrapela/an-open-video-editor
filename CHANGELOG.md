@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.75] - 2026-01-09
+### Ajustado
+- Coordinador unificado para solicitudes de miniaturas en el timeline.
+
 ## [1.3.74] - 2026-01-09
 ### Ajustado
 - Timeline ahora carga clips reales desde ProjectData.
