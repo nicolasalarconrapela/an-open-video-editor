@@ -3,20 +3,12 @@ name: Android APK (Debug) - codex
 on:
   push:
     branches:
-      - "codex/2026-01-11/17-39-50/create-timelineview-composable"
-      - "codex/2026-01-12/02-38-18/fix-unresolved-references-in-videoeditorscreen"
-      - "codex/2026-01-12/14-39-17/implementar-sistema-de-miniaturas-de-linea-de-tiempo"
-      - "codex/2026-01-12/22-00-29/explore-ui-2027-highlights"
-      - "jules-redesign-2026-13380855417231273474"
       - "codex/2026-01-15/12-10-17/review-project-for-application-issues"
   workflow_dispatch:
 
 concurrency:
-  group: apk-debug-codex-${{ github.ref }}
+  group: apk-debug-codex
   cancel-in-progress: true
-
-permissions:
-  contents: read
 
 jobs:
   apk-debug:
@@ -24,91 +16,71 @@ jobs:
     timeout-minutes: 45
 
     env:
-      # Menos ruido de Gradle y más determinismo
-      CI: true
       GRADLE_OPTS: >-
         -Dorg.gradle.caching=true
         -Dorg.gradle.parallel=true
         -Dorg.gradle.configureondemand=true
+        -Dkotlin.compiler.execution.strategy=in-process
         -Dkotlin.incremental=true
-        -Dfile.encoding=UTF-8
-        -Dorg.gradle.console=plain
-        -Dorg.gradle.warning.mode=summary
-      ORG_GRADLE_JVMARGS: -Xmx4g -Dfile.encoding=UTF-8
-      KOTLIN_DAEMON_JVMARGS: -Xmx2g
+        -Dkotlin.daemon.jvmargs=-Xmx2g
+        -Dorg.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@v4
 
-      - name: Validate Gradle Wrapper
-        uses: gradle/wrapper-validation-action@v2
-
-      - name: Set up JDK 17
+      - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
 
-      - name: Set up Gradle (cache)
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          cache-read-only: false
+      - name: Fix DNS for Maven repositories
+        run: |
+          sudo bash -c 'printf "nameserver 1.1.1.1\nnameserver 8.8.8.8\n" > /etc/resolv.conf'
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      # Licencias (silencioso, sin paginazo)
       - name: Accept Android SDK licenses
-        shell: bash
-        run: |
-          set -euo pipefail
-          yes | sdkmanager --licenses >/dev/null
+        run: yes | sdkmanager --licenses
+
+      - name: Validate Gradle wrapper
+        uses: gradle/wrapper-validation-action@v2
+
+      # Caché extra (más agresiva) para Gradle:
+      - name: Cache Gradle (wrapper + caches)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: >
+            ${{ runner.os }}-gradle-
+            ${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/settings.gradle*', '**/gradle.properties', '**/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
 
       - name: Grant execute permission for gradlew
-        run: chmod +x ./gradlew
+        run: chmod +x gradlew
 
-      # Build "limpio": sin --info, sin --stacktrace por defecto
+      - name: Warm Gradle cache
+        run: ./gradlew --no-daemon --stacktrace help
+
+      # Recomendado para CI: evita daemon y reduce “ruido”
       - name: Build Debug APK
-        shell: bash
-        run: |
-          set -euo pipefail
-          ./gradlew :app:assembleDebug \
-            --no-daemon \
-            --parallel \
-            --warning-mode summary
-
-      # Si falla, aquí sí abrimos la caja negra
-      - name: Build Debug APK (diagnostics on failure)
-        if: ${{ failure() }}
-        shell: bash
-        run: |
-          ./gradlew :app:assembleDebug \
-            --no-daemon \
-            --stacktrace \
-            --info \
-            --warning-mode all
+        run: ./gradlew :app:assembleDebug --no-daemon --parallel --stacktrace
 
       - name: Set APK artifact name
         id: apk_name
         shell: bash
         run: |
-          set -euo pipefail
-          PROPS="$(./gradlew -q :app:properties --no-daemon)"
-
-          VERSION_NAME="$(echo "$PROPS" | awk -F': ' '/^versionName/ {print $2}' | head -n1 | tr -d '\r')"
-          VERSION_CODE="$(echo "$PROPS" | awk -F': ' '/^versionCode/ {print $2}' | head -n1 | tr -d '\r')"
-
-          VERSION_NAME="${VERSION_NAME:-unknownName}"
-          VERSION_CODE="${VERSION_CODE:-0}"
-
+          VERSION_NAME=$(./gradlew -q :app:properties --no-daemon | awk -F': ' '/^versionName/ {print $2}' | tr -d '\r')
+          VERSION_CODE=$(./gradlew -q :app:properties --no-daemon | awk -F': ' '/^versionCode/ {print $2}' | tr -d '\r')
           echo "name=open-video-editor-${VERSION_NAME}(${VERSION_CODE})-debug-apk" >> "$GITHUB_OUTPUT"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.apk_name.outputs.name }}
-          path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
+          path: app/build/outputs/apk/debug/*.apk # Mejorar
