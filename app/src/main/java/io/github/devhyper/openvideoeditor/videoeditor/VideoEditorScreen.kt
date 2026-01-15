@@ -150,6 +150,7 @@ import io.github.devhyper.openvideoeditor.misc.validateUInt
 import io.github.devhyper.openvideoeditor.settings.SettingsActivity
 import io.github.devhyper.openvideoeditor.ui.theme.OpenVideoEditorTheme
 import io.github.devhyper.openvideoeditor.videoeditor.state.EditorState
+import io.github.devhyper.openvideoeditor.videoeditor.state.ClipSource
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRepository
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.cache.BitmapMemoryCache
@@ -237,116 +238,26 @@ fun VideoEditorScreen(
     val videoTrackLabel = stringResource(R.string.timeline_track_video)
     val audioTrackLabel = stringResource(R.string.timeline_track_audio)
     val overlayTrackLabel = stringResource(R.string.timeline_track_overlay)
-    val timelineTracks = remember(videoTrackLabel, audioTrackLabel, overlayTrackLabel) {
-        mutableStateListOf(
-            TimelineUiTrack(
-                id = "track-video",
-                label = videoTrackLabel,
-                clips = listOf(
-                    TimelineUiClip(
-                        id = "clip-1",
-                        durationMs = 3_000L,
-                        label = "Intro",
-                        type = TimelineClipType.Video,
-                        mediaUri = uri
-                    ),
-                    TimelineUiClip(
-                        id = "clip-2",
-                        durationMs = 6_500L,
-                        label = "Entrevista",
-                        type = TimelineClipType.Video,
-                        mediaUri = uri
-                    ),
-                    TimelineUiClip(
-                        id = "clip-3",
-                        durationMs = 4_000L,
-                        label = "B-roll",
-                        type = TimelineClipType.Video,
-                        mediaUri = uri
-                    ),
-                    TimelineUiClip(
-                        id = "clip-4",
-                        durationMs = 2_500L,
-                        label = "Outro",
-                        type = TimelineClipType.Video,
-                        mediaUri = uri
-                    )
-                )
-            ),
-            TimelineUiTrack(
-                id = "track-audio",
-                label = audioTrackLabel,
-                clips = listOf(
-                    TimelineUiClip(
-                        id = "clip-5",
-                        durationMs = 3_000L,
-                        label = "Música",
-                        type = TimelineClipType.Audio,
-                        mediaUri = uri
-                    ),
-                    TimelineUiClip(
-                        id = "clip-6",
-                        durationMs = 6_500L,
-                        label = "Ambiente",
-                        type = TimelineClipType.Audio,
-                        mediaUri = uri
-                    ),
-                    TimelineUiClip(
-                        id = "clip-7",
-                        durationMs = 4_000L,
-                        label = "FX",
-                        type = TimelineClipType.Audio,
-                        mediaUri = uri
-                    ),
-                    TimelineUiClip(
-                        id = "clip-8",
-                        durationMs = 2_500L,
-                        label = "Cierre",
-                        type = TimelineClipType.Audio,
-                        mediaUri = uri
-                    )
-                )
-            ),
-            TimelineUiTrack(
-                id = "track-overlay",
-                label = overlayTrackLabel,
-                clips = listOf(
-                    TimelineUiClip(
-                        id = "clip-9",
-                        durationMs = 3_000L,
-                        label = "Texto",
-                        type = TimelineClipType.Overlay,
-                        mediaUri = uri
-                    ),
-                    TimelineUiClip(
-                        id = "clip-10",
-                        durationMs = 6_500L,
-                        label = "Sticker",
-                        type = TimelineClipType.Overlay,
-                        mediaUri = uri
-                    ),
-                    TimelineUiClip(
-                        id = "clip-11",
-                        durationMs = 4_000L,
-                        label = "Lower third",
-                        type = TimelineClipType.Overlay,
-                        mediaUri = uri
-                    ),
-                    TimelineUiClip(
-                        id = "clip-12",
-                        durationMs = 2_500L,
-                        label = "Logo",
-                        type = TimelineClipType.Overlay,
-                        mediaUri = uri
-                    )
-                )
-            )
+    val timelineTracks = remember(
+        editorState.clips,
+        videoTrackLabel,
+        audioTrackLabel,
+        overlayTrackLabel
+    ) {
+        buildTimelineTracks(
+            clips = editorState.clips,
+            videoLabel = videoTrackLabel,
+            audioLabel = audioTrackLabel,
+            overlayLabel = overlayTrackLabel
         )
     }
 
     val videoTitle = remember(uri) { getFileNameFromUri(context, uri.toUri()) }
 
     LaunchedEffect(uri) {
+        if (viewModel.state.value.clips.isEmpty()) {
+            viewModel.setClips(defaultClips(uri))
+        }
         val path = Uri.parse(uri).path
         if (path != null && File(path).exists() && path.endsWith(".$PROJECT_FILE_EXT", ignoreCase = true)) {
             viewModel.setProjectOutputPath(path)
@@ -954,7 +865,7 @@ private fun BottomControls(
     onSeekChanged: (timeMs: Float) -> Unit,
     transformManager: TransformManager,
     editorState: EditorState,
-    timelineTracks: MutableList<TimelineUiTrack>,
+    timelineTracks: List<TimelineUiTrack>,
     timelineListState: LazyListState,
     onPlayerSeek: (Long) -> Unit,
     viewModel: VideoEditorViewModel,
@@ -1122,6 +1033,53 @@ private fun BottomControls(
             )
         }
     }
+}
+
+private fun buildTimelineTracks(
+    clips: List<ClipSource>,
+    videoLabel: String,
+    audioLabel: String,
+    overlayLabel: String
+): List<TimelineUiTrack> {
+    val videoClips = clips
+        .filter { it.type == TimelineClipType.Video }
+        .map { it.toUiClip() }
+    val audioClips = clips
+        .filter { it.type == TimelineClipType.Audio }
+        .map { it.toUiClip() }
+    val overlayClips = clips
+        .filter { it.type == TimelineClipType.Overlay }
+        .map { it.toUiClip() }
+    return listOf(
+        TimelineUiTrack(id = "track-video", label = videoLabel, clips = videoClips),
+        TimelineUiTrack(id = "track-audio", label = audioLabel, clips = audioClips),
+        TimelineUiTrack(id = "track-overlay", label = overlayLabel, clips = overlayClips)
+    )
+}
+
+private fun ClipSource.toUiClip(): TimelineUiClip = TimelineUiClip(
+    id = id,
+    durationMs = durationMs,
+    label = label,
+    type = type,
+    mediaUri = mediaUri
+)
+
+private fun defaultClips(uri: String): List<ClipSource> {
+    return listOf(
+        ClipSource("clip-1", 3_000L, "Intro", TimelineClipType.Video, uri),
+        ClipSource("clip-2", 6_500L, "Entrevista", TimelineClipType.Video, uri),
+        ClipSource("clip-3", 4_000L, "B-roll", TimelineClipType.Video, uri),
+        ClipSource("clip-4", 2_500L, "Outro", TimelineClipType.Video, uri),
+        ClipSource("clip-5", 3_000L, "Música", TimelineClipType.Audio, uri),
+        ClipSource("clip-6", 6_500L, "Ambiente", TimelineClipType.Audio, uri),
+        ClipSource("clip-7", 4_000L, "FX", TimelineClipType.Audio, uri),
+        ClipSource("clip-8", 2_500L, "Cierre", TimelineClipType.Audio, uri),
+        ClipSource("clip-9", 3_000L, "Texto", TimelineClipType.Overlay, uri),
+        ClipSource("clip-10", 6_500L, "Sticker", TimelineClipType.Overlay, uri),
+        ClipSource("clip-11", 4_000L, "Lower third", TimelineClipType.Overlay, uri),
+        ClipSource("clip-12", 2_500L, "Logo", TimelineClipType.Overlay, uri)
+    )
 }
 
 @Composable

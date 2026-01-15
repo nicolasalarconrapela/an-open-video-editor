@@ -73,5 +73,6 @@ data class EditorState(
     val selectedBlockId: String? = null,
     val mode: EditorMode = EditorMode.BLOCKS,
     val zoomLevel: Float = 1f,
-    val blocks: List<TimelineBlock> = emptyList()
+    val blocks: List<TimelineBlock> = emptyList(),
+    val clips: List<ClipSource> = emptyList()
 )

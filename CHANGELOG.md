@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.73] - 2026-01-09
+### Ajustado
+- Timeline ahora deriva sus clips desde el estado del editor.
+
 ## [1.3.72] - 2026-01-09
 ### Ajustado
 - Workflow de APK debug actualizado para incluir la rama de revisión 2026-01-15.

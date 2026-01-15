@@ -6,6 +6,7 @@ import androidx.media3.common.Player
 import io.github.devhyper.openvideoeditor.misc.REFRESH_RATE
 import io.github.devhyper.openvideoeditor.videoeditor.state.EditorMode
 import io.github.devhyper.openvideoeditor.videoeditor.state.EditorState
+import io.github.devhyper.openvideoeditor.videoeditor.state.ClipSource
 import io.github.devhyper.openvideoeditor.videoeditor.state.TimelineBlock
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
@@ -147,6 +148,10 @@ class VideoEditorViewModel : ViewModel() {
 
     fun setCurrentExportWorkId(value: String?) {
         _currentExportWorkId.update { value }
+    }
+
+    fun setClips(clips: List<ClipSource>) {
+        _state.update { it.copy(clips = clips) }
     }
 
     private fun trimSelectedBlock(
