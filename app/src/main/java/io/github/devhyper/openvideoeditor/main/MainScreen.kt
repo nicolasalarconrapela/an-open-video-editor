@@ -59,6 +59,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -79,15 +80,19 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.github.devhyper.openvideoeditor.R
 import io.github.devhyper.openvideoeditor.misc.PROJECT_FILE_EXT
 import io.github.devhyper.openvideoeditor.settings.SettingsActivity
+import io.github.devhyper.openvideoeditor.settings.SettingsDataStore
 import io.github.devhyper.openvideoeditor.ui.theme.AbsoluteBlack
 import io.github.devhyper.openvideoeditor.ui.theme.ElectricBlue
 import io.github.devhyper.openvideoeditor.ui.theme.GlassBackground
 import io.github.devhyper.openvideoeditor.ui.theme.GlassBorder
+import io.github.devhyper.openvideoeditor.ui.theme.LocalUiCascadingEffect
 import io.github.devhyper.openvideoeditor.ui.theme.OpenVideoEditorTheme
 import io.github.devhyper.openvideoeditor.ui.theme.TextGray
 import io.github.devhyper.openvideoeditor.ui.theme.TextWhite
 import io.github.devhyper.openvideoeditor.videoeditor.ProjectData
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -98,6 +103,8 @@ fun MainScreen(
     onOpenProject: (String) -> Unit
 ) {
     val activity = LocalContext.current as Activity
+    val dataStore = remember { SettingsDataStore(activity) }
+    val scope = rememberCoroutineScope()
     var refreshToken by rememberSaveable { mutableStateOf(0) }
     val lifecycleOwner = LocalLifecycleOwner.current
     val projectEntries by produceState(
@@ -184,7 +191,12 @@ fun MainScreen(
                     } else {
                         ProjectsGrid(
                             projects = projectEntries,
-                            onOpenProject = onOpenProject,
+                            onOpenProject = { projectUri ->
+                                scope.launch {
+                                    dataStore.addRecentProject(projectUri)
+                                }
+                                onOpenProject(projectUri)
+                            },
                             onProjectsChanged = { refreshToken += 1 },
                             modifier = Modifier.weight(1f)
                         )
@@ -282,15 +294,22 @@ private fun ProjectCard(
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var showRenameDialog by rememberSaveable { mutableStateOf(false) }
     var renameValue by rememberSaveable(entry.title) { mutableStateOf(entry.title) }
+    val useUiCascadingEffect = LocalUiCascadingEffect.current
+    val cardBackground = if (useUiCascadingEffect) {
+        GlassBackground
+    } else {
+        Color(0xFF111111)
+    }
+    val cardBorder = if (useUiCascadingEffect) GlassBorder else Color.Transparent
 
     // Glassmorphism Card
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(GlassBackground)
+            .background(cardBackground)
             .border(
-                BorderStroke(1.dp, GlassBorder),
+                BorderStroke(1.dp, cardBorder),
                 RoundedCornerShape(16.dp)
             )
             .clickable { onOpenProject(entry.uri) }
@@ -512,20 +531,36 @@ private data class ProjectEntry(
 
 private suspend fun loadProjectEntries(context: Context): List<ProjectEntry> {
     return withContext(Dispatchers.IO) {
+        val dataStore = SettingsDataStore(context)
         val projectsDir = File(context.filesDir, "projects")
         val now = System.currentTimeMillis()
-        projectsDir
+        val recentUris = dataStore.getRecentProjectsAsync().first()
+        val allFiles = projectsDir
             .listFiles()
             ?.filter { it.extension.equals(PROJECT_FILE_EXT, ignoreCase = true) }
-            ?.sortedByDescending { it.lastModified() }
-            ?.map { file ->
+            ?: emptyList()
+        val filesByUri = allFiles.associateBy { it.toUri().toString() }
+        val recentEntries = recentUris.mapNotNull { uri ->
+            filesByUri[uri]?.let { file ->
+                ProjectEntry(
+                    uri = uri,
+                    title = file.nameWithoutExtension,
+                    subtitle = buildProjectSubtitle(context, file, now)
+                )
+            }
+        }
+        val recentUriSet = recentUris.toSet()
+        val remainingEntries = allFiles
+            .filterNot { file -> recentUriSet.contains(file.toUri().toString()) }
+            .sortedByDescending { it.lastModified() }
+            .map { file ->
                 ProjectEntry(
                     uri = file.toUri().toString(),
                     title = file.nameWithoutExtension,
                     subtitle = buildProjectSubtitle(context, file, now)
                 )
             }
-            ?: emptyList()
+        recentEntries + remainingEntries
     }
 }
 

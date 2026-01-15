@@ -38,6 +38,8 @@ import com.arthenica.ffmpegkit.SessionState
 import io.github.devhyper.openvideoeditor.misc.PROJECT_FILE_EXT
 import io.github.devhyper.openvideoeditor.misc.getFileNameFromUri
 import io.github.devhyper.openvideoeditor.misc.getVideoFileDuration
+import io.github.devhyper.openvideoeditor.videoeditor.state.ClipSource
+import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineClipType
 import io.github.devhyper.openvideoeditor.settings.SettingsDataStore
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.PersistentList
@@ -393,6 +395,28 @@ class TransformManager {
             effectArray.add(userEffect.effect())
         }
         return effectArray
+    }
+
+    fun buildClipSources(context: Context): List<ClipSource> {
+        val baseDuration = getVideoFileDuration(context, projectData.uri.toUri()) ?: 0L
+        val trim = getMergedTrim()
+        val clipDuration = if (trim != null) {
+            (trim.second - trim.first).coerceAtLeast(0L)
+        } else {
+            baseDuration
+        }
+        if (clipDuration <= 0L) {
+            return emptyList()
+        }
+        return listOf(
+            ClipSource(
+                id = "clip-main",
+                durationMs = clipDuration,
+                label = getFileNameFromUri(context, projectData.uri.toUri()),
+                type = TimelineClipType.Video,
+                mediaUri = projectData.uri
+            )
+        )
     }
 
     fun getMergedTrim(): Trim? {

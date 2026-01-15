@@ -1,5 +1,107 @@
 # Changelog
 
+## [1.3.82] - 2026-01-09
+### Ajustado
+- Gestos del timeline conectados con eventos de recorte, split, selección y reordenado en el estado del editor.
+- Recorte por long-press ahora evita aplicar cambios cuando el playhead está fuera del clip.
+- Workflow de APK debug codex alineado con build limpio, diagnósticos en fallo y licencias silenciosas.
+- Workflow de APK debug codex corregido con la definición solicitada.
+- TimelinePrecisionView marca el uso de combinedClickable como API experimental.
+
+## [1.3.81] - 2026-01-09
+### Ajustado
+- Gestos del timeline conectados con eventos de recorte, split, selección y reordenado en el estado del editor.
+- Recorte por long-press ahora evita aplicar cambios cuando el playhead está fuera del clip.
+- Workflow de APK debug codex alineado con build limpio, diagnósticos en fallo y licencias silenciosas.
+- Workflow de APK debug codex corregido con la definición solicitada.
+
+## [1.3.80] - 2026-01-09
+### Ajustado
+- Gestos del timeline conectados con eventos de recorte, split, selección y reordenado en el estado del editor.
+- Recorte por long-press ahora evita aplicar cambios cuando el playhead está fuera del clip.
+- Workflow de APK debug codex alineado con build limpio, diagnósticos en fallo y licencias silenciosas.
+
+## [1.3.79] - 2026-01-09
+### Ajustado
+- Gestos del timeline conectados con eventos de recorte, split, selección y reordenado en el estado del editor.
+- Recorte por long-press ahora evita aplicar cambios cuando el playhead está fuera del clip.
+
+## [1.3.78] - 2026-01-09
+### Ajustado
+- Gestos del timeline conectados con eventos de recorte, split, selección y reordenado en el estado del editor.
+
+## [1.3.77] - 2026-01-09
+### Ajustado
+- ClipSource normalizado con offsets y parámetros de edición.
+
+## [1.3.76] - 2026-01-09
+### Ajustado
+- ExportManager separado en estrategias (Transformer/FFmpeg/Segmentado).
+
+## [1.3.75] - 2026-01-09
+### Ajustado
+- Coordinador unificado para solicitudes de miniaturas en el timeline.
+
+## [1.3.74] - 2026-01-09
+### Ajustado
+- Timeline ahora carga clips reales desde ProjectData.
+
+## [1.3.73] - 2026-01-09
+### Ajustado
+- Timeline ahora deriva sus clips desde el estado del editor.
+
+## [1.3.72] - 2026-01-09
+### Ajustado
+- Workflow de APK debug actualizado para incluir la rama de revisión 2026-01-15.
+
+## [1.3.71] - 2026-01-09
+### Ajustado
+- Workflow de APK debug actualizado para incluir la rama work.
+
+## [1.3.70] - 2026-01-09
+### Corregido
+- Sincronización de escritura de miniaturas en TimelineView para evitar problemas de threading.
+
+## [1.3.69] - 2026-01-09
+### Corregido
+- Ajuste de tamaño de miniaturas para evitar reescalado innecesario.
+
+## [1.3.68] - 2026-01-09
+### Corregido
+- Limpieza granular de miniaturas en TimelinePrecisionView.
+
+## [1.3.67] - 2026-01-09
+### Corregido
+- Reducido el thrashing de miniaturas al desplazar el timeline.
+
+## [1.3.66] - 2026-01-09
+### Corregido
+- Permitir miniaturas por clip usando URI específica en el timeline.
+
+## [1.3.65] - 2026-01-09
+### Corregido
+- Evitar crash al comprimir miniaturas en Android < 11.
+
+## [1.3.64] - 2026-01-09
+### Corregido
+- Lista de proyectos recientes conectada con el listado principal.
+
+## [1.3.63] - 2026-01-09
+### Corregido
+- Aplicación del ajuste de efecto en cascada según preferencias del usuario.
+
+## [1.3.62] - 2026-01-09
+### Corregido
+- Aplicación del tema y modo AMOLED según preferencias del usuario.
+
+## [1.3.61] - 2026-01-09
+### Corregido
+- Unificación del VideoEditorViewModel para el flujo del timeline y exportación.
+
+## [1.3.60] - 2026-01-09
+### Añadido
+- Reporte de posibles fallos del timeline.
+
 ## [1.3.59] - 2026-01-09
 ### Corregido
 - Error de compilación en la pantalla del editor por cierre de bloque fuera de lugar.

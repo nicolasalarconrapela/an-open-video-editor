@@ -22,6 +22,10 @@ import com.arthenica.ffmpegkit.FFmpegKitConfig
 import com.arthenica.ffmpegkit.SessionState
 import io.github.devhyper.openvideoeditor.R
 import io.github.devhyper.openvideoeditor.misc.getVideoFileDuration
+import io.github.devhyper.openvideoeditor.videoeditor.export.ExportStrategy
+import io.github.devhyper.openvideoeditor.videoeditor.export.FfmpegLosslessStrategy
+import io.github.devhyper.openvideoeditor.videoeditor.export.SegmentedExportStrategy
+import io.github.devhyper.openvideoeditor.videoeditor.export.TransformerExportStrategy
 import java.io.File
 
 class ExportManager(private val context: Context, private val projectData: ProjectData) {
@@ -39,101 +43,7 @@ class ExportManager(private val context: Context, private val projectData: Proje
             "ExportDebug",
             "🚀 ExportManager.export called. Output: ${exportSettings.outputPath}"
         )
-        val outputPath = exportSettings.outputPath
-        val totalDurationMs = getExportDurationMs(context)
-
-        val onFFmpegErrorLocal = { onError(context.getString(R.string.ffmpeg_error)) }
-
-        if (shouldUseSegmentedExport(context, exportSettings)) {
-            val state = resolveSegmentExportState(context, exportSettings, totalDurationMs)
-            val segments = buildSegmentRanges(totalDurationMs, exportSettings.segmentDurationMs)
-            val filteredSegments = segments.filter { it.durationMs > 0 }
-            if (filteredSegments.isEmpty()) {
-                onFFmpegErrorLocal()
-                return
-            }
-            if (canUseLosslessSegmentCopy(exportSettings)) {
-                startSegmentedExportWithFfmpeg(
-                    context,
-                    projectData.uri,
-                    onFFmpegErrorLocal,
-                    filteredSegments,
-                    state,
-                    onCompleted
-                )
-            } else {
-                startSegmentedExportWithTransformer(
-                    context,
-                    exportSettings,
-                    onError,
-                    onFFmpegErrorLocal,
-                    filteredSegments,
-                    state,
-                    onCompleted
-                )
-            }
-            return
-        }
-        if (exportSettings.losslessCut) {
-            val trim = getMergedTrim()
-            if (trim != null) {
-                ffmpegLosslessCut(context, trim, outputPath, false, onFFmpegErrorLocal, onCompleted)
-            }
-        } else {
-            val fd =
-                context.contentResolver.openFileDescriptor(
-                    outputPath.toUri(),
-                    "rw"
-                )?.fileDescriptor
-            val effectArray = getEffectArray()
-            effectArray.apply {
-                if (exportSettings.speed > 0) {
-                    add(SpeedChangeEffect(exportSettings.speed))
-                }
-                if (exportSettings.framerate > 0) {
-                    add(FrameDropEffect.createDefaultFrameDropEffect(exportSettings.framerate))
-                }
-            }
-
-            val trimmedExportMedia = getTrimmedExportMedia()
-
-            val editedMediaItem = EditedMediaItem.Builder(trimmedExportMedia)
-                .setEffects(Effects(projectData.audioProcessors, effectArray))
-                .setRemoveAudio(!exportSettings.exportAudio)
-                .setRemoveVideo(!exportSettings.exportVideo)
-                .build()
-
-            val transformerListener = object : Transformer.Listener {
-                override fun onCompleted(composition: Composition, result: ExportResult) {
-                    onCompleted()
-                }
-
-                override fun onError(
-                    composition: Composition,
-                    result: ExportResult,
-                    exception: ExportException
-                ) {
-                    onError(exception.toString())
-                }
-            }
-
-            transformer = Transformer.Builder(context)
-                .setTransformationRequest(
-                    TransformationRequest.Builder()
-                        .setHdrMode(exportSettings.hdrMode)
-                        .setAudioMimeType(exportSettings.audioMimeType)
-                        .setVideoMimeType(exportSettings.videoMimeType)
-                        .build()
-                )
-                .setMuxerFactory(CustomMuxer.Factory(fd))
-                .addListener(transformerListener)
-                .build()
-            if (fd != null) {
-                transformer!!.start(editedMediaItem, "")
-            } else {
-                transformer!!.start(editedMediaItem, outputPath)
-            }
-        }
+        selectStrategy(exportSettings, onError).export(exportSettings, onCompleted, onError)
     }
 
     fun cancel() {
@@ -149,6 +59,10 @@ class ExportManager(private val context: Context, private val projectData: Proje
         cleanupSegmentsStatic(context, outputPath)
         projectData.segmentExportState = null
     }
+
+    internal fun getContext(): Context = context
+
+    internal fun getProjectUri(): String = projectData.uri
 
     companion object {
         /**
@@ -188,6 +102,67 @@ class ExportManager(private val context: Context, private val projectData: Proje
         return currentProgress
     }
 
+    internal fun exportWithTransformer(
+        exportSettings: ExportSettings,
+        onCompleted: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val outputPath = exportSettings.outputPath
+        val fd =
+            context.contentResolver.openFileDescriptor(
+                outputPath.toUri(),
+                "rw"
+            )?.fileDescriptor
+        val effectArray = getEffectArray()
+        effectArray.apply {
+            if (exportSettings.speed > 0) {
+                add(SpeedChangeEffect(exportSettings.speed))
+            }
+            if (exportSettings.framerate > 0) {
+                add(FrameDropEffect.createDefaultFrameDropEffect(exportSettings.framerate))
+            }
+        }
+
+        val trimmedExportMedia = getTrimmedExportMedia()
+
+        val editedMediaItem = EditedMediaItem.Builder(trimmedExportMedia)
+            .setEffects(Effects(projectData.audioProcessors, effectArray))
+            .setRemoveAudio(!exportSettings.exportAudio)
+            .setRemoveVideo(!exportSettings.exportVideo)
+            .build()
+
+        val transformerListener = object : Transformer.Listener {
+            override fun onCompleted(composition: Composition, result: ExportResult) {
+                onCompleted()
+            }
+
+            override fun onError(
+                composition: Composition,
+                result: ExportResult,
+                exception: ExportException
+            ) {
+                onError(exception.toString())
+            }
+        }
+
+        transformer = Transformer.Builder(context)
+            .setTransformationRequest(
+                TransformationRequest.Builder()
+                    .setHdrMode(exportSettings.hdrMode)
+                    .setAudioMimeType(exportSettings.audioMimeType)
+                    .setVideoMimeType(exportSettings.videoMimeType)
+                    .build()
+            )
+            .setMuxerFactory(CustomMuxer.Factory(fd))
+            .addListener(transformerListener)
+            .build()
+        if (fd != null) {
+            transformer!!.start(editedMediaItem, "")
+        } else {
+            transformer!!.start(editedMediaItem, outputPath)
+        }
+    }
+
     private fun getTrimmedExportMedia(): MediaItem {
         val trim = getMergedTrim()
         return if (trim != null) {
@@ -208,7 +183,7 @@ class ExportManager(private val context: Context, private val projectData: Proje
     }
 
     // Made public or internal so TransformManager can use it if needed, or kept private
-    private fun getMergedTrim(): Trim? {
+    internal fun getMergedTrim(): Trim? {
         if (projectData.mediaTrims.isNotEmpty()) {
             var currentPair = projectData.mediaTrims[0]
 
@@ -227,7 +202,7 @@ class ExportManager(private val context: Context, private val projectData: Proje
         return null
     }
 
-    private fun getExportDurationMs(context: Context): Long {
+    internal fun getExportDurationMs(context: Context): Long {
         val trim = getMergedTrim()
         val baseDuration = getVideoFileDuration(context, projectData.uri.toUri()) ?: 0L
         return if (trim != null) {
@@ -237,14 +212,14 @@ class ExportManager(private val context: Context, private val projectData: Proje
         }
     }
 
-    private fun getExportFileSize(context: Context): Long? {
+    internal fun getExportFileSize(context: Context): Long? {
         val fd = context.contentResolver.openAssetFileDescriptor(projectData.uri.toUri(), "r")
         val fileSize = fd?.length
         fd?.close()
         return fileSize
     }
 
-    private fun shouldUseSegmentedExport(
+    internal fun shouldUseSegmentedExport(
         context: Context,
         exportSettings: ExportSettings
     ): Boolean {
@@ -271,7 +246,7 @@ class ExportManager(private val context: Context, private val projectData: Proje
         return segmentDirectory
     }
 
-    private fun resolveSegmentExportState(
+    internal fun resolveSegmentExportState(
         context: Context,
         exportSettings: ExportSettings,
         totalDurationMs: Long,
@@ -357,7 +332,7 @@ class ExportManager(private val context: Context, private val projectData: Proje
         }
     }
 
-    private fun canUseLosslessSegmentCopy(exportSettings: ExportSettings): Boolean {
+    internal fun canUseLosslessSegmentCopy(exportSettings: ExportSettings): Boolean {
         val noEffects = projectData.videoEffects.isEmpty() && projectData.audioProcessors.isEmpty()
         val noSpeedOrFramerate = exportSettings.speed <= 0 && exportSettings.framerate <= 0
         val defaultMimeTypes =
@@ -366,7 +341,7 @@ class ExportManager(private val context: Context, private val projectData: Proje
         return noEffects && noSpeedOrFramerate && defaultMimeTypes && keepAudioVideo
     }
 
-    private fun startSegmentedExportWithFfmpeg(
+    internal fun startSegmentedExportWithFfmpeg(
         context: Context,
         inputUri: String,
         onFFmpegError: () -> Unit,
@@ -465,7 +440,7 @@ class ExportManager(private val context: Context, private val projectData: Proje
         exportNextSegment(0)
     }
 
-    private fun startSegmentedExportWithTransformer(
+    internal fun startSegmentedExportWithTransformer(
         context: Context,
         exportSettings: ExportSettings,
         onError: (String) -> Unit,
@@ -564,7 +539,7 @@ class ExportManager(private val context: Context, private val projectData: Proje
         exportNextSegment(0)
     }
 
-    private fun ffmpegLosslessCut(
+    internal fun ffmpegLosslessCut(
         context: Context,
         trim: Trim,
         outputPath: String,
@@ -617,6 +592,20 @@ class ExportManager(private val context: Context, private val projectData: Proje
             } else {
                 ffmpegLosslessCut(context, trim, outputPath, true, onFFmpegError, onCompleted)
             }
+        }
+    }
+
+    private fun selectStrategy(
+        exportSettings: ExportSettings,
+        onError: (String) -> Unit
+    ): ExportStrategy {
+        val onFFmpegErrorLocal = { onError(context.getString(R.string.ffmpeg_error)) }
+        return if (shouldUseSegmentedExport(context, exportSettings)) {
+            SegmentedExportStrategy(this, onFFmpegErrorLocal)
+        } else if (exportSettings.losslessCut) {
+            FfmpegLosslessStrategy(this, onFFmpegErrorLocal)
+        } else {
+            TransformerExportStrategy(this)
         }
     }
 }

@@ -12,6 +12,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -46,41 +48,70 @@ private val LightColorScheme = lightColorScheme(
     */
 )
 
+val LocalUiCascadingEffect = staticCompositionLocalOf { false }
+
 @Composable
 fun OpenVideoEditorTheme(
-    forceDarkTheme: Boolean = true, // Default to true for 2026 aesthetic
-    forceBlackStatusBar: Boolean = true, // Default to true
+    forceDarkTheme: Boolean = false,
+    forceBlackStatusBar: Boolean = true,
     // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = false, // Disable dynamic color to enforce our palette
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val dataStore = SettingsDataStore(LocalContext.current)
-    // We override user prefs for now to enforce the new design,
-    // or we can treat them as "soft" preferences.
-    // Given the request "revise el diseño... 2026", we prioritize the new look.
     val theme by dataStore.getThemeAsync().collectAsState(dataStore.getThemeBlocking())
     val amoled by dataStore.getAmoledAsync().collectAsState(dataStore.getAmoledBlocking())
+    val uiCascadingEffect by dataStore.getUiCascadingEffectAsync()
+        .collectAsState(dataStore.getUiCascadingEffectBlocking())
 
-    // Enforce dark theme for the 2026 look
-    val darkTheme = true
+    val systemDark = isSystemInDarkTheme()
+    val darkTheme = when (theme) {
+        "Light" -> false
+        "Dark" -> true
+        else -> systemDark
+    } || forceDarkTheme
 
-    val colorScheme = DarkColorScheme.copy(
-        background = AbsoluteBlack,
-        surface = AbsoluteBlack
-    )
+    val baseScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            if (darkTheme) {
+                dynamicDarkColorScheme(LocalContext.current)
+            } else {
+                dynamicLightColorScheme(LocalContext.current)
+            }
+        }
+
+        darkTheme -> DarkColorScheme
+        else -> LightColorScheme
+    }
+
+    val colorScheme = if (darkTheme && amoled) {
+        baseScheme.copy(
+            background = AbsoluteBlack,
+            surface = AbsoluteBlack
+        )
+    } else {
+        baseScheme
+    }
 
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = AbsoluteBlack.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
+            val statusBarColor = if (forceBlackStatusBar && darkTheme && amoled) {
+                AbsoluteBlack
+            } else {
+                colorScheme.background
+            }
+            window.statusBarColor = statusBarColor.toArgb()
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    CompositionLocalProvider(LocalUiCascadingEffect provides uiCascadingEffect) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
 }
