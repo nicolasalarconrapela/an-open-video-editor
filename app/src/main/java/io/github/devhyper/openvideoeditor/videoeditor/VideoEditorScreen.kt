@@ -246,25 +246,29 @@ fun VideoEditorScreen(
                         id = "clip-1",
                         durationMs = 3_000L,
                         label = "Intro",
-                        type = TimelineClipType.Video
+                        type = TimelineClipType.Video,
+                        mediaUri = uri
                     ),
                     TimelineUiClip(
                         id = "clip-2",
                         durationMs = 6_500L,
                         label = "Entrevista",
-                        type = TimelineClipType.Video
+                        type = TimelineClipType.Video,
+                        mediaUri = uri
                     ),
                     TimelineUiClip(
                         id = "clip-3",
                         durationMs = 4_000L,
                         label = "B-roll",
-                        type = TimelineClipType.Video
+                        type = TimelineClipType.Video,
+                        mediaUri = uri
                     ),
                     TimelineUiClip(
                         id = "clip-4",
                         durationMs = 2_500L,
                         label = "Outro",
-                        type = TimelineClipType.Video
+                        type = TimelineClipType.Video,
+                        mediaUri = uri
                     )
                 )
             ),
@@ -276,25 +280,29 @@ fun VideoEditorScreen(
                         id = "clip-5",
                         durationMs = 3_000L,
                         label = "Música",
-                        type = TimelineClipType.Audio
+                        type = TimelineClipType.Audio,
+                        mediaUri = uri
                     ),
                     TimelineUiClip(
                         id = "clip-6",
                         durationMs = 6_500L,
                         label = "Ambiente",
-                        type = TimelineClipType.Audio
+                        type = TimelineClipType.Audio,
+                        mediaUri = uri
                     ),
                     TimelineUiClip(
                         id = "clip-7",
                         durationMs = 4_000L,
                         label = "FX",
-                        type = TimelineClipType.Audio
+                        type = TimelineClipType.Audio,
+                        mediaUri = uri
                     ),
                     TimelineUiClip(
                         id = "clip-8",
                         durationMs = 2_500L,
                         label = "Cierre",
-                        type = TimelineClipType.Audio
+                        type = TimelineClipType.Audio,
+                        mediaUri = uri
                     )
                 )
             ),
@@ -306,25 +314,29 @@ fun VideoEditorScreen(
                         id = "clip-9",
                         durationMs = 3_000L,
                         label = "Texto",
-                        type = TimelineClipType.Overlay
+                        type = TimelineClipType.Overlay,
+                        mediaUri = uri
                     ),
                     TimelineUiClip(
                         id = "clip-10",
                         durationMs = 6_500L,
                         label = "Sticker",
-                        type = TimelineClipType.Overlay
+                        type = TimelineClipType.Overlay,
+                        mediaUri = uri
                     ),
                     TimelineUiClip(
                         id = "clip-11",
                         durationMs = 4_000L,
                         label = "Lower third",
-                        type = TimelineClipType.Overlay
+                        type = TimelineClipType.Overlay,
+                        mediaUri = uri
                     ),
                     TimelineUiClip(
                         id = "clip-12",
                         durationMs = 2_500L,
                         label = "Logo",
-                        type = TimelineClipType.Overlay
+                        type = TimelineClipType.Overlay,
+                        mediaUri = uri
                     )
                 )
             )
@@ -412,7 +424,7 @@ fun VideoEditorScreen(
     val thumbnailKeyProvider: (Long, TimelineUiClip, Int) -> ThumbnailKey = remember {
         { timeUs, clip, zoom ->
              ThumbnailKey(
-                 videoIdOrUri = uri,
+                 videoIdOrUri = clip.mediaUri,
                  timeUs = timeUs,
                  targetWidth = 120,
                  targetHeight = 120,

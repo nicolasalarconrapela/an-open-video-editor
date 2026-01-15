@@ -75,6 +75,7 @@ data class TimelineUiClip(
     val durationMs: Long,
     val label: String,
     val type: TimelineClipType,
+    val mediaUri: String,
     val isSelected: Boolean = false
 )
 
@@ -411,4 +412,3 @@ fun TimelineView(
         }
     }
 }
-
