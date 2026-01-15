@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.77] - 2026-01-09
+### Ajustado
+- ClipSource normalizado con offsets y parámetros de edición.
+
 ## [1.3.76] - 2026-01-09
 ### Ajustado
 - ExportManager separado en estrategias (Transformer/FFmpeg/Segmentado).

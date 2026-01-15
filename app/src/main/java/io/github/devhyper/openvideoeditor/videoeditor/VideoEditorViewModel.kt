@@ -168,7 +168,19 @@ class VideoEditorViewModel : ViewModel() {
                 block.copyWithDuration(durationMs)
             }
         }
-        return current.copy(blocks = updatedBlocks)
+        val updatedClips = current.clips.map { clip ->
+            if (clip.id != selectedId) {
+                clip
+            } else {
+                val trimDelta = (inMs - clip.sourceStartMs).coerceAtLeast(0L)
+                val newSourceStart = clip.sourceStartMs + trimDelta
+                clip.copy(
+                    durationMs = durationMs,
+                    sourceStartMs = newSourceStart
+                )
+            }
+        }
+        return current.copy(blocks = updatedBlocks, clips = updatedClips)
     }
 
     private fun splitSelectedBlock(current: EditorState, atMs: Long): EditorState {
@@ -182,7 +194,19 @@ class VideoEditorViewModel : ViewModel() {
         val second = block.copyWithDuration(block.durationMs - atMs).withId("${block.id}-b")
         blocks[index] = first
         blocks.add(index + 1, second)
-        return current.copy(blocks = blocks)
+        val clips = current.clips.toMutableList()
+        val clipIndex = clips.indexOfFirst { it.id == selectedId }
+        if (clipIndex == -1) return current.copy(blocks = blocks)
+        val clip = clips[clipIndex]
+        val firstClip = clip.copy(id = "${clip.id}-a", durationMs = atMs)
+        val secondClip = clip.copy(
+            id = "${clip.id}-b",
+            durationMs = clip.durationMs - atMs,
+            sourceStartMs = clip.sourceStartMs + atMs
+        )
+        clips[clipIndex] = firstClip
+        clips.add(clipIndex + 1, secondClip)
+        return current.copy(blocks = blocks, clips = clips)
     }
 
     private fun moveBlock(current: EditorState, from: Int, to: Int): EditorState {
@@ -194,7 +218,15 @@ class VideoEditorViewModel : ViewModel() {
         val block = blocks.removeAt(boundedFrom)
         val insertIndex = if (boundedFrom < boundedTo) boundedTo - 1 else boundedTo
         blocks.add(insertIndex, block)
-        return current.copy(blocks = blocks)
+        val clips = current.clips.toMutableList()
+        if (clips.isEmpty()) return current.copy(blocks = blocks)
+        val clipFrom = boundedFrom.coerceIn(0, clips.lastIndex)
+        val clipTo = boundedTo.coerceIn(0, clips.lastIndex)
+        if (clipFrom == clipTo) return current.copy(blocks = blocks)
+        val clip = clips.removeAt(clipFrom)
+        val clipInsertIndex = if (clipFrom < clipTo) clipTo - 1 else clipTo
+        clips.add(clipInsertIndex, clip)
+        return current.copy(blocks = blocks, clips = clips)
     }
 
     private fun TimelineBlock.copyWithDuration(durationMs: Long): TimelineBlock =
