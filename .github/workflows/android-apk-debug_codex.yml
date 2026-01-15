@@ -7,12 +7,23 @@ on:
       - "codex/2026-01-12/02-38-18/fix-unresolved-references-in-videoeditorscreen"
       - "codex/2026-01-12/14-39-17/implementar-sistema-de-miniaturas-de-linea-de-tiempo"
       - "codex/2026-01-12/22-00-29/explore-ui-2027-highlights"
-      - "work"
+      - "jules-redesign-2026-13380855417231273474"
+    # (Opcional) evita builds si solo cambian docs/markdown
+    # paths:
+    #   - "**/*.kt"
+    #   - "**/*.kts"
+    #   - "**/*.gradle"
+    #   - "**/*.gradle.kts"
+    #   - "gradle/**"
+    #   - "app/**"
   workflow_dispatch:
 
 concurrency:
-  group: apk-debug-codex
+  group: apk-debug-codex-${{ github.ref }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   apk-debug:
@@ -20,70 +31,84 @@ jobs:
     timeout-minutes: 45
 
     env:
+      # Ajustes CI típicos: menos sorpresas, más determinismo
       GRADLE_OPTS: >-
         -Dorg.gradle.caching=true
         -Dorg.gradle.parallel=true
         -Dorg.gradle.configureondemand=true
-        -Dkotlin.compiler.execution.strategy=in-process
         -Dkotlin.incremental=true
-        -Dkotlin.daemon.jvmargs=-Xmx2g
-        -Dorg.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8
+        -Dfile.encoding=UTF-8
+      # Si tu build revienta por memoria, sube esto antes que inventarte DNS hacks
+      # (En GH runners suele ir bien 3g/4g, depende del proyecto)
+      ORG_GRADLE_JVMARGS: -Xmx4g -Dfile.encoding=UTF-8
+      KOTLIN_DAEMON_JVMARGS: -Xmx2g
 
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up JDK
-        uses: actions/setup-java@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          distribution: temurin
-          java-version: "17"
-          cache: gradle
-
-      - name: Fix DNS for Maven repositories
-        run: |
-          sudo bash -c 'printf "nameserver 1.1.1.1\nnameserver 8.8.8.8\n" > /etc/resolv.conf'
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Accept Android SDK licenses
-        run: yes | sdkmanager --licenses
+          fetch-depth: 0
 
       - name: Validate Gradle wrapper
         uses: gradle/wrapper-validation-action@v2
 
-      # Caché extra (más agresiva) para Gradle:
-      - name: Cache Gradle (wrapper + caches)
-        uses: actions/cache@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: >
-            ${{ runner.os }}-gradle-
-            ${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/settings.gradle*', '**/gradle.properties', '**/libs.versions.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
+          distribution: temurin
+          java-version: "17"
+          # Importante: NO usar cache aquí si vas a usar setup-gradle
+          # cache: gradle
+
+      # Setup Gradle moderno: caché + mejoras de rendimiento integradas
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          # (Opcional) guarda/restaura caché automáticamente
+          cache-read-only: false
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      # (Opcional) Licencias: muchas veces no hace falta si ya viene listo el runner,
+      # pero lo dejo porque evita fallos en proyectos que descargan componentes.
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses
 
       - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+        run: chmod +x ./gradlew
 
-      - name: Warm Gradle cache
-        run: ./gradlew --no-daemon --stacktrace help
-
-      # Recomendado para CI: evita daemon y reduce “ruido”
+      # Build “limpio” y con logs razonables:
+      # - --stacktrace solo cuando lo necesitas (si falla, ya lo verás en logs)
+      # - --no-daemon recomendado en CI
       - name: Build Debug APK
-        run: ./gradlew :app:assembleDebug --no-daemon --parallel --stacktrace
+        run: |
+          ./gradlew :app:assembleDebug \
+            --no-daemon \
+            --parallel \
+            -Dorg.gradle.jvmargs="${ORG_GRADLE_JVMARGS}" \
+            -Dkotlin.daemon.jvmargs="${KOTLIN_DAEMON_JVMARGS}" \
+            --info
 
+      # Sacar versionName y versionCode en UNA invocación de :app:properties
       - name: Set APK artifact name
         id: apk_name
+        shell: bash
         run: |
-          VERSION_NAME=$(./gradlew -q :app:properties --no-daemon | awk -F': ' '/^versionName/ {print $2}' | tr -d '\r')
-          VERSION_CODE=$(./gradlew -q :app:properties --no-daemon | awk -F': ' '/^versionCode/ {print $2}' | tr -d '\r')
+          PROPS="$(./gradlew -q :app:properties --no-daemon)"
+          VERSION_NAME="$(echo "$PROPS" | awk -F': ' '/^versionName/ {print $2}' | head -n1 | tr -d '\r')"
+          VERSION_CODE="$(echo "$PROPS" | awk -F': ' '/^versionCode/ {print $2}' | head -n1 | tr -d '\r')"
+
+          # Fallbacks por si algún plugin raro no los expone
+          VERSION_NAME="${VERSION_NAME:-unknownName}"
+          VERSION_CODE="${VERSION_CODE:-0}"
+
           echo "name=open-video-editor-${VERSION_NAME}(${VERSION_CODE})-debug-apk" >> "$GITHUB_OUTPUT"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.apk_name.outputs.name }}
-          path: app/build/outputs/apk/debug/*.apk
+          path: |
+            app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error

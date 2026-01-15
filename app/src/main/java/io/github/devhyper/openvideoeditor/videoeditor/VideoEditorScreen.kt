@@ -150,6 +150,10 @@ import io.github.devhyper.openvideoeditor.misc.validateUInt
 import io.github.devhyper.openvideoeditor.settings.SettingsActivity
 import io.github.devhyper.openvideoeditor.ui.theme.OpenVideoEditorTheme
 import io.github.devhyper.openvideoeditor.videoeditor.state.EditorState
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRepository
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.cache.BitmapMemoryCache
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.cache.DiskThumbnailCache
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineClipType
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineUiClip
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineUiTrack
@@ -330,6 +334,13 @@ fun VideoEditorScreen(
 
     val videoTitle = remember(uri) { getFileNameFromUri(context, uri.toUri()) }
 
+    LaunchedEffect(uri) {
+        val path = Uri.parse(uri).path
+        if (path != null && File(path).exists() && path.endsWith(".$PROJECT_FILE_EXT", ignoreCase = true)) {
+            viewModel.setProjectOutputPath(path)
+        }
+    }
+
     val workManager = remember { WorkManager.getInstance(context) }
     // We observe all video_export works
     val exportWorkInfos by workManager.getWorkInfosByTagFlow("video_export")
@@ -367,6 +378,48 @@ fun VideoEditorScreen(
             viewModel.setCurrentExportWorkId(null)
             // Prune old completed works
             workManager.pruneWork()
+        }
+    }
+
+    // Initialize ThumbnailRepository
+    val memoryCache = remember { BitmapMemoryCache() }
+    val diskCache = remember { DiskThumbnailCache(context) }
+    val thumbnailRepository = remember(context, screenScope) {
+        ThumbnailRepository(
+            scope = screenScope,
+            dispatcher = Dispatchers.IO,
+            memoryCache = memoryCache,
+            diskCache = diskCache,
+            decode = { key ->
+                val retriever = MediaMetadataRetriever()
+                try {
+                    retriever.setDataSource(context, Uri.parse(key.videoIdOrUri))
+                    retriever.getFrameAtTime(key.timeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)?.let { original ->
+                        if (key.targetWidth > 0 && key.targetHeight > 0) {
+                             Bitmap.createScaledBitmap(original, key.targetWidth, key.targetHeight, true)
+                        } else {
+                             original
+                        }
+                    }
+                } catch (e: Exception) {
+                    null
+                } finally {
+                    retriever.release()
+                }
+            }
+        )
+    }
+
+    val thumbnailKeyProvider: (Long, TimelineUiClip, Int) -> ThumbnailKey = remember {
+        { timeUs, clip, zoom ->
+             ThumbnailKey(
+                 videoIdOrUri = uri,
+                 timeUs = timeUs,
+                 targetWidth = 120,
+                 targetHeight = 120,
+                 rotationDegrees = 0,
+                 zoomBucket = zoom
+             )
         }
     }
 
@@ -693,6 +746,7 @@ private fun TopControls(
 ) {
     val activity = LocalContext.current as Activity
     val viewModel = viewModel { VideoEditorViewModel() }
+    val projectOutputPath by viewModel.projectOutputPath.collectAsState()
     val projectSavingSupported by viewModel.projectSavingSupported.collectAsState()
     val videoTitle = remember(title()) { title() }
     val scope = rememberCoroutineScope()
@@ -751,22 +805,29 @@ private fun TopControls(
                         onClick = {
                             showThreeDotMenu = false
                             scope.launch(Dispatchers.IO) {
-                                val saved = saveInternalProject(
+                                val savedPath = saveInternalProject(
                                     activity = activity,
                                     transformManager = transformManager,
-                                    videoTitle = videoTitle
+                                    videoTitle = videoTitle,
+                                    existingPath = projectOutputPath
                                 )
-                                val messageId = if (saved) {
-                                    R.string.project_saved
+                                if (savedPath != null) {
+                                    viewModel.setProjectOutputPath(savedPath)
+                                    activity.runOnUiThread {
+                                        Toast.makeText(
+                                            activity,
+                                            activity.getString(R.string.project_saved),
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
                                 } else {
-                                    R.string.project_save_failed
-                                }
-                                activity.runOnUiThread {
-                                    Toast.makeText(
-                                        activity,
-                                        activity.getString(messageId),
-                                        Toast.LENGTH_SHORT
-                                    ).show()
+                                    activity.runOnUiThread {
+                                        Toast.makeText(
+                                            activity,
+                                            activity.getString(R.string.project_save_failed),
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
                                 }
                             }
                         })
@@ -876,7 +937,9 @@ private fun BottomControls(
     editorState: EditorState,
     timelineTracks: MutableList<TimelineUiTrack>,
     timelineListState: LazyListState,
-    onPlayerSeek: (Long) -> Unit
+    onPlayerSeek: (Long) -> Unit,
+    thumbnailRepository: ThumbnailRepository? = null,
+    thumbnailKeyProvider: ((timeUs: Long, clip: TimelineUiClip, zoomBucket: Int) -> ThumbnailKey)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -917,7 +980,9 @@ private fun BottomControls(
                     viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomByDelta(zoomDelta))
                 },
                 onTrim = { _, _, _ -> },
-                onSeek = { timeMs -> onPlayerSeek(timeMs) }
+                onSeek = { timeMs -> onPlayerSeek(timeMs) },
+                thumbnailRepository = thumbnailRepository,
+                thumbnailKeyProvider = thumbnailKeyProvider
             )
         }
 
@@ -1848,11 +1913,16 @@ private fun createInternalProjectFile(context: Context, videoTitle: String): Fil
 private fun saveInternalProject(
     activity: Activity,
     transformManager: TransformManager,
-    videoTitle: String
-): Boolean {
+    videoTitle: String,
+    existingPath: String?
+): String? {
     return runCatching {
-        val projectFile = createInternalProjectFile(activity, videoTitle)
+        val projectFile = if (!existingPath.isNullOrEmpty()) {
+            File(existingPath)
+        } else {
+            createInternalProjectFile(activity, videoTitle)
+        }
         transformManager.projectData.write(projectFile.toUri().toString(), activity)
-        true
-    }.getOrDefault(false)
+        projectFile.absolutePath
+    }.getOrNull()
 }
