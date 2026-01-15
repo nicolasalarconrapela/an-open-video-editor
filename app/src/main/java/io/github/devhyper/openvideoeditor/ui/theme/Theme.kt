@@ -12,6 +12,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -46,6 +48,8 @@ private val LightColorScheme = lightColorScheme(
     */
 )
 
+val LocalUiCascadingEffect = staticCompositionLocalOf { false }
+
 @Composable
 fun OpenVideoEditorTheme(
     forceDarkTheme: Boolean = false,
@@ -57,6 +61,8 @@ fun OpenVideoEditorTheme(
     val dataStore = SettingsDataStore(LocalContext.current)
     val theme by dataStore.getThemeAsync().collectAsState(dataStore.getThemeBlocking())
     val amoled by dataStore.getAmoledAsync().collectAsState(dataStore.getAmoledBlocking())
+    val uiCascadingEffect by dataStore.getUiCascadingEffectAsync()
+        .collectAsState(dataStore.getUiCascadingEffectBlocking())
 
     val systemDark = isSystemInDarkTheme()
     val darkTheme = when (theme) {
@@ -101,9 +107,11 @@ fun OpenVideoEditorTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    CompositionLocalProvider(LocalUiCascadingEffect provides uiCascadingEffect) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
 }

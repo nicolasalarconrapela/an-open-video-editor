@@ -83,6 +83,7 @@ import io.github.devhyper.openvideoeditor.ui.theme.AbsoluteBlack
 import io.github.devhyper.openvideoeditor.ui.theme.ElectricBlue
 import io.github.devhyper.openvideoeditor.ui.theme.GlassBackground
 import io.github.devhyper.openvideoeditor.ui.theme.GlassBorder
+import io.github.devhyper.openvideoeditor.ui.theme.LocalUiCascadingEffect
 import io.github.devhyper.openvideoeditor.ui.theme.OpenVideoEditorTheme
 import io.github.devhyper.openvideoeditor.ui.theme.TextGray
 import io.github.devhyper.openvideoeditor.ui.theme.TextWhite
@@ -282,15 +283,22 @@ private fun ProjectCard(
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var showRenameDialog by rememberSaveable { mutableStateOf(false) }
     var renameValue by rememberSaveable(entry.title) { mutableStateOf(entry.title) }
+    val useUiCascadingEffect = LocalUiCascadingEffect.current
+    val cardBackground = if (useUiCascadingEffect) {
+        GlassBackground
+    } else {
+        Color(0xFF111111)
+    }
+    val cardBorder = if (useUiCascadingEffect) GlassBorder else Color.Transparent
 
     // Glassmorphism Card
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(GlassBackground)
+            .background(cardBackground)
             .border(
-                BorderStroke(1.dp, GlassBorder),
+                BorderStroke(1.dp, cardBorder),
                 RoundedCornerShape(16.dp)
             )
             .clickable { onOpenProject(entry.uri) }

@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.63] - 2026-01-09
+### Corregido
+- Aplicación del ajuste de efecto en cascada según preferencias del usuario.
+
 ## [1.3.62] - 2026-01-09
 ### Corregido
 - Aplicación del tema y modo AMOLED según preferencias del usuario.
