@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.71] - 2026-01-09
+### Ajustado
+- Workflow de APK debug actualizado para incluir la rama work.
+
 ## [1.3.70] - 2026-01-09
 ### Corregido
 - Sincronización de escritura de miniaturas en TimelineView para evitar problemas de threading.
