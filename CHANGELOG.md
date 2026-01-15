@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.64] - 2026-01-09
+### Corregido
+- Lista de proyectos recientes conectada con el listado principal.
+
 ## [1.3.63] - 2026-01-09
 ### Corregido
 - Aplicación del ajuste de efecto en cascada según preferencias del usuario.
