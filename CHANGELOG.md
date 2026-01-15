@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.78] - 2026-01-09
+### Ajustado
+- Gestos del timeline conectados con eventos de recorte, split, selección y reordenado en el estado del editor.
+
 ## [1.3.77] - 2026-01-09
 ### Ajustado
 - ClipSource normalizado con offsets y parámetros de edición.
