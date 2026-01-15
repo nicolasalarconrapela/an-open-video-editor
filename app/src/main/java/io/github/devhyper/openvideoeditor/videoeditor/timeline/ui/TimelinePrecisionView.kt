@@ -97,6 +97,7 @@ fun TimelinePrecisionView(
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
     val thumbnailState = remember { mutableStateMapOf<String, android.graphics.Bitmap?>() }
+    val neededKeys = remember { mutableSetOf<String>() }
 
     BoxWithConstraints(
         modifier = modifier
@@ -144,6 +145,16 @@ fun TimelinePrecisionView(
                         onSeek(timeMs + offsetMs)
                     }
                 }
+        }
+
+        LaunchedEffect(videoTrack, pixelsPerSecond, listState.firstVisibleItemIndex) {
+            if (thumbnailRepository == null || thumbnailKeyProvider == null || videoTrack == null) {
+                return@LaunchedEffect
+            }
+        val currentKeys = neededKeys.toSet()
+        val staleKeys = thumbnailState.keys - currentKeys
+        staleKeys.forEach { thumbnailState.remove(it) }
+        neededKeys.clear()
         }
 
         Column(
@@ -233,11 +244,15 @@ fun TimelinePrecisionView(
                                         val timeMs = i * intervalMs
                                         val key = thumbnailKeyProvider(timeMs * 1000, clip, 0)
                                         val bitmap = thumbnailState[key.keyString()]
+                                        val keyString = key.keyString()
+                                        SideEffect {
+                                            neededKeys.add(keyString)
+                                        }
 
                                         LaunchedEffect(key) {
-                                            if (thumbnailState[key.keyString()] == null) {
+                                            if (thumbnailState[keyString] == null) {
                                                 val bmp = thumbnailRepository.getOrRequest(key)
-                                                if (bmp != null) thumbnailState[key.keyString()] = bmp
+                                                if (bmp != null) thumbnailState[keyString] = bmp
                                             }
                                         }
 

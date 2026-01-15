@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.68] - 2026-01-09
+### Corregido
+- Limpieza granular de miniaturas en TimelinePrecisionView.
+
 ## [1.3.67] - 2026-01-09
 ### Corregido
 - Reducido el thrashing de miniaturas al desplazar el timeline.
