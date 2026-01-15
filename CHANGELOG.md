@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.65] - 2026-01-09
+### Corregido
+- Evitar crash al comprimir miniaturas en Android < 11.
+
 ## [1.3.64] - 2026-01-09
 ### Corregido
 - Lista de proyectos recientes conectada con el listado principal.

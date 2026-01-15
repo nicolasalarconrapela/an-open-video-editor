@@ -26,11 +26,10 @@ class DiskThumbnailCache(
         return bitmap
     }
 
-    @RequiresApi(Build.VERSION_CODES.R)
     fun put(
         key: String,
         bitmap: Bitmap,
-        format: Bitmap.CompressFormat = Bitmap.CompressFormat.WEBP_LOSSY
+        format: Bitmap.CompressFormat = defaultFormat()
     ) {
         val file = fileForKey(key)
         if (!file.parentFile.exists()) {
@@ -41,6 +40,15 @@ class DiskThumbnailCache(
         }
         file.setLastModified(System.currentTimeMillis())
         trimToSize(maxSizeBytes)
+    }
+
+    private fun defaultFormat(): Bitmap.CompressFormat {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Bitmap.CompressFormat.WEBP_LOSSY
+        } else {
+            @Suppress("DEPRECATION")
+            Bitmap.CompressFormat.WEBP
+        }
     }
 
     fun clear() {
