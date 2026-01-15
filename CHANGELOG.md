@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.72] - 2026-01-09
+### Ajustado
+- Workflow de APK debug actualizado para incluir la rama de revisión 2026-01-15.
+
 ## [1.3.71] - 2026-01-09
 ### Ajustado
 - Workflow de APK debug actualizado para incluir la rama work.
