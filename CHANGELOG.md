@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.70] - 2026-01-09
+### Corregido
+- Sincronización de escritura de miniaturas en TimelineView para evitar problemas de threading.
+
 ## [1.3.69] - 2026-01-09
 ### Corregido
 - Ajuste de tamaño de miniaturas para evitar reescalado innecesario.

@@ -264,13 +264,17 @@ fun TimelineView(
                         neededKeys.add(keyString)
                         val bitmap = thumbnailRepository.getOrRequest(key)
                         if (bitmap != null) {
-                            thumbnailState[keyString] = bitmap
+                            withContext(Dispatchers.Main) {
+                                thumbnailState[keyString] = bitmap
+                            }
                         }
                         timeMs += thumbnailIntervalMs
                     }
                 }
-                val staleKeys = thumbnailState.keys - neededKeys
-                staleKeys.forEach { thumbnailState.remove(it) }
+                withContext(Dispatchers.Main) {
+                    val staleKeys = thumbnailState.keys - neededKeys
+                    staleKeys.forEach { thumbnailState.remove(it) }
+                }
             }
             thumbnailJob = job
         }
