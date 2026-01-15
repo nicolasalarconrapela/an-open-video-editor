@@ -7,17 +7,7 @@ on:
       - "codex/2026-01-12/02-38-18/fix-unresolved-references-in-videoeditorscreen"
       - "codex/2026-01-12/14-39-17/implementar-sistema-de-miniaturas-de-linea-de-tiempo"
       - "codex/2026-01-12/22-00-29/explore-ui-2027-highlights"
-      - "codex/2026-01-15/12-10-17/review-project-for-application-issues"
       - "jules-redesign-2026-13380855417231273474"
-      - "work"
-    # (Opcional) evita builds si solo cambian docs/markdown
-    # paths:
-    #   - "**/*.kt"
-    #   - "**/*.kts"
-    #   - "**/*.gradle"
-    #   - "**/*.gradle.kts"
-    #   - "gradle/**"
-    #   - "app/**"
   workflow_dispatch:
 
 concurrency:
@@ -33,15 +23,16 @@ jobs:
     timeout-minutes: 45
 
     env:
-      # Ajustes CI típicos: menos sorpresas, más determinismo
+      # Menos ruido de Gradle y más determinismo
+      CI: true
       GRADLE_OPTS: >-
         -Dorg.gradle.caching=true
         -Dorg.gradle.parallel=true
         -Dorg.gradle.configureondemand=true
         -Dkotlin.incremental=true
         -Dfile.encoding=UTF-8
-      # Si tu build revienta por memoria, sube esto antes que inventarte DNS hacks
-      # (En GH runners suele ir bien 3g/4g, depende del proyecto)
+        -Dorg.gradle.console=plain
+        -Dorg.gradle.warning.mode=summary
       ORG_GRADLE_JVMARGS: -Xmx4g -Dfile.encoding=UTF-8
       KOTLIN_DAEMON_JVMARGS: -Xmx2g
 
@@ -59,49 +50,56 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-          # Importante: NO usar cache aquí si vas a usar setup-gradle
-          # cache: gradle
 
-      # Setup Gradle moderno: caché + mejoras de rendimiento integradas
-      - name: Set up Gradle
+      - name: Set up Gradle (cache)
         uses: gradle/actions/setup-gradle@v4
         with:
-          # (Opcional) guarda/restaura caché automáticamente
           cache-read-only: false
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      # (Opcional) Licencias: muchas veces no hace falta si ya viene listo el runner,
-      # pero lo dejo porque evita fallos en proyectos que descargan componentes.
+      # Licencias (silencioso, sin paginazo)
       - name: Accept Android SDK licenses
-        run: yes | sdkmanager --licenses
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null
 
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
-      # Build “limpio” y con logs razonables:
-      # - --stacktrace solo cuando lo necesitas (si falla, ya lo verás en logs)
-      # - --no-daemon recomendado en CI
+      # Build "limpio": sin --info, sin --stacktrace por defecto
       - name: Build Debug APK
+        shell: bash
         run: |
+          set -euo pipefail
           ./gradlew :app:assembleDebug \
             --no-daemon \
             --parallel \
-            -Dorg.gradle.jvmargs="${ORG_GRADLE_JVMARGS}" \
-            -Dkotlin.daemon.jvmargs="${KOTLIN_DAEMON_JVMARGS}" \
-            --info
+            --warning-mode summary
 
-      # Sacar versionName y versionCode en UNA invocación de :app:properties
+      # Si falla, aquí sí abrimos la caja negra
+      - name: Build Debug APK (diagnostics on failure)
+        if: ${{ failure() }}
+        shell: bash
+        run: |
+          ./gradlew :app:assembleDebug \
+            --no-daemon \
+            --stacktrace \
+            --info \
+            --warning-mode all
+
       - name: Set APK artifact name
         id: apk_name
         shell: bash
         run: |
+          set -euo pipefail
           PROPS="$(./gradlew -q :app:properties --no-daemon)"
+
           VERSION_NAME="$(echo "$PROPS" | awk -F': ' '/^versionName/ {print $2}' | head -n1 | tr -d '\r')"
           VERSION_CODE="$(echo "$PROPS" | awk -F': ' '/^versionCode/ {print $2}' | head -n1 | tr -d '\r')"
 
-          # Fallbacks por si algún plugin raro no los expone
           VERSION_NAME="${VERSION_NAME:-unknownName}"
           VERSION_CODE="${VERSION_CODE:-0}"
 
