@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.76] - 2026-01-09
+### Ajustado
+- ExportManager separado en estrategias (Transformer/FFmpeg/Segmentado).
+
 ## [1.3.75] - 2026-01-09
 ### Ajustado
 - Coordinador unificado para solicitudes de miniaturas en el timeline.
