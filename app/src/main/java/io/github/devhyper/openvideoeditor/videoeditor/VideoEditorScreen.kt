@@ -112,6 +112,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -421,16 +422,19 @@ fun VideoEditorScreen(
         )
     }
 
-    val thumbnailKeyProvider: (Long, TimelineUiClip, Int) -> ThumbnailKey = remember {
+    val density = LocalDensity.current
+    val thumbnailKeyProvider: (Long, TimelineUiClip, Int) -> ThumbnailKey = remember(density) {
         { timeUs, clip, zoom ->
-             ThumbnailKey(
-                 videoIdOrUri = clip.mediaUri,
-                 timeUs = timeUs,
-                 targetWidth = 120,
-                 targetHeight = 120,
-                 rotationDegrees = 0,
-                 zoomBucket = zoom
-             )
+            val targetWidth = with(density) { 96.dp.roundToPx() }.coerceAtLeast(1)
+            val targetHeight = with(density) { 72.dp.roundToPx() }.coerceAtLeast(1)
+            ThumbnailKey(
+                videoIdOrUri = clip.mediaUri,
+                timeUs = timeUs,
+                targetWidth = targetWidth,
+                targetHeight = targetHeight,
+                rotationDegrees = 0,
+                zoomBucket = zoom
+            )
         }
     }
 

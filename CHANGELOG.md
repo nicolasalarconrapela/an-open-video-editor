@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.69] - 2026-01-09
+### Corregido
+- Ajuste de tamaño de miniaturas para evitar reescalado innecesario.
+
 ## [1.3.68] - 2026-01-09
 ### Corregido
 - Limpieza granular de miniaturas en TimelinePrecisionView.
