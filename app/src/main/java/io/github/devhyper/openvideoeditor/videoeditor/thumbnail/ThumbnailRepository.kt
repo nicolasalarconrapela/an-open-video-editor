@@ -67,10 +67,6 @@ class ThumbnailRepository(
         if (decoded != null && storeInMemory) {
             memoryCache.put(keyString, decoded)
         }
-        if (decoded != null && !returnBitmap && !storeInMemory) {
-            decoded.recycle()
-            return null
-        }
         return if (returnBitmap) decoded else null
     }
 
