@@ -65,17 +65,21 @@ class ThumbnailRequestCoordinator(
     fun requestPrecision(
         keys: List<ThumbnailKey>
     ) {
+        android.util.Log.d("ThumbnailCoordinator", "requestPrecision called with ${keys.size} keys")
         currentJob.value?.cancel()
         val job = scope.launch(ioDispatcher) {
             val neededKeys = mutableSetOf<String>()
             keys.forEach { key ->
                 val keyString = key.keyString()
                 neededKeys.add(keyString)
+                android.util.Log.d("ThumbnailCoordinator", "Requesting precision thumbnail: $keyString")
                 val bitmap = repository.getOrRequest(key)
                 if (bitmap != null) {
                     withContext(mainDispatcher) {
                         thumbnailState[keyString] = bitmap
                     }
+                } else {
+                    android.util.Log.w("ThumbnailCoordinator", "Precision thumbnail returned NULL: $keyString")
                 }
             }
             withContext(mainDispatcher) {

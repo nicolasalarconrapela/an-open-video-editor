@@ -318,6 +318,7 @@ fun TimelineView(
 
                             val isStart = prevCell?.clipId != cell.clipId
                             val isEnd = nextCell?.clipId != cell.clipId
+                            val isDragging = draggingClipId == cell.clipId
                             
                             val shape = RoundedCornerShape(
                                 topStart = if (isStart) 8.dp else 0.dp,
@@ -334,9 +335,49 @@ fun TimelineView(
                                     modifier = Modifier
                                         .size(thumbnailWidth, thumbnailHeight)
                                         .clip(shape)
+                                        .graphicsLayer {
+                                            alpha = if (isDragging) 0.6f else 1f
+                                            translationX = if (isDragging) dragOffsetPx else 0f
+                                        }
                                         .clickable {
                                             val clip = findClipAtTime(clipBoundaries, cell.timeMs)
                                             clip?.let { onClipSelected(videoTrack.id, it) }
+                                        }
+                                        .pointerInput(cell.clipId, isStart) {
+                                            if (isStart) {
+                                                detectDragGestures(
+                                                    onDragStart = {
+                                                        draggingClipId = cell.clipId
+                                                        dragOffsetPx = 0f
+                                                        android.util.Log.d("TimelineView", "Started dragging clip: ${cell.clipId}")
+                                                    },
+                                                    onDrag = { change, dragAmount ->
+                                                        change.consume()
+                                                        dragOffsetPx += dragAmount.x
+                                                    },
+                                                    onDragEnd = {
+                                                        android.util.Log.d("TimelineView", "Drag ended for clip: ${cell.clipId}, offset: $dragOffsetPx")
+                                                        val clip = findClipAtTime(clipBoundaries, cell.timeMs)
+                                                        if (clip != null) {
+                                                            // Calculate new index based on drag offset
+                                                            val clipIndex = videoTrack.clips.indexOf(clip)
+                                                            val cellWidthPx = with(density) { thumbnailWidth.toPx() }
+                                                            val indexShift = (dragOffsetPx / (cellWidthPx * 3)).toInt() // Require dragging multiple cells
+                                                            val newIndex = (clipIndex + indexShift).coerceIn(0, videoTrack.clips.lastIndex)
+                                                            
+                                                            if (newIndex != clipIndex) {
+                                                                onClipMoved(videoTrack.id, clip.id, newIndex)
+                                                            }
+                                                        }
+                                                        draggingClipId = null
+                                                        dragOffsetPx = 0f
+                                                    },
+                                                    onDragCancel = {
+                                                        draggingClipId = null
+                                                        dragOffsetPx = 0f
+                                                    }
+                                                )
+                                            }
                                         },
                                     contentAlignment = Alignment.Center
                                 ) {

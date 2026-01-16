@@ -315,17 +315,31 @@ fun VideoEditorScreen(
             memoryCache = memoryCache,
             diskCache = diskCache,
             decode = { key ->
+                android.util.Log.d("ThumbnailDecode", "Decoding thumbnail - URI: ${key.videoIdOrUri}, timeUs: ${key.timeUs}, size: ${key.targetWidth}x${key.targetHeight}")
                 val retriever = MediaMetadataRetriever()
                 try {
                     retriever.setDataSource(context, Uri.parse(key.videoIdOrUri))
-                    retriever.getFrameAtTime(key.timeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)?.let { original ->
-                        if (key.targetWidth > 0 && key.targetHeight > 0) {
-                             Bitmap.createScaledBitmap(original, key.targetWidth, key.targetHeight, true)
-                        } else {
-                             original
-                        }
+                    android.util.Log.d("ThumbnailDecode", "DataSource set successfully")
+                    
+                    val frame = retriever.getFrameAtTime(key.timeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                    if (frame == null) {
+                        android.util.Log.w("ThumbnailDecode", "getFrameAtTime returned NULL for timeUs: ${key.timeUs}")
+                        return@ThumbnailRepository null
                     }
+                    
+                    android.util.Log.d("ThumbnailDecode", "Frame extracted: ${frame.width}x${frame.height}")
+                    
+                    val result = if (key.targetWidth > 0 && key.targetHeight > 0) {
+                        android.util.Log.d("ThumbnailDecode", "Scaling to ${key.targetWidth}x${key.targetHeight}")
+                        Bitmap.createScaledBitmap(frame, key.targetWidth, key.targetHeight, true)
+                    } else {
+                        frame
+                    }
+                    
+                    android.util.Log.d("ThumbnailDecode", "Decode complete, returning bitmap")
+                    result
                 } catch (e: Exception) {
+                    android.util.Log.e("ThumbnailDecode", "Exception decoding thumbnail for ${key.videoIdOrUri} at ${key.timeUs}", e)
                     null
                 } finally {
                     retriever.release()
@@ -601,7 +615,8 @@ fun VideoEditorScreen(
                         timelineListState = timelineListState,
                         onPlayerSeek = { timeMs -> player.seekTo(timeMs) },
                         viewModel = viewModel,
-                        thumbnailCoordinator = thumbnailCoordinator
+                        thumbnailCoordinator = thumbnailCoordinator,
+                        thumbnailKeyProvider = thumbnailKeyProvider
                     )
                 }
             }

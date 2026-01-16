@@ -90,6 +90,12 @@ fun TimelinePrecisionView(
     val videoTrack = tracks.firstOrNull { it.clips.any { clip -> clip.type == TimelineClipType.Video } }
     val audioTrack = tracks.firstOrNull { it.clips.any { clip -> clip.type == TimelineClipType.Audio } }
     val masterClips = videoTrack?.clips.orEmpty()
+    
+    android.util.Log.d("TimelinePrecision", "TimelinePrecisionView initialized - videoTrack: ${videoTrack != null}, clips: ${masterClips.size}, thumbnailKeyProvider: ${thumbnailKeyProvider != null}")
+    if (masterClips.isNotEmpty()) {
+        android.util.Log.d("TimelinePrecision", "First clip: id=${masterClips[0].id}, mediaUri=${masterClips[0].mediaUri}, duration=${masterClips[0].durationMs}ms")
+    }
+    
     val clipStartTimes = remember(masterClips) {
         var accumulated = 0L
         masterClips.associate { clip ->
@@ -282,16 +288,21 @@ fun TimelinePrecisionView(
                                     }
                                 )
                         ) {
+                            android.util.Log.d("TimelinePrecision", "Rendering clip: ${clip.id}, thumbnailKeyProvider: ${thumbnailKeyProvider != null}")
                             if (thumbnailKeyProvider != null) {
                                 val thumbnailCount = (widthDp.value / 48f).toInt().coerceAtLeast(1)
                                 val intervalMs = clip.durationMs / thumbnailCount
                                 val keys = mutableListOf<ThumbnailKey>()
+                                android.util.Log.d("TimelinePrecision", "Clip ${clip.id}: generating $thumbnailCount thumbnails, interval: ${intervalMs}ms, mediaUri: ${clip.mediaUri}")
+                                
                                 Row(modifier = Modifier.fillMaxSize()) {
                                     repeat(thumbnailCount) { i ->
                                         val timeMs = i * intervalMs
                                         val key = thumbnailKeyProvider(timeMs * 1000, clip, 0)
                                         val bitmap = thumbnailState[key.keyString()]
                                         keys.add(key)
+                                        
+                                        android.util.Log.d("TimelinePrecision", "Thumbnail $i: timeMs=$timeMs, key=${key.keyString()}, bitmap=${bitmap != null}")
 
                                         Box(
                                             modifier = Modifier
@@ -320,8 +331,11 @@ fun TimelinePrecisionView(
                                     }
                                 }
                                 LaunchedEffect(keys) {
+                                    android.util.Log.d("TimelinePrecision", "LaunchedEffect triggered for clip ${clip.id} with ${keys.size} keys")
                                     thumbnailCoordinator.requestPrecision(keys)
                                 }
+                            } else {
+                                android.util.Log.w("TimelinePrecision", "thumbnailKeyProvider is NULL for clip ${clip.id}")
                             }
                         }
                     }

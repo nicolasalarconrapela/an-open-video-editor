@@ -24,19 +24,31 @@ class ThumbnailRepository(
 
     suspend fun getOrRequest(key: ThumbnailKey): Bitmap? {
         val keyString = key.keyString()
-        memoryCache.get(keyString)?.let { return it }
+        android.util.Log.d("ThumbnailRepo", "Requesting key: $keyString")
+        
+        memoryCache.get(keyString)?.let { 
+            android.util.Log.d("ThumbnailRepo", "Memory cache HIT for: $keyString")
+            return it 
+        }
+        
         val diskBitmap = withContext(dispatcher) { diskCache?.get(keyString) }
         if (diskBitmap != null) {
+            android.util.Log.d("ThumbnailRepo", "Disk cache HIT for: $keyString")
             memoryCache.put(keyString, diskBitmap)
             return diskBitmap
         }
+        
+        android.util.Log.d("ThumbnailRepo", "Decoding new thumbnail for: $keyString")
         val deferred = inFlight.computeIfAbsent(keyString) {
             scope.async(dispatcher) {
                 val decoded = decode(key)
                 ensureActive()
                 if (decoded != null) {
+                    android.util.Log.d("ThumbnailRepo", "Decode SUCCESS for: $keyString (${decoded.width}x${decoded.height})")
                     memoryCache.put(keyString, decoded)
                     diskCache?.put(keyString, decoded)
+                } else {
+                    android.util.Log.w("ThumbnailRepo", "Decode FAILED (null) for: $keyString")
                 }
                 decoded
             }.also { job ->
