@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.87] - 2026-01-09
+### Ajustado
+- Prefetch no bloquea la actualización del viewport al evitar esperar miniaturas fuera de pantalla.
+
 ## [1.3.86] - 2026-01-09
 ### Ajustado
 - Prefetch evita devolver bitmaps en memoria y libera recursos tras persistir en disco.

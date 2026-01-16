@@ -81,8 +81,9 @@ class ThumbnailRequestCoordinator(
             }
             deferreds.forEachIndexed { index, deferred ->
                 val keyString = orderedKeys[index].keyString()
+                if (keyString !in neededKeys) return@forEachIndexed
                 val bitmap = deferred.await()
-                if (bitmap != null && keyString in neededKeys) {
+                if (bitmap != null) {
                     withContext(mainDispatcher) {
                         thumbnailState[keyString] = bitmap
                     }
