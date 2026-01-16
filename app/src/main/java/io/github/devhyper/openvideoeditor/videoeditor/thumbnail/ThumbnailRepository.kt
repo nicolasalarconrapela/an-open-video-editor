@@ -31,9 +31,11 @@ class ThumbnailRepository(
         val keyString = key.keyString()
         android.util.Log.d("ThumbnailRepo", "Requesting key: $keyString")
         
-        memoryCache.get(keyString)?.let { 
-            android.util.Log.d("ThumbnailRepo", "Memory cache HIT for: $keyString")
-            return it 
+        if (storeInMemory || returnBitmap) {
+            memoryCache.get(keyString)?.let {
+                android.util.Log.d("ThumbnailRepo", "Memory cache HIT for: $keyString")
+                return if (returnBitmap) it else null
+            }
         }
         
         val diskBitmap = withContext(dispatcher) { diskCache?.get(keyString) }

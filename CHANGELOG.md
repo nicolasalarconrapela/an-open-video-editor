@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.89] - 2026-01-09
+### Ajustado
+- Prefetch ignora la caché en memoria cuando no devuelve bitmaps, evitando lecturas innecesarias.
+
 ## [1.3.88] - 2026-01-09
 ### Ajustado
 - Evita reciclar bitmaps compartidos en solicitudes de prefetch para no invalidar requests visibles.
