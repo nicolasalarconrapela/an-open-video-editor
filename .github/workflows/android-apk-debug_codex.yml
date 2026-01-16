@@ -3,6 +3,11 @@ name: Android APK (Debug) - codex
 on:
   push:
     branches:
+      - "codex/2026-01-11/17-39-50/create-timelineview-composable"
+      - "codex/2026-01-12/02-38-18/fix-unresolved-references-in-videoeditorscreen"
+      - "codex/2026-01-12/14-39-17/implementar-sistema-de-miniaturas-de-linea-de-tiempo"
+      - "codex/2026-01-12/22-00-29/explore-ui-2027-highlights"
+      - "jules-redesign-2026-13380855417231273474"
       - "codex/2026-01-15/12-10-17/review-project-for-application-issues"
   workflow_dispatch:
 
@@ -16,6 +21,8 @@ jobs:
     timeout-minutes: 45
 
     env:
+      # Menos ruido de Gradle y más determinismo
+      CI: true
       GRADLE_OPTS: >-
         -Dorg.gradle.caching=true
         -Dorg.gradle.parallel=true
@@ -33,6 +40,11 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+
+      - name: Set up Gradle (cache)
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
           cache: gradle
 
       - name: Fix DNS for Maven repositories
@@ -43,7 +55,10 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Accept Android SDK licenses
-        run: yes | sdkmanager --licenses
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null
 
       - name: Validate Gradle wrapper
         uses: gradle/wrapper-validation-action@v2

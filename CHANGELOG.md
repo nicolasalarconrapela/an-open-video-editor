@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.82] - 2026-01-09
+### Ajustado
+- Gestos del timeline conectados con eventos de recorte, split, selección y reordenado en el estado del editor.
+- Recorte por long-press ahora evita aplicar cambios cuando el playhead está fuera del clip.
+- Workflow de APK debug codex alineado con build limpio, diagnósticos en fallo y licencias silenciosas.
+- Workflow de APK debug codex corregido con la definición solicitada.
+- TimelinePrecisionView marca el uso de combinedClickable como API experimental.
+
 ## [1.3.81] - 2026-01-09
 ### Ajustado
 - Gestos del timeline conectados con eventos de recorte, split, selección y reordenado en el estado del editor.
