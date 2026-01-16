@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.94] - 2026-01-09
+### Ajustado
+- Índice en memoria para caché en disco reduce comprobaciones de archivos durante prefetch.
+
 ## [1.3.93] - 2026-01-09
 ### Ajustado
 - Prefetch reutiliza el resultado de comprobaciones de caché en disco para reducir trabajo repetido.
