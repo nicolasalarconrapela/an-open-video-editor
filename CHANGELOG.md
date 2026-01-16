@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.86] - 2026-01-09
+### Ajustado
+- Prefetch evita devolver bitmaps en memoria y libera recursos tras persistir en disco.
+
 ## [1.3.85] - 2026-01-09
 ### Ajustado
 - Prefetch de miniaturas evita ensuciar la caché en memoria; solo el viewport se mantiene caliente.

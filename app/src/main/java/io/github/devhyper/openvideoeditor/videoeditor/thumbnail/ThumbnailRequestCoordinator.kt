@@ -71,7 +71,13 @@ class ThumbnailRequestCoordinator(
                 .sortedBy { abs(it.first - playheadTimeMs) }
                 .map { it.second }
             val deferreds = scheduler.scheduleKeys(orderedKeys) { key ->
-                repository.getOrRequest(key, storeInMemory = key.keyString() in neededKeys)
+                val isVisible = key.keyString() in neededKeys
+                repository.getOrRequest(
+                    key = key,
+                    storeInMemory = isVisible,
+                    storeOnDisk = true,
+                    returnBitmap = isVisible
+                )
             }
             deferreds.forEachIndexed { index, deferred ->
                 val keyString = orderedKeys[index].keyString()
@@ -101,7 +107,12 @@ class ThumbnailRequestCoordinator(
             val orderedKeys = keys.distinctBy { it.keyString() }
                 .sortedBy { abs(it.timeUs / 1000 - playheadTimeMs) }
             val deferreds = scheduler.scheduleKeys(orderedKeys) { key ->
-                repository.getOrRequest(key, storeInMemory = true)
+                repository.getOrRequest(
+                    key = key,
+                    storeInMemory = true,
+                    storeOnDisk = true,
+                    returnBitmap = true
+                )
             }
             deferreds.forEachIndexed { index, deferred ->
                 val key = orderedKeys[index]

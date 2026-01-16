@@ -24,7 +24,9 @@ class ThumbnailRepository(
 
     suspend fun getOrRequest(
         key: ThumbnailKey,
-        storeInMemory: Boolean = true
+        storeInMemory: Boolean = true,
+        storeOnDisk: Boolean = true,
+        returnBitmap: Boolean = true
     ): Bitmap? {
         val keyString = key.keyString()
         android.util.Log.d("ThumbnailRepo", "Requesting key: $keyString")
@@ -40,7 +42,7 @@ class ThumbnailRepository(
             if (storeInMemory) {
                 memoryCache.put(keyString, diskBitmap)
             }
-            return diskBitmap
+            return if (returnBitmap) diskBitmap else null
         }
         
         android.util.Log.d("ThumbnailRepo", "Decoding new thumbnail for: $keyString")
@@ -50,7 +52,9 @@ class ThumbnailRepository(
                 ensureActive()
                 if (decoded != null) {
                     android.util.Log.d("ThumbnailRepo", "Decode SUCCESS for: $keyString (${decoded.width}x${decoded.height})")
-                    diskCache?.put(keyString, decoded)
+                    if (storeOnDisk) {
+                        diskCache?.put(keyString, decoded)
+                    }
                 } else {
                     android.util.Log.w("ThumbnailRepo", "Decode FAILED (null) for: $keyString")
                 }
@@ -63,7 +67,11 @@ class ThumbnailRepository(
         if (decoded != null && storeInMemory) {
             memoryCache.put(keyString, decoded)
         }
-        return decoded
+        if (decoded != null && !returnBitmap && !storeInMemory) {
+            decoded.recycle()
+            return null
+        }
+        return if (returnBitmap) decoded else null
     }
 
     fun cancel(key: ThumbnailKey) {
