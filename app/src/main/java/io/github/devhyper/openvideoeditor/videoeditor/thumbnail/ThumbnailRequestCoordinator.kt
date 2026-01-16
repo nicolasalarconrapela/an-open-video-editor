@@ -86,10 +86,14 @@ class ThumbnailRequestCoordinator(
             deferreds.forEachIndexed { index, deferred ->
                 val keyString = orderedKeys[index].keyString()
                 if (keyString !in neededKeys) return@forEachIndexed
-                val bitmap = deferred.await()
-                if (bitmap != null) {
-                    withContext(mainDispatcher) {
-                        thumbnailState[keyString] = bitmap
+                launch {
+                    val bitmap = deferred.await()
+                    if (bitmap != null) {
+                        withContext(mainDispatcher) {
+                            if (keyString in neededKeys) {
+                                thumbnailState[keyString] = bitmap
+                            }
+                        }
                     }
                 }
             }
@@ -124,13 +128,17 @@ class ThumbnailRequestCoordinator(
                 val keyString = key.keyString()
                 neededKeys.add(keyString)
                 android.util.Log.d("ThumbnailCoordinator", "Requesting precision thumbnail: $keyString")
-                val bitmap = deferred.await()
-                if (bitmap != null) {
-                    withContext(mainDispatcher) {
-                        thumbnailState[keyString] = bitmap
+                launch {
+                    val bitmap = deferred.await()
+                    if (bitmap != null) {
+                        withContext(mainDispatcher) {
+                            if (keyString in neededKeys) {
+                                thumbnailState[keyString] = bitmap
+                            }
+                        }
+                    } else {
+                        android.util.Log.w("ThumbnailCoordinator", "Precision thumbnail returned NULL: $keyString")
                     }
-                } else {
-                    android.util.Log.w("ThumbnailCoordinator", "Precision thumbnail returned NULL: $keyString")
                 }
             }
             withContext(mainDispatcher) {

@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.91] - 2026-01-09
+### Ajustado
+- Actualización de thumbnails visibles ya no espera secuencialmente a prefetch; aplica resultados conforme llegan.
+
 ## [1.3.90] - 2026-01-09
 ### Ajustado
 - Prefetch evita programar miniaturas que ya están en caché en memoria o disco.
