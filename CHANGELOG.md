@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.93] - 2026-01-09
+### Ajustado
+- Prefetch reutiliza el resultado de comprobaciones de caché en disco para reducir trabajo repetido.
+
 ## [1.3.92] - 2026-01-09
 ### Ajustado
 - Prefetch evita reprogramar keys ya visibles para reducir trabajo duplicado.

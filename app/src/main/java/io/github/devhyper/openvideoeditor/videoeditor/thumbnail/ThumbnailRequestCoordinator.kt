@@ -42,6 +42,7 @@ class ThumbnailRequestCoordinator(
             val keys = mutableListOf<Pair<Long, ThumbnailKey>>()
             val prefetchWindowMs = calculatePrefetchWindowMs(viewportRangeMs)
             val prefetchRangeMs = (viewportRangeMs.first - prefetchWindowMs)..(viewportRangeMs.last + prefetchWindowMs)
+            val diskCacheChecks = mutableMapOf<String, Boolean>()
             clips.forEach { clip ->
                 val clipStartMs = clipStartTimes[clip.id] ?: 0L
                 val clipEndMs = clipStartMs + clip.durationMs
@@ -69,7 +70,9 @@ class ThumbnailRequestCoordinator(
                         continue
                     }
                     val isCachedInMemory = repository.peek(key) != null
-                    val isCachedOnDisk = repository.isCachedOnDisk(key)
+                    val isCachedOnDisk = diskCacheChecks.getOrPut(keyString) {
+                        repository.isCachedOnDisk(key)
+                    }
                     if (!isCachedInMemory && !isCachedOnDisk) {
                         keys.add(timeMs to key)
                     }
