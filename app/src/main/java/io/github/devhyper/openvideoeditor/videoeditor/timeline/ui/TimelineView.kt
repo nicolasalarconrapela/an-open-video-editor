@@ -34,10 +34,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,11 +53,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.devhyper.openvideoeditor.R
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
-import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRepository
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRequestCoordinator
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -75,6 +70,7 @@ data class TimelineUiClip(
     val durationMs: Long,
     val label: String,
     val type: TimelineClipType,
+    val mediaUri: String,
     val isSelected: Boolean = false
 )
 
@@ -175,15 +171,14 @@ fun TimelineView(
     pixelsPerSecond: Float,
     listState: LazyListState,
     modifier: Modifier = Modifier,
-    thumbnailRepository: ThumbnailRepository? = null,
-    thumbnailKeyProvider: ((timeUs: Long, clip: TimelineUiClip, zoomBucket: Int) -> ThumbnailKey)? = null,
+    thumbnailCoordinator: ThumbnailRequestCoordinator,
+    thumbnailKeyProvider: ((timeUs: Long, clip: TimelineUiClip, zoomBucket: Int) -> ThumbnailKey),
     zoomBucket: Int = 0,
     onClipSelected: (trackId: String, clip: TimelineUiClip) -> Unit = { _, _ -> },
     onClipMoved: (trackId: String, fromId: String, toIndex: Int) -> Unit = { _, _, _ -> },
     onZoomChange: (zoomDelta: Float) -> Unit = {}
 ) {
     val density = LocalDensity.current
-    val scope = rememberCoroutineScope()
     val clipMinWidthDp = 48.dp
     val clipHeight = 80.dp
     val thumbnailHeight = 72.dp
@@ -191,8 +186,7 @@ fun TimelineView(
     var draggingClipId by remember { mutableStateOf<String?>(null) }
     var dragOffsetPx by remember { mutableFloatStateOf(0f) }
     val masterClips = tracks.firstOrNull()?.clips.orEmpty()
-    val thumbnailState = remember { mutableStateMapOf<String, android.graphics.Bitmap?>() }
-    var thumbnailJob by remember { mutableStateOf<Job?>(null) }
+    val thumbnailState = thumbnailCoordinator.state()
     val currentTimeMs by remember(masterClips, pixelsPerSecond, listState) {
         derivedStateOf {
             if (masterClips.isEmpty()) {
@@ -241,35 +235,19 @@ fun TimelineView(
     val electricBlue = Color(0xFF2979FF)
     val absoluteBlack = Color.Black
 
-    if (thumbnailRepository != null && thumbnailKeyProvider != null) {
-        val requestedRange = viewportRangeMs
-        LaunchedEffect(requestedRange, zoomBucket, thumbnailIntervalMs, masterClips) {
-            if (masterClips.isEmpty()) return@LaunchedEffect
-            delay(120)
-            if (requestedRange != viewportRangeMs) return@LaunchedEffect
-            thumbnailRepository.cancelAll()
-            thumbnailJob?.cancel()
-            thumbnailState.clear()
-            val job = scope.launch(Dispatchers.IO) {
-                masterClips.forEach { clip ->
-                    val clipStartMs = clipStartTimes[clip.id] ?: 0L
-                    val clipEndMs = clipStartMs + clip.durationMs
-                    val startMs = max(clipStartMs, requestedRange.first)
-                    val endMs = min(clipEndMs, requestedRange.last)
-                    if (endMs <= startMs) return@forEach
-                    var timeMs = startMs
-                    while (timeMs <= endMs) {
-                        val key = thumbnailKeyProvider(timeMs * 1000, clip, zoomBucket)
-                        val bitmap = thumbnailRepository.getOrRequest(key)
-                        if (bitmap != null) {
-                            thumbnailState[key.keyString()] = bitmap
-                        }
-                        timeMs += thumbnailIntervalMs
-                    }
-                }
-            }
-            thumbnailJob = job
-        }
+    val requestedRange = viewportRangeMs
+    LaunchedEffect(requestedRange, zoomBucket, thumbnailIntervalMs, masterClips) {
+        if (masterClips.isEmpty()) return@LaunchedEffect
+        delay(120)
+        if (requestedRange != viewportRangeMs) return@LaunchedEffect
+        thumbnailCoordinator.requestFilmstrip(
+            clips = masterClips,
+            clipStartTimes = clipStartTimes,
+            viewportRangeMs = requestedRange,
+            thumbnailIntervalMs = thumbnailIntervalMs,
+            zoomBucket = zoomBucket,
+            thumbnailKeyProvider = thumbnailKeyProvider
+        )
     }
 
     Box(
@@ -340,6 +318,7 @@ fun TimelineView(
 
                             val isStart = prevCell?.clipId != cell.clipId
                             val isEnd = nextCell?.clipId != cell.clipId
+                            val isDragging = draggingClipId == cell.clipId
                             
                             val shape = RoundedCornerShape(
                                 topStart = if (isStart) 8.dp else 0.dp,
@@ -356,9 +335,49 @@ fun TimelineView(
                                     modifier = Modifier
                                         .size(thumbnailWidth, thumbnailHeight)
                                         .clip(shape)
+                                        .graphicsLayer {
+                                            alpha = if (isDragging) 0.6f else 1f
+                                            translationX = if (isDragging) dragOffsetPx else 0f
+                                        }
                                         .clickable {
                                             val clip = findClipAtTime(clipBoundaries, cell.timeMs)
                                             clip?.let { onClipSelected(videoTrack.id, it) }
+                                        }
+                                        .pointerInput(cell.clipId, isStart) {
+                                            if (isStart) {
+                                                detectDragGestures(
+                                                    onDragStart = {
+                                                        draggingClipId = cell.clipId
+                                                        dragOffsetPx = 0f
+                                                        android.util.Log.d("TimelineView", "Started dragging clip: ${cell.clipId}")
+                                                    },
+                                                    onDrag = { change, dragAmount ->
+                                                        change.consume()
+                                                        dragOffsetPx += dragAmount.x
+                                                    },
+                                                    onDragEnd = {
+                                                        android.util.Log.d("TimelineView", "Drag ended for clip: ${cell.clipId}, offset: $dragOffsetPx")
+                                                        val clip = findClipAtTime(clipBoundaries, cell.timeMs)
+                                                        if (clip != null) {
+                                                            // Calculate new index based on drag offset
+                                                            val clipIndex = videoTrack.clips.indexOf(clip)
+                                                            val cellWidthPx = with(density) { thumbnailWidth.toPx() }
+                                                            val indexShift = (dragOffsetPx / (cellWidthPx * 3)).toInt() // Require dragging multiple cells
+                                                            val newIndex = (clipIndex + indexShift).coerceIn(0, videoTrack.clips.lastIndex)
+                                                            
+                                                            if (newIndex != clipIndex) {
+                                                                onClipMoved(videoTrack.id, clip.id, newIndex)
+                                                            }
+                                                        }
+                                                        draggingClipId = null
+                                                        dragOffsetPx = 0f
+                                                    },
+                                                    onDragCancel = {
+                                                        draggingClipId = null
+                                                        dragOffsetPx = 0f
+                                                    }
+                                                )
+                                            }
                                         },
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -411,4 +430,3 @@ fun TimelineView(
         }
     }
 }
-

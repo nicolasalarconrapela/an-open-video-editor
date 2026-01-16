@@ -9,9 +9,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.devhyper.openvideoeditor.R
 import io.github.devhyper.openvideoeditor.misc.setImmersiveMode
 import io.github.devhyper.openvideoeditor.misc.setupSystemUi
@@ -20,13 +20,11 @@ import io.github.devhyper.openvideoeditor.misc.setupSystemUi
 class VideoEditorActivity : ComponentActivity() {
     private lateinit var createDocument: ActivityResultLauncher<String>
     private lateinit var requestVideoPermission: ActivityResultLauncher<String>
-    private lateinit var viewModel: VideoEditorViewModel
+    private val viewModel: VideoEditorViewModel by viewModels()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         setupSystemUi()
-
-        viewModel = VideoEditorViewModel()
 
         window.decorView.setOnSystemUiVisibilityChangeListener {
             viewModel.setControlsVisible(it == 0)
@@ -74,10 +72,14 @@ class VideoEditorActivity : ComponentActivity() {
 
         uri?.let {
             setContent {
-                viewModel = viewModel { viewModel }
                 val controlsVisible by viewModel.controlsVisible.collectAsState()
                 setImmersiveMode(!controlsVisible)
-                VideoEditorScreen(it, createDocument, requestVideoPermission)
+                VideoEditorScreen(
+                    uri = it,
+                    createDocument = createDocument,
+                    requestVideoPermission = requestVideoPermission,
+                    viewModel = viewModel
+                )
             }
         } ?: finish()
     }

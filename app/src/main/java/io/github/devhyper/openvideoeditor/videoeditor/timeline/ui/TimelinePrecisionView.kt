@@ -5,9 +5,12 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.graphics.Color
@@ -16,7 +19,6 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,11 +26,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -43,6 +45,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -52,20 +55,16 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
-import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRepository
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.rememberCoroutineScope
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRequestCoordinator
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.IntOffset
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.roundToInt
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TimelinePrecisionView(
     tracks: List<TimelineUiTrack>,
@@ -74,9 +73,12 @@ fun TimelinePrecisionView(
     listState: LazyListState,
     onZoom: (Float) -> Unit,
     onTrim: (clipId: String, trimInMs: Long, trimOutMs: Long) -> Unit,
+    onSplit: (clipId: String, atMs: Long) -> Unit,
+    onMove: (fromIndex: Int, toIndex: Int) -> Unit,
+    onClipSelected: (clip: TimelineUiClip) -> Unit,
     onSeek: (timeMs: Long) -> Unit,
     modifier: Modifier = Modifier,
-    thumbnailRepository: ThumbnailRepository? = null,
+    thumbnailCoordinator: ThumbnailRequestCoordinator,
     thumbnailKeyProvider: ((timeUs: Long, clip: TimelineUiClip, zoomBucket: Int) -> ThumbnailKey)? = null
 ) {
     val basePixelsPerSecond = 80f
@@ -88,6 +90,20 @@ fun TimelinePrecisionView(
     val videoTrack = tracks.firstOrNull { it.clips.any { clip -> clip.type == TimelineClipType.Video } }
     val audioTrack = tracks.firstOrNull { it.clips.any { clip -> clip.type == TimelineClipType.Audio } }
     val masterClips = videoTrack?.clips.orEmpty()
+    
+    android.util.Log.d("TimelinePrecision", "TimelinePrecisionView initialized - videoTrack: ${videoTrack != null}, clips: ${masterClips.size}, thumbnailKeyProvider: ${thumbnailKeyProvider != null}")
+    if (masterClips.isNotEmpty()) {
+        android.util.Log.d("TimelinePrecision", "First clip: id=${masterClips[0].id}, mediaUri=${masterClips[0].mediaUri}, duration=${masterClips[0].durationMs}ms")
+    }
+    
+    val clipStartTimes = remember(masterClips) {
+        var accumulated = 0L
+        masterClips.associate { clip ->
+            val start = accumulated
+            accumulated += clip.durationMs
+            clip.id to start
+        }
+    }
 
     // View States (Controlled by external actions in real app, internal for now)
     var showControls by remember { mutableStateOf(false) }
@@ -95,8 +111,7 @@ fun TimelinePrecisionView(
 
     var lastScrollMs by remember { mutableLongStateOf(0L) }
     val density = LocalDensity.current
-    val scope = rememberCoroutineScope()
-    val thumbnailState = remember { mutableStateMapOf<String, android.graphics.Bitmap?>() }
+    val thumbnailState = thumbnailCoordinator.state()
 
     BoxWithConstraints(
         modifier = modifier
@@ -145,6 +160,8 @@ fun TimelinePrecisionView(
                     }
                 }
         }
+
+        // Thumbnail cleanup handled by ThumbnailRequestCoordinator.
 
         Column(
             modifier = Modifier.fillMaxWidth().align(Alignment.Center),
@@ -213,10 +230,12 @@ fun TimelinePrecisionView(
                     contentPadding = horizontalPadding,
                     horizontalArrangement = Arrangement.spacedBy(spacing)
                 ) {
-                    items(videoTrack.clips, key = { it.id }) { clip ->
+                    itemsIndexed(videoTrack.clips, key = { _, clip -> clip.id }) { index, clip ->
                         val widthDp = ((clip.durationMs / 1000f) * pixelsPerSecond)
                             .coerceAtLeast(48f)
                             .dp
+                        val widthPx = with(density) { widthDp.toPx() }
+                        var dragOffsetPx by remember(clip.id) { mutableFloatStateOf(0f) }
 
                         Box(
                             modifier = Modifier
@@ -224,22 +243,66 @@ fun TimelinePrecisionView(
                                 .fillMaxHeight()
                                 .background(Color(0xFF1E1E1E))
                                 .clipToBounds()
+                                .offset { IntOffset(dragOffsetPx.roundToInt(), 0) }
+                                .pointerInput(clip.id, widthPx) {
+                                    detectDragGestures(
+                                        onDragEnd = {
+                                            val shift = (dragOffsetPx / widthPx).roundToInt()
+                                            if (shift != 0) {
+                                                val targetIndex = (index + shift).coerceIn(
+                                                    0,
+                                                    videoTrack.clips.lastIndex
+                                                )
+                                                if (targetIndex != index) {
+                                                    onMove(index, targetIndex)
+                                                }
+                                            }
+                                            dragOffsetPx = 0f
+                                        },
+                                        onDragCancel = { dragOffsetPx = 0f },
+                                        onDrag = { change, dragAmount ->
+                                            change.consume()
+                                            dragOffsetPx += dragAmount.x
+                                        }
+                                    )
+                                }
+                                .combinedClickable(
+                                    onClick = { onClipSelected(clip) },
+                                    onDoubleClick = {
+                                        val clipStartMs = clipStartTimes[clip.id] ?: 0L
+                                        val offsetMs =
+                                            (currentTimeMs - clipStartMs)
+                                                .coerceIn(0L, clip.durationMs)
+                                        if (offsetMs in 1 until clip.durationMs) {
+                                            onSplit(clip.id, offsetMs)
+                                        }
+                                    },
+                                    onLongClick = {
+                                        val clipStartMs = clipStartTimes[clip.id] ?: 0L
+                                        val offsetMs =
+                                            (currentTimeMs - clipStartMs)
+                                                .coerceIn(0L, clip.durationMs)
+                                        if (offsetMs in 1 until clip.durationMs) {
+                                            onTrim(clip.id, 0L, offsetMs)
+                                        }
+                                    }
+                                )
                         ) {
-                            if (thumbnailRepository != null && thumbnailKeyProvider != null) {
+                            android.util.Log.d("TimelinePrecision", "Rendering clip: ${clip.id}, thumbnailKeyProvider: ${thumbnailKeyProvider != null}")
+                            if (thumbnailKeyProvider != null) {
                                 val thumbnailCount = (widthDp.value / 48f).toInt().coerceAtLeast(1)
                                 val intervalMs = clip.durationMs / thumbnailCount
+                                val keys = mutableListOf<ThumbnailKey>()
+                                android.util.Log.d("TimelinePrecision", "Clip ${clip.id}: generating $thumbnailCount thumbnails, interval: ${intervalMs}ms, mediaUri: ${clip.mediaUri}")
+                                
                                 Row(modifier = Modifier.fillMaxSize()) {
                                     repeat(thumbnailCount) { i ->
                                         val timeMs = i * intervalMs
                                         val key = thumbnailKeyProvider(timeMs * 1000, clip, 0)
                                         val bitmap = thumbnailState[key.keyString()]
-
-                                        LaunchedEffect(key) {
-                                            if (thumbnailState[key.keyString()] == null) {
-                                                val bmp = thumbnailRepository.getOrRequest(key)
-                                                if (bmp != null) thumbnailState[key.keyString()] = bmp
-                                            }
-                                        }
+                                        keys.add(key)
+                                        
+                                        android.util.Log.d("TimelinePrecision", "Thumbnail $i: timeMs=$timeMs, key=${key.keyString()}, bitmap=${bitmap != null}")
 
                                         Box(
                                             modifier = Modifier
@@ -267,6 +330,12 @@ fun TimelinePrecisionView(
                                         }
                                     }
                                 }
+                                LaunchedEffect(keys) {
+                                    android.util.Log.d("TimelinePrecision", "LaunchedEffect triggered for clip ${clip.id} with ${keys.size} keys")
+                                    thumbnailCoordinator.requestPrecision(keys)
+                                }
+                            } else {
+                                android.util.Log.w("TimelinePrecision", "thumbnailKeyProvider is NULL for clip ${clip.id}")
                             }
                         }
                     }

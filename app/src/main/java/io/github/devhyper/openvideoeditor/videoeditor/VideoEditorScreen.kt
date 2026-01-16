@@ -112,6 +112,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -123,7 +124,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.Player.COMMAND_GET_CURRENT_MEDIA_ITEM
@@ -150,8 +150,10 @@ import io.github.devhyper.openvideoeditor.misc.validateUInt
 import io.github.devhyper.openvideoeditor.settings.SettingsActivity
 import io.github.devhyper.openvideoeditor.ui.theme.OpenVideoEditorTheme
 import io.github.devhyper.openvideoeditor.videoeditor.state.EditorState
+import io.github.devhyper.openvideoeditor.videoeditor.state.ClipSource
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRepository
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRequestCoordinator
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.cache.BitmapMemoryCache
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.cache.DiskThumbnailCache
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineClipType
@@ -171,9 +173,9 @@ import java.io.ObjectOutputStream
 fun VideoEditorScreen(
     uri: String,
     createDocument: ActivityResultLauncher<String>,
-    requestVideoPermission: ActivityResultLauncher<String>
+    requestVideoPermission: ActivityResultLauncher<String>,
+    viewModel: VideoEditorViewModel
 ) {
-    val viewModel = viewModel { VideoEditorViewModel() }
     val editorState by viewModel.state.collectAsState()
     val screenScope = rememberCoroutineScope()
 
@@ -237,104 +239,26 @@ fun VideoEditorScreen(
     val videoTrackLabel = stringResource(R.string.timeline_track_video)
     val audioTrackLabel = stringResource(R.string.timeline_track_audio)
     val overlayTrackLabel = stringResource(R.string.timeline_track_overlay)
-    val timelineTracks = remember(videoTrackLabel, audioTrackLabel, overlayTrackLabel) {
-        mutableStateListOf(
-            TimelineUiTrack(
-                id = "track-video",
-                label = videoTrackLabel,
-                clips = listOf(
-                    TimelineUiClip(
-                        id = "clip-1",
-                        durationMs = 3_000L,
-                        label = "Intro",
-                        type = TimelineClipType.Video
-                    ),
-                    TimelineUiClip(
-                        id = "clip-2",
-                        durationMs = 6_500L,
-                        label = "Entrevista",
-                        type = TimelineClipType.Video
-                    ),
-                    TimelineUiClip(
-                        id = "clip-3",
-                        durationMs = 4_000L,
-                        label = "B-roll",
-                        type = TimelineClipType.Video
-                    ),
-                    TimelineUiClip(
-                        id = "clip-4",
-                        durationMs = 2_500L,
-                        label = "Outro",
-                        type = TimelineClipType.Video
-                    )
-                )
-            ),
-            TimelineUiTrack(
-                id = "track-audio",
-                label = audioTrackLabel,
-                clips = listOf(
-                    TimelineUiClip(
-                        id = "clip-5",
-                        durationMs = 3_000L,
-                        label = "Música",
-                        type = TimelineClipType.Audio
-                    ),
-                    TimelineUiClip(
-                        id = "clip-6",
-                        durationMs = 6_500L,
-                        label = "Ambiente",
-                        type = TimelineClipType.Audio
-                    ),
-                    TimelineUiClip(
-                        id = "clip-7",
-                        durationMs = 4_000L,
-                        label = "FX",
-                        type = TimelineClipType.Audio
-                    ),
-                    TimelineUiClip(
-                        id = "clip-8",
-                        durationMs = 2_500L,
-                        label = "Cierre",
-                        type = TimelineClipType.Audio
-                    )
-                )
-            ),
-            TimelineUiTrack(
-                id = "track-overlay",
-                label = overlayTrackLabel,
-                clips = listOf(
-                    TimelineUiClip(
-                        id = "clip-9",
-                        durationMs = 3_000L,
-                        label = "Texto",
-                        type = TimelineClipType.Overlay
-                    ),
-                    TimelineUiClip(
-                        id = "clip-10",
-                        durationMs = 6_500L,
-                        label = "Sticker",
-                        type = TimelineClipType.Overlay
-                    ),
-                    TimelineUiClip(
-                        id = "clip-11",
-                        durationMs = 4_000L,
-                        label = "Lower third",
-                        type = TimelineClipType.Overlay
-                    ),
-                    TimelineUiClip(
-                        id = "clip-12",
-                        durationMs = 2_500L,
-                        label = "Logo",
-                        type = TimelineClipType.Overlay
-                    )
-                )
-            )
+    val timelineTracks = remember(
+        editorState.clips,
+        videoTrackLabel,
+        audioTrackLabel,
+        overlayTrackLabel
+    ) {
+        buildTimelineTracks(
+            clips = editorState.clips,
+            videoLabel = videoTrackLabel,
+            audioLabel = audioTrackLabel,
+            overlayLabel = overlayTrackLabel
         )
     }
 
     val videoTitle = remember(uri) { getFileNameFromUri(context, uri.toUri()) }
 
     LaunchedEffect(uri) {
+        if (viewModel.state.value.clips.isEmpty()) {
+            viewModel.setClips(transformManager.buildClipSources(context))
+        }
         val path = Uri.parse(uri).path
         if (path != null && File(path).exists() && path.endsWith(".$PROJECT_FILE_EXT", ignoreCase = true)) {
             viewModel.setProjectOutputPath(path)
@@ -391,17 +315,31 @@ fun VideoEditorScreen(
             memoryCache = memoryCache,
             diskCache = diskCache,
             decode = { key ->
+                android.util.Log.d("ThumbnailDecode", "Decoding thumbnail - URI: ${key.videoIdOrUri}, timeUs: ${key.timeUs}, size: ${key.targetWidth}x${key.targetHeight}")
                 val retriever = MediaMetadataRetriever()
                 try {
                     retriever.setDataSource(context, Uri.parse(key.videoIdOrUri))
-                    retriever.getFrameAtTime(key.timeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)?.let { original ->
-                        if (key.targetWidth > 0 && key.targetHeight > 0) {
-                             Bitmap.createScaledBitmap(original, key.targetWidth, key.targetHeight, true)
-                        } else {
-                             original
-                        }
+                    android.util.Log.d("ThumbnailDecode", "DataSource set successfully")
+                    
+                    val frame = retriever.getFrameAtTime(key.timeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                    if (frame == null) {
+                        android.util.Log.w("ThumbnailDecode", "getFrameAtTime returned NULL for timeUs: ${key.timeUs}")
+                        return@ThumbnailRepository null
                     }
+                    
+                    android.util.Log.d("ThumbnailDecode", "Frame extracted: ${frame.width}x${frame.height}")
+                    
+                    val result = if (key.targetWidth > 0 && key.targetHeight > 0) {
+                        android.util.Log.d("ThumbnailDecode", "Scaling to ${key.targetWidth}x${key.targetHeight}")
+                        Bitmap.createScaledBitmap(frame, key.targetWidth, key.targetHeight, true)
+                    } else {
+                        frame
+                    }
+                    
+                    android.util.Log.d("ThumbnailDecode", "Decode complete, returning bitmap")
+                    result
                 } catch (e: Exception) {
+                    android.util.Log.e("ThumbnailDecode", "Exception decoding thumbnail for ${key.videoIdOrUri} at ${key.timeUs}", e)
                     null
                 } finally {
                     retriever.release()
@@ -409,17 +347,28 @@ fun VideoEditorScreen(
             }
         )
     }
+    val thumbnailCoordinator = remember(thumbnailRepository, screenScope) {
+        ThumbnailRequestCoordinator(
+            repository = thumbnailRepository,
+            scope = screenScope,
+            ioDispatcher = Dispatchers.IO,
+            mainDispatcher = Dispatchers.Main
+        )
+    }
 
-    val thumbnailKeyProvider: (Long, TimelineUiClip, Int) -> ThumbnailKey = remember {
+    val density = LocalDensity.current
+    val thumbnailKeyProvider: (Long, TimelineUiClip, Int) -> ThumbnailKey = remember(density) {
         { timeUs, clip, zoom ->
-             ThumbnailKey(
-                 videoIdOrUri = uri,
-                 timeUs = timeUs,
-                 targetWidth = 120,
-                 targetHeight = 120,
-                 rotationDegrees = 0,
-                 zoomBucket = zoom
-             )
+            val targetWidth = with(density) { 96.dp.roundToPx() }.coerceAtLeast(1)
+            val targetHeight = with(density) { 72.dp.roundToPx() }.coerceAtLeast(1)
+            ThumbnailKey(
+                videoIdOrUri = clip.mediaUri,
+                timeUs = timeUs,
+                targetWidth = targetWidth,
+                targetHeight = targetHeight,
+                rotationDegrees = 0,
+                zoomBucket = zoom
+            )
         }
     }
 
@@ -626,7 +575,8 @@ fun VideoEditorScreen(
                             screenScope.launch(Dispatchers.IO) {
                                 saveFrame(context, uri, currentTime)
                             }
-                        }
+                        },
+                        viewModel = viewModel
                     )
                 }
 
@@ -663,7 +613,10 @@ fun VideoEditorScreen(
                         editorState = editorState,
                         timelineTracks = timelineTracks,
                         timelineListState = timelineListState,
-                        onPlayerSeek = { timeMs -> player.seekTo(timeMs) }
+                        onPlayerSeek = { timeMs -> player.seekTo(timeMs) },
+                        viewModel = viewModel,
+                        thumbnailCoordinator = thumbnailCoordinator,
+                        thumbnailKeyProvider = thumbnailKeyProvider
                     )
                 }
             }
@@ -686,7 +639,8 @@ private fun PlayerControls(
     playbackState: () -> Int,
     playbackSpeed: () -> Float,
     onPlaybackSpeedChange: (Float) -> Unit,
-    onCaptureClick: () -> Unit
+    onCaptureClick: () -> Unit,
+    viewModel: VideoEditorViewModel
 ) {
 
     val visible = remember(isVisible()) { isVisible() }
@@ -716,7 +670,8 @@ private fun PlayerControls(
                     title = title,
                     transformManager = transformManager,
                     createDocument = createDocument,
-                    onCaptureClick = onCaptureClick
+                    onCaptureClick = onCaptureClick,
+                    viewModel = viewModel
                 )
 
                 CenterControls(
@@ -742,10 +697,10 @@ private fun TopControls(
     title: () -> String,
     transformManager: TransformManager,
     createDocument: ActivityResultLauncher<String>,
-    onCaptureClick: () -> Unit
+    onCaptureClick: () -> Unit,
+    viewModel: VideoEditorViewModel
 ) {
     val activity = LocalContext.current as Activity
-    val viewModel = viewModel { VideoEditorViewModel() }
     val projectOutputPath by viewModel.projectOutputPath.collectAsState()
     val projectSavingSupported by viewModel.projectSavingSupported.collectAsState()
     val videoTitle = remember(title()) { title() }
@@ -836,7 +791,7 @@ private fun TopControls(
     }
 
     if (showExportDialog) {
-        ExportDialog(transformManager, createDocument, videoTitle, activity) {
+        ExportDialog(transformManager, createDocument, videoTitle, activity, viewModel) {
             showExportDialog = false
         }
     }
@@ -935,10 +890,11 @@ private fun BottomControls(
     onSeekChanged: (timeMs: Float) -> Unit,
     transformManager: TransformManager,
     editorState: EditorState,
-    timelineTracks: MutableList<TimelineUiTrack>,
+    timelineTracks: List<TimelineUiTrack>,
     timelineListState: LazyListState,
     onPlayerSeek: (Long) -> Unit,
-    thumbnailRepository: ThumbnailRepository? = null,
+    viewModel: VideoEditorViewModel,
+    thumbnailCoordinator: ThumbnailRequestCoordinator,
     thumbnailKeyProvider: ((timeUs: Long, clip: TimelineUiClip, zoomBucket: Int) -> ThumbnailKey)? = null
 ) {
     val context = LocalContext.current
@@ -954,8 +910,6 @@ private fun BottomControls(
     val durationFrames = remember(totalDurationFrames()) { totalDurationFrames() }
     remember(currentTime()) { currentTime() }
     val videoTimeFrames = remember(currentTimeFrames()) { currentTimeFrames() }
-
-    val viewModel = viewModel { VideoEditorViewModel() }
 
     Column(
         modifier = modifier
@@ -979,9 +933,22 @@ private fun BottomControls(
                 onZoom = { zoomDelta ->
                     viewModel.onEvent(VideoEditorViewModel.EditorEvent.ZoomByDelta(zoomDelta))
                 },
-                onTrim = { _, _, _ -> },
+                onTrim = { clipId, trimInMs, trimOutMs ->
+                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.SelectBlock(clipId))
+                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.Trim(trimInMs, trimOutMs))
+                },
+                onSplit = { clipId, atMs ->
+                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.SelectBlock(clipId))
+                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.Split(atMs))
+                },
+                onMove = { fromIndex, toIndex ->
+                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.MoveBlock(fromIndex, toIndex))
+                },
+                onClipSelected = { clip ->
+                    viewModel.onEvent(VideoEditorViewModel.EditorEvent.SelectBlock(clip.id))
+                },
                 onSeek = { timeMs -> onPlayerSeek(timeMs) },
-                thumbnailRepository = thumbnailRepository,
+                thumbnailCoordinator = thumbnailCoordinator,
                 thumbnailKeyProvider = thumbnailKeyProvider
             )
         }
@@ -1044,7 +1011,7 @@ private fun BottomControls(
                 },
                 sheetState = filterSheetState
             ) {
-                FilterDrawer(transformManager) {
+                FilterDrawer(transformManager, viewModel) {
                     scope.launch { filterSheetState.hide() }.invokeOnCompletion {
                         if (!filterSheetState.isVisible) {
                             showFilterBottomSheet = false
@@ -1105,6 +1072,36 @@ private fun BottomControls(
         }
     }
 }
+
+private fun buildTimelineTracks(
+    clips: List<ClipSource>,
+    videoLabel: String,
+    audioLabel: String,
+    overlayLabel: String
+): List<TimelineUiTrack> {
+    val videoClips = clips
+        .filter { it.type == TimelineClipType.Video }
+        .map { it.toUiClip() }
+    val audioClips = clips
+        .filter { it.type == TimelineClipType.Audio }
+        .map { it.toUiClip() }
+    val overlayClips = clips
+        .filter { it.type == TimelineClipType.Overlay }
+        .map { it.toUiClip() }
+    return listOf(
+        TimelineUiTrack(id = "track-video", label = videoLabel, clips = videoClips),
+        TimelineUiTrack(id = "track-audio", label = audioLabel, clips = audioClips),
+        TimelineUiTrack(id = "track-overlay", label = overlayLabel, clips = overlayClips)
+    )
+}
+
+private fun ClipSource.toUiClip(): TimelineUiClip = TimelineUiClip(
+    id = id,
+    durationMs = durationMs,
+    label = label,
+    type = type,
+    mediaUri = mediaUri
+)
 
 @Composable
 private fun MiniPreviewStrip(
@@ -1288,8 +1285,11 @@ private fun LayerDrawerItem(
 }
 
 @Composable
-private fun FilterDrawer(transformManager: TransformManager, onDismissRequest: () -> Unit) {
-    val viewModel = viewModel { VideoEditorViewModel() }
+private fun FilterDrawer(
+    transformManager: TransformManager,
+    viewModel: VideoEditorViewModel,
+    onDismissRequest: () -> Unit
+) {
     Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             stringResource(R.string.video_filters),
@@ -1330,6 +1330,7 @@ private fun FilterDrawer(transformManager: TransformManager, onDismissRequest: (
                         icon,
                         args,
                         transformManager,
+                        viewModel,
                         callback
                     )
                 }
@@ -1356,16 +1357,16 @@ private fun DialogFilterDrawerItem(
     icon: ImageConstructor,
     args: PersistentList<EffectDialogSetting>,
     transformManager: TransformManager,
+    viewModel: VideoEditorViewModel,
     callback: (Map<String, String>) -> EffectConstructor
 ) {
-    val viewModel = viewModel { VideoEditorViewModel() }
     var showFilterDialog by remember { mutableStateOf(false) }
     FilterDrawerItem(
         stringResId,
         icon(),
         onClick = { showFilterDialog = true; viewModel.setFilterDialogArgs(args) })
     if (showFilterDialog) {
-        FilterDialog(stringResId = stringResId, { argMap ->
+        FilterDialog(stringResId = stringResId, viewModel = viewModel, callback = { argMap ->
             val effect = callback(argMap)
             UserEffect(stringResId, icon, effect)
         }, transformManager) {
@@ -1398,11 +1399,11 @@ private fun FilterDrawerItem(
 @Composable
 private fun FilterDialog(
     stringResId: Int,
+    viewModel: VideoEditorViewModel,
     callback: (Map<String, String>) -> UserEffect,
     transformManager: TransformManager,
     onDismissRequest: () -> Unit
 ) {
-    val viewModel = viewModel { VideoEditorViewModel() }
     val args by viewModel.filterDialogArgs.collectAsState()
     ListDialog(
         title = stringResource(stringResId),
@@ -1466,9 +1467,9 @@ private fun ExportDialog(
     createDocument: ActivityResultLauncher<String>,
     title: String,
     activity: Activity,
+    viewModel: VideoEditorViewModel,
     onDismissRequest: () -> Unit
 ) {
-    val viewModel = viewModel { VideoEditorViewModel() }
     val outputPath by viewModel.outputPath.collectAsState()
     val exportDismissRequest = {
         onDismissRequest()
