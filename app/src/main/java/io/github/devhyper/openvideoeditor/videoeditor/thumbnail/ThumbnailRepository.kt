@@ -22,6 +22,11 @@ class ThumbnailRepository(
 
     fun peek(key: ThumbnailKey): Bitmap? = memoryCache.get(key.keyString())
 
+    suspend fun isCachedOnDisk(key: ThumbnailKey): Boolean {
+        val keyString = key.keyString()
+        return withContext(dispatcher) { diskCache?.contains(keyString) == true }
+    }
+
     suspend fun getOrRequest(
         key: ThumbnailKey,
         storeInMemory: Boolean = true,

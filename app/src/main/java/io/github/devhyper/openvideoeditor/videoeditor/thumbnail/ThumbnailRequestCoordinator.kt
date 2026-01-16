@@ -63,7 +63,11 @@ class ThumbnailRequestCoordinator(
                 var timeMs = prefetchStartMs
                 while (timeMs <= prefetchEndMs) {
                     val key = thumbnailKeyProvider(timeMs * 1000, clip, zoomBucket)
-                    keys.add(timeMs to key)
+                    val isCachedInMemory = repository.peek(key) != null
+                    val isCachedOnDisk = repository.isCachedOnDisk(key)
+                    if (!isCachedInMemory && !isCachedOnDisk) {
+                        keys.add(timeMs to key)
+                    }
                     timeMs += thumbnailIntervalMs
                 }
             }

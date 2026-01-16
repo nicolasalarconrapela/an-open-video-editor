@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.90] - 2026-01-09
+### Ajustado
+- Prefetch evita programar miniaturas que ya están en caché en memoria o disco.
+
 ## [1.3.89] - 2026-01-09
 ### Ajustado
 - Prefetch ignora la caché en memoria cuando no devuelve bitmaps, evitando lecturas innecesarias.

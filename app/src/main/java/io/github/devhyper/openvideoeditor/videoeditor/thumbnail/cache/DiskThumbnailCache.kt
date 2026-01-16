@@ -26,6 +26,11 @@ class DiskThumbnailCache(
         return bitmap
     }
 
+    fun contains(key: String): Boolean {
+        val file = fileForKey(key)
+        return file.exists()
+    }
+
     fun put(
         key: String,
         bitmap: Bitmap,
