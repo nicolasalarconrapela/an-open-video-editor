@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.3.85] - 2026-01-09
+### Ajustado
+- Prefetch de miniaturas evita ensuciar la caché en memoria; solo el viewport se mantiene caliente.
+
+## [1.3.84] - 2026-01-09
+### Ajustado
+- Prefetch de miniaturas ahora evita poblar estado de UI fuera del viewport y limita el tamaño de caché en disco según espacio disponible.
+
+## [1.3.83] - 2026-01-09
+### Ajustado
+- Caché de miniaturas ahora usa tamaños adaptativos según memoria y almacenamiento disponibles.
+- Decodificación de miniaturas usa frame escalado cuando es posible y ajusta resolución por zoom.
+- Prioridad y prefetch de miniaturas alineados con el playhead para mejorar fluidez.
+
 ## [1.3.82] - 2026-01-09
 ### Ajustado
 - Gestos del timeline conectados con eventos de recorte, split, selección y reordenado en el estado del editor.

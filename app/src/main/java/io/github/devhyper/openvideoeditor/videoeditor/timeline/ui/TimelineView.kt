@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import io.github.devhyper.openvideoeditor.R
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRequestCoordinator
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.THUMBNAIL_MIN_INTERVAL_MS
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.max
@@ -226,7 +227,7 @@ fun TimelineView(
     val thumbnailIntervalMs by remember(pixelsPerSecond) {
         derivedStateOf {
             val intervalPx = with(density) { thumbnailWidth.toPx() }
-            ((intervalPx / pixelsPerSecond) * 1000f).toLong().coerceAtLeast(200L)
+            ((intervalPx / pixelsPerSecond) * 1000f).toLong().coerceAtLeast(THUMBNAIL_MIN_INTERVAL_MS)
         }
     }
     remember(tracks) {
@@ -245,6 +246,7 @@ fun TimelineView(
             clipStartTimes = clipStartTimes,
             viewportRangeMs = requestedRange,
             thumbnailIntervalMs = thumbnailIntervalMs,
+            playheadTimeMs = currentTimeMs,
             zoomBucket = zoomBucket,
             thumbnailKeyProvider = thumbnailKeyProvider
         )

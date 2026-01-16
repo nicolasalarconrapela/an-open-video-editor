@@ -85,6 +85,11 @@ fun TimelinePrecisionView(
     val pixelsPerSecond = (basePixelsPerSecond * zoomLevel).coerceIn(20f, 200f)
     val clipHeight = 64.dp // Slightly taller for better touch target
     val spacing = 0.dp // No gap for continuous filmstrip
+    val zoomBucket = when {
+        zoomLevel <= 0.85f -> 0
+        zoomLevel <= 1.6f -> 1
+        else -> 2
+    }
 
     // Identify tracks
     val videoTrack = tracks.firstOrNull { it.clips.any { clip -> clip.type == TimelineClipType.Video } }
@@ -298,7 +303,7 @@ fun TimelinePrecisionView(
                                 Row(modifier = Modifier.fillMaxSize()) {
                                     repeat(thumbnailCount) { i ->
                                         val timeMs = i * intervalMs
-                                        val key = thumbnailKeyProvider(timeMs * 1000, clip, 0)
+                                        val key = thumbnailKeyProvider(timeMs * 1000, clip, zoomBucket)
                                         val bitmap = thumbnailState[key.keyString()]
                                         keys.add(key)
                                         
@@ -332,7 +337,10 @@ fun TimelinePrecisionView(
                                 }
                                 LaunchedEffect(keys) {
                                     android.util.Log.d("TimelinePrecision", "LaunchedEffect triggered for clip ${clip.id} with ${keys.size} keys")
-                                    thumbnailCoordinator.requestPrecision(keys)
+                                    thumbnailCoordinator.requestPrecision(
+                                        keys = keys,
+                                        playheadTimeMs = currentTimeMs
+                                    )
                                 }
                             } else {
                                 android.util.Log.w("TimelinePrecision", "thumbnailKeyProvider is NULL for clip ${clip.id}")
