@@ -70,7 +70,7 @@ class ThumbnailScheduler(
         return scheduleKeys(orderedKeys, decode)
     }
 
-    private fun scheduleKeys(
+    fun scheduleKeys(
         orderedKeys: List<ThumbnailKey>,
         decode: suspend (ThumbnailKey) -> Bitmap?
     ): List<Deferred<Bitmap?>> {

@@ -1,5 +1,47 @@
 # Changelog
 
+## [1.3.92] - 2026-01-09
+### Ajustado
+- Prefetch evita reprogramar keys ya visibles para reducir trabajo duplicado.
+
+## [1.3.91] - 2026-01-09
+### Ajustado
+- Actualización de thumbnails visibles ya no espera secuencialmente a prefetch; aplica resultados conforme llegan.
+
+## [1.3.90] - 2026-01-09
+### Ajustado
+- Prefetch evita programar miniaturas que ya están en caché en memoria o disco.
+
+## [1.3.89] - 2026-01-09
+### Ajustado
+- Prefetch ignora la caché en memoria cuando no devuelve bitmaps, evitando lecturas innecesarias.
+
+## [1.3.88] - 2026-01-09
+### Ajustado
+- Evita reciclar bitmaps compartidos en solicitudes de prefetch para no invalidar requests visibles.
+
+## [1.3.87] - 2026-01-09
+### Ajustado
+- Prefetch no bloquea la actualización del viewport al evitar esperar miniaturas fuera de pantalla.
+
+## [1.3.86] - 2026-01-09
+### Ajustado
+- Prefetch evita devolver bitmaps en memoria y libera recursos tras persistir en disco.
+
+## [1.3.85] - 2026-01-09
+### Ajustado
+- Prefetch de miniaturas evita ensuciar la caché en memoria; solo el viewport se mantiene caliente.
+
+## [1.3.84] - 2026-01-09
+### Ajustado
+- Prefetch de miniaturas ahora evita poblar estado de UI fuera del viewport y limita el tamaño de caché en disco según espacio disponible.
+
+## [1.3.83] - 2026-01-09
+### Ajustado
+- Caché de miniaturas ahora usa tamaños adaptativos según memoria y almacenamiento disponibles.
+- Decodificación de miniaturas usa frame escalado cuando es posible y ajusta resolución por zoom.
+- Prioridad y prefetch de miniaturas alineados con el playhead para mejorar fluidez.
+
 ## [1.3.82] - 2026-01-09
 ### Ajustado
 - Gestos del timeline conectados con eventos de recorte, split, selección y reordenado en el estado del editor.

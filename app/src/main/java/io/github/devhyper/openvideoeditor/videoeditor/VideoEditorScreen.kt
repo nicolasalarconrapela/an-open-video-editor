@@ -8,6 +8,7 @@ import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper.getMainLooper
 import android.provider.MediaStore
@@ -156,6 +157,10 @@ import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailReposit
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRequestCoordinator
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.cache.BitmapMemoryCache
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.cache.DiskThumbnailCache
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.calculateDiskCacheBytes
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.calculateMemoryCacheBytes
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.calculateThumbnailMaxConcurrent
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.scheduler.ThumbnailScheduler
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineClipType
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineUiClip
 import io.github.devhyper.openvideoeditor.videoeditor.timeline.ui.TimelineUiTrack
@@ -306,8 +311,15 @@ fun VideoEditorScreen(
     }
 
     // Initialize ThumbnailRepository
-    val memoryCache = remember { BitmapMemoryCache() }
-    val diskCache = remember { DiskThumbnailCache(context) }
+    val memoryCache = remember(context) { BitmapMemoryCache(calculateMemoryCacheBytes(context)) }
+    val diskCache = remember(context) { DiskThumbnailCache(context, calculateDiskCacheBytes(context)) }
+    val thumbnailScheduler = remember(context, screenScope) {
+        ThumbnailScheduler(
+            scope = screenScope,
+            dispatcher = Dispatchers.IO,
+            maxConcurrent = calculateThumbnailMaxConcurrent(context)
+        )
+    }
     val thumbnailRepository = remember(context, screenScope) {
         ThumbnailRepository(
             scope = screenScope,
@@ -320,22 +332,41 @@ fun VideoEditorScreen(
                 try {
                     retriever.setDataSource(context, Uri.parse(key.videoIdOrUri))
                     android.util.Log.d("ThumbnailDecode", "DataSource set successfully")
-                    
-                    val frame = retriever.getFrameAtTime(key.timeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+
+                    val targetWidth = key.targetWidth.coerceAtLeast(1)
+                    val targetHeight = key.targetHeight.coerceAtLeast(1)
+                    val frame = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                        retriever.getScaledFrameAtTime(
+                            key.timeUs,
+                            MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+                            targetWidth,
+                            targetHeight
+                        ) ?: retriever.getFrameAtTime(
+                            key.timeUs,
+                            MediaMetadataRetriever.OPTION_CLOSEST_SYNC
+                        )
+                    } else {
+                        retriever.getFrameAtTime(key.timeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                    }
                     if (frame == null) {
                         android.util.Log.w("ThumbnailDecode", "getFrameAtTime returned NULL for timeUs: ${key.timeUs}")
                         return@ThumbnailRepository null
                     }
-                    
+
                     android.util.Log.d("ThumbnailDecode", "Frame extracted: ${frame.width}x${frame.height}")
-                    
-                    val result = if (key.targetWidth > 0 && key.targetHeight > 0) {
-                        android.util.Log.d("ThumbnailDecode", "Scaling to ${key.targetWidth}x${key.targetHeight}")
-                        Bitmap.createScaledBitmap(frame, key.targetWidth, key.targetHeight, true)
+
+                    val shouldScale = frame.width != targetWidth || frame.height != targetHeight
+                    val result = if (shouldScale) {
+                        android.util.Log.d("ThumbnailDecode", "Scaling to ${targetWidth}x${targetHeight}")
+                        Bitmap.createScaledBitmap(frame, targetWidth, targetHeight, true).also {
+                            if (it != frame) {
+                                frame.recycle()
+                            }
+                        }
                     } else {
                         frame
                     }
-                    
+
                     android.util.Log.d("ThumbnailDecode", "Decode complete, returning bitmap")
                     result
                 } catch (e: Exception) {
@@ -350,6 +381,7 @@ fun VideoEditorScreen(
     val thumbnailCoordinator = remember(thumbnailRepository, screenScope) {
         ThumbnailRequestCoordinator(
             repository = thumbnailRepository,
+            scheduler = thumbnailScheduler,
             scope = screenScope,
             ioDispatcher = Dispatchers.IO,
             mainDispatcher = Dispatchers.Main
@@ -359,8 +391,15 @@ fun VideoEditorScreen(
     val density = LocalDensity.current
     val thumbnailKeyProvider: (Long, TimelineUiClip, Int) -> ThumbnailKey = remember(density) {
         { timeUs, clip, zoom ->
-            val targetWidth = with(density) { 96.dp.roundToPx() }.coerceAtLeast(1)
-            val targetHeight = with(density) { 72.dp.roundToPx() }.coerceAtLeast(1)
+            val baseWidth = with(density) { 96.dp.roundToPx() }.coerceAtLeast(1)
+            val baseHeight = with(density) { 72.dp.roundToPx() }.coerceAtLeast(1)
+            val scale = when (zoom) {
+                0 -> 0.75f
+                1 -> 1.0f
+                else -> 1.25f
+            }
+            val targetWidth = (baseWidth * scale).roundToInt().coerceAtLeast(1)
+            val targetHeight = (baseHeight * scale).roundToInt().coerceAtLeast(1)
             ThumbnailKey(
                 videoIdOrUri = clip.mediaUri,
                 timeUs = timeUs,
