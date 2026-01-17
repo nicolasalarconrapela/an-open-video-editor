@@ -95,7 +95,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -172,6 +171,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.ObjectOutputStream
+import kotlin.math.roundToInt
+import androidx.core.graphics.scale
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -330,7 +331,7 @@ fun VideoEditorScreen(
                 android.util.Log.d("ThumbnailDecode", "Decoding thumbnail - URI: ${key.videoIdOrUri}, timeUs: ${key.timeUs}, size: ${key.targetWidth}x${key.targetHeight}")
                 val retriever = MediaMetadataRetriever()
                 try {
-                    retriever.setDataSource(context, Uri.parse(key.videoIdOrUri))
+                    retriever.setDataSource(context, key.videoIdOrUri.toUri())
                     android.util.Log.d("ThumbnailDecode", "DataSource set successfully")
 
                     val targetWidth = key.targetWidth.coerceAtLeast(1)
@@ -358,7 +359,7 @@ fun VideoEditorScreen(
                     val shouldScale = frame.width != targetWidth || frame.height != targetHeight
                     val result = if (shouldScale) {
                         android.util.Log.d("ThumbnailDecode", "Scaling to ${targetWidth}x${targetHeight}")
-                        Bitmap.createScaledBitmap(frame, targetWidth, targetHeight, true).also {
+                        frame.scale(targetWidth, targetHeight).also {
                             if (it != frame) {
                                 frame.recycle()
                             }
@@ -869,7 +870,7 @@ private fun CenterControls(
                             Icons.Filled.Pause
                         }
 
-                        isVideoPlaying.not() && playerState == Player.STATE_ENDED -> {
+                        playerState == Player.STATE_ENDED -> {
                             Icons.Filled.Replay
                         }
 
@@ -1548,9 +1549,9 @@ private fun ExportDialog(
                 val dotIndex: Int = title.lastIndexOf('.')
                 // Use original filename with .mp4 extension
                 val fileName: String = if (dotIndex > 0) {
-                    title.substring(0, dotIndex) + ".mp4"
+                    title.take(dotIndex) + ".mp4"
                 } else {
-                    title + ".mp4"
+                    "$title.mp4"
                 }
                 createDocument.launch(fileName)
             },
