@@ -985,7 +985,8 @@ private fun BottomControls(
                 },
                 onSeek = { timeMs -> onPlayerSeek(timeMs) },
                 thumbnailCoordinator = thumbnailCoordinator,
-                thumbnailKeyProvider = thumbnailKeyProvider
+                thumbnailKeyProvider = thumbnailKeyProvider,
+                selectedClipId = editorState.selectedBlockId
             )
         }
 
