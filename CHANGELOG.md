@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.3.95] - 2026-01-09
+### Ajustado
+- Workflow codex actualizado para la rama propose-thumbnail-generation-strategy.
+
+## [1.3.94] - 2026-01-09
+### Ajustado
+- Índice en memoria para caché en disco reduce comprobaciones de archivos durante prefetch.
+
+## [1.3.93] - 2026-01-09
+### Ajustado
+- Prefetch reutiliza el resultado de comprobaciones de caché en disco para reducir trabajo repetido.
+
+## [1.3.92] - 2026-01-09
+### Ajustado
+- Prefetch evita reprogramar keys ya visibles para reducir trabajo duplicado.
+
 ## [1.3.91] - 2026-01-09
 ### Ajustado
 - Actualización de thumbnails visibles ya no espera secuencialmente a prefetch; aplica resultados conforme llegan.

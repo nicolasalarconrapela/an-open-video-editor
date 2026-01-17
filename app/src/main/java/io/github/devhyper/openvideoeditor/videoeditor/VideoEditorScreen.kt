@@ -95,7 +95,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -172,6 +171,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.ObjectOutputStream
+import kotlin.math.roundToInt
+import androidx.core.graphics.scale
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -327,11 +328,10 @@ fun VideoEditorScreen(
             memoryCache = memoryCache,
             diskCache = diskCache,
             decode = { key ->
-                android.util.Log.d("ThumbnailDecode", "Decoding thumbnail - URI: ${key.videoIdOrUri}, timeUs: ${key.timeUs}, size: ${key.targetWidth}x${key.targetHeight}")
                 val retriever = MediaMetadataRetriever()
                 try {
-                    retriever.setDataSource(context, Uri.parse(key.videoIdOrUri))
-                    android.util.Log.d("ThumbnailDecode", "DataSource set successfully")
+                    retriever.setDataSource(context, key.videoIdOrUri.toUri())
+
 
                     val targetWidth = key.targetWidth.coerceAtLeast(1)
                     val targetHeight = key.targetHeight.coerceAtLeast(1)
@@ -349,16 +349,14 @@ fun VideoEditorScreen(
                         retriever.getFrameAtTime(key.timeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
                     }
                     if (frame == null) {
-                        android.util.Log.w("ThumbnailDecode", "getFrameAtTime returned NULL for timeUs: ${key.timeUs}")
                         return@ThumbnailRepository null
                     }
 
-                    android.util.Log.d("ThumbnailDecode", "Frame extracted: ${frame.width}x${frame.height}")
+
 
                     val shouldScale = frame.width != targetWidth || frame.height != targetHeight
                     val result = if (shouldScale) {
-                        android.util.Log.d("ThumbnailDecode", "Scaling to ${targetWidth}x${targetHeight}")
-                        Bitmap.createScaledBitmap(frame, targetWidth, targetHeight, true).also {
+                        frame.scale(targetWidth, targetHeight).also {
                             if (it != frame) {
                                 frame.recycle()
                             }
@@ -367,7 +365,6 @@ fun VideoEditorScreen(
                         frame
                     }
 
-                    android.util.Log.d("ThumbnailDecode", "Decode complete, returning bitmap")
                     result
                 } catch (e: Exception) {
                     android.util.Log.e("ThumbnailDecode", "Exception decoding thumbnail for ${key.videoIdOrUri} at ${key.timeUs}", e)
@@ -869,7 +866,7 @@ private fun CenterControls(
                             Icons.Filled.Pause
                         }
 
-                        isVideoPlaying.not() && playerState == Player.STATE_ENDED -> {
+                        playerState == Player.STATE_ENDED -> {
                             Icons.Filled.Replay
                         }
 
@@ -988,7 +985,8 @@ private fun BottomControls(
                 },
                 onSeek = { timeMs -> onPlayerSeek(timeMs) },
                 thumbnailCoordinator = thumbnailCoordinator,
-                thumbnailKeyProvider = thumbnailKeyProvider
+                thumbnailKeyProvider = thumbnailKeyProvider,
+                selectedClipId = editorState.selectedBlockId
             )
         }
 
@@ -1548,9 +1546,9 @@ private fun ExportDialog(
                 val dotIndex: Int = title.lastIndexOf('.')
                 // Use original filename with .mp4 extension
                 val fileName: String = if (dotIndex > 0) {
-                    title.substring(0, dotIndex) + ".mp4"
+                    title.take(dotIndex) + ".mp4"
                 } else {
-                    title + ".mp4"
+                    "$title.mp4"
                 }
                 createDocument.launch(fileName)
             },
