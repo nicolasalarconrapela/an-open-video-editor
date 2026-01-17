@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.95] - 2026-01-09
+### Ajustado
+- Workflow codex actualizado para la rama propose-thumbnail-generation-strategy.
+
 ## [1.3.94] - 2026-01-09
 ### Ajustado
 - Índice en memoria para caché en disco reduce comprobaciones de archivos durante prefetch.

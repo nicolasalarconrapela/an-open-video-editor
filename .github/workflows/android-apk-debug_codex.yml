@@ -3,7 +3,7 @@ name: Android APK (Debug) - codex
 on:
   push:
     branches:
-      - "codex/2026-01-15/12-10-17/review-project-for-application-issues"
+      - "codex/2026-01-16/20-03-00/propose-thumbnail-generation-strategy"
     # (Opcional) evita builds si solo cambian docs/markdown
     # paths:
     #   - "**/*.kt"
