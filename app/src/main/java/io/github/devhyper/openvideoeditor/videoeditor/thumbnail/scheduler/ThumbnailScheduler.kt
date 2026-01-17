@@ -20,7 +20,7 @@ class ThumbnailScheduler(
 ) {
     private val semaphore = Semaphore(maxConcurrent)
     private val inFlight = ConcurrentHashMap<String, Deferred<Bitmap?>>()
-    private var viewportJob: Job? = null
+
 
     fun scheduleViewportRange(
         rangeUs: LongRange,
@@ -70,30 +70,41 @@ class ThumbnailScheduler(
         return scheduleKeys(orderedKeys, decode)
     }
 
-    private fun scheduleKeys(
+    fun scheduleKeys(
         orderedKeys: List<ThumbnailKey>,
         decode: suspend (ThumbnailKey) -> Bitmap?
     ): List<Deferred<Bitmap?>> {
         val newKeys = orderedKeys.map { it.keyString() }.toSet()
-        viewportJob?.cancel()
-        viewportJob = SupervisorJob(scope.coroutineContext[Job])
-        inFlight.entries.forEach { (key, deferred) ->
-            if (key !in newKeys) {
-                deferred.cancel()
-                inFlight.remove(key)
-            }
+        
+        // Cancel jobs that are no longer needed
+        val toRemove = inFlight.keys.filter { it !in newKeys }
+        toRemove.forEach { key ->
+            inFlight.remove(key)?.cancel()
         }
+
         return orderedKeys.map { key ->
             val keyString = key.keyString()
-            inFlight.computeIfAbsent(keyString) {
-                scope.async(viewportJob!! + dispatcher) {
+            // Use putIfAbsent to avoid Recursive update crash in ConcurrentHashMap
+            // and checking existing value first for optimization.
+            inFlight[keyString] ?: run {
+                val newDeferred = scope.async(dispatcher) {
                     semaphore.withPermit {
                         decode(key)
                     }
-                }.also { deferred ->
-                    deferred.invokeOnCompletion {
-                        inFlight.remove(keyString)
+                }
+                
+                val prev = inFlight.putIfAbsent(keyString, newDeferred)
+                if (prev == null) {
+                    // We successfully inserted the new job. Attach cleanup listener.
+                    newDeferred.invokeOnCompletion { 
+                        inFlight.remove(keyString, newDeferred) 
                     }
+                    newDeferred
+                } else {
+                    // Another thread inserted a job for this key first.
+                    // Cancel our redundant job and use the existing one.
+                    newDeferred.cancel()
+                    prev
                 }
             }
         }

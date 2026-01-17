@@ -9,6 +9,7 @@ import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.THUMBNAIL_DISK_C
 import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
+import java.util.concurrent.ConcurrentHashMap
 
 class DiskThumbnailCache(
     context: Context,
@@ -17,13 +18,37 @@ class DiskThumbnailCache(
     private val cacheDir = File(context.cacheDir, "thumbnail_cache").apply {
         mkdirs()
     }
+    private val index = ConcurrentHashMap<String, Boolean>()
+
+    init {
+        cacheDir.listFiles()?.forEach { file ->
+            index[file.nameWithoutExtension] = true
+        }
+    }
 
     fun get(key: String): Bitmap? {
-        val file = fileForKey(key)
+        val hash = hashForKey(key)
+        if (index[hash] != true) {
+            val file = fileForHash(hash)
+            if (!file.exists()) return null
+            index[hash] = true
+        }
+        val file = fileForHash(hash)
         if (!file.exists()) return null
         val bitmap = BitmapFactory.decodeFile(file.absolutePath) ?: return null
         file.setLastModified(System.currentTimeMillis())
         return bitmap
+    }
+
+    fun contains(key: String): Boolean {
+        val hash = hashForKey(key)
+        if (index[hash] == true) return true
+        val file = fileForHash(hash)
+        return file.exists().also { exists ->
+            if (exists) {
+                index[hash] = true
+            }
+        }
     }
 
     fun put(
@@ -31,7 +56,8 @@ class DiskThumbnailCache(
         bitmap: Bitmap,
         format: Bitmap.CompressFormat = defaultFormat()
     ) {
-        val file = fileForKey(key)
+        val hash = hashForKey(key)
+        val file = fileForHash(hash)
         if (!file.parentFile.exists()) {
             file.parentFile.mkdirs()
         }
@@ -39,6 +65,7 @@ class DiskThumbnailCache(
             bitmap.compress(format, 80, output)
         }
         file.setLastModified(System.currentTimeMillis())
+        index[hash] = true
         trimToSize(maxSizeBytes)
     }
 
@@ -53,6 +80,7 @@ class DiskThumbnailCache(
 
     fun clear() {
         cacheDir.listFiles()?.forEach { it.delete() }
+        index.clear()
     }
 
     fun trimToSize(maxSize: Long = maxSizeBytes) {
@@ -64,11 +92,16 @@ class DiskThumbnailCache(
             val size = file.length()
             if (file.delete()) {
                 totalSize -= size
+                index.remove(file.nameWithoutExtension)
             }
         }
     }
 
-    private fun fileForKey(key: String): File = File(cacheDir, "${sha256(key)}.webp")
+    private fun fileForKey(key: String): File = fileForHash(hashForKey(key))
+
+    private fun fileForHash(hash: String): File = File(cacheDir, "$hash.webp")
+
+    private fun hashForKey(key: String): String = sha256(key)
 
     private fun sha256(value: String): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(value.toByteArray())

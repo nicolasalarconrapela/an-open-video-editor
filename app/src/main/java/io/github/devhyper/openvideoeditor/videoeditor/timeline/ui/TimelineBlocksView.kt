@@ -31,15 +31,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import io.github.devhyper.openvideoeditor.videoeditor.state.TimelineBlock
-import kotlin.math.max
 
 @Composable
 fun TimelineBlocksView(
     blocks: List<TimelineBlock>,
     selectedId: String?,
     onSelect: (TimelineBlock) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    pixelsPerSecond: Float = 80f
 ) {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    
     LazyRow(
         modifier = modifier
             .fillMaxWidth()
@@ -48,7 +50,10 @@ fun TimelineBlocksView(
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         items(blocks, key = { it.id }) { block ->
-            val widthDp = max((block.durationMs / 1000f) * 80f, 72f).dp
+            // Calculate width in px, then convert to dp
+            val widthPx = (block.durationMs / 1000f) * pixelsPerSecond
+            val widthDp = with(density) { widthPx.toDp() }.coerceAtLeast(72.dp)
+            
             val isSelected = block.id == selectedId
             val (icon, label) = blockIconAndLabel(block)
 
