@@ -43,7 +43,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.consumePositionChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -277,11 +276,8 @@ fun ClipItem(
     onClipSelected: (String) -> Unit,
     onClipDragged: (String, Float) -> Unit
 ) {
-    var dragOffset by remember(clip.id) { mutableStateOf(clip.offsetPx) }
-
-    LaunchedEffect(clip.offsetPx) {
-        dragOffset = clip.offsetPx
-    }
+    // Local offset ONLY for visual feedback during drag
+    var localDragOffsetPx by remember(clip.id) { mutableStateOf(0f) }
 
     val borderColor = if (selected) Color.White else Color.Transparent
     val shape = RoundedCornerShape(12.dp)
@@ -290,20 +286,30 @@ fun ClipItem(
         modifier = Modifier
             .width(width.coerceAtLeast(120.dp))
             .height(48.dp)
-            .offset { IntOffset(dragOffset.roundToInt(), 0) }
+            .offset { IntOffset(localDragOffsetPx.roundToInt(), 0) }
             .clip(shape)
             .background(clip.color)
             .border(width = 2.dp, color = borderColor, shape = shape)
             .pointerInput(clip.id) {
                 detectDragGestures(
-                    onDragEnd = { dragOffset = clip.offsetPx },
-                    onDragCancel = { dragOffset = clip.offsetPx },
-                    onDragStart = { onClipSelected(clip.id) },
+                    onDragStart = { 
+                        onClipSelected(clip.id)
+                        localDragOffsetPx = 0f
+                    },
                     onDrag = { change, dragAmount ->
-                        change.consumePositionChange()
-                        dragOffset += dragAmount.x
+                        change.consume()
+                        localDragOffsetPx += dragAmount.x
+                        // Report delta to ViewModel for final commit
                         onClipDragged(clip.id, dragAmount.x)
-                    })
+                    },
+                    onDragEnd = { 
+                        // Reset local offset - ViewModel holds the truth
+                        localDragOffsetPx = 0f 
+                    },
+                    onDragCancel = { 
+                        localDragOffsetPx = 0f 
+                    }
+                )
             }
             .padding(8.dp)) {
         if (clip.trackType == TrackType.Video) {

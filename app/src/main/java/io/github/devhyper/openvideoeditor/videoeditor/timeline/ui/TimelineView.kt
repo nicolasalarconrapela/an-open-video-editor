@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -59,6 +60,7 @@ import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 enum class TimelineClipType {
     Video,
@@ -81,90 +83,16 @@ data class TimelineUiTrack(
     val clips: List<TimelineUiClip>
 )
 
-// Filmstrip architecture data structures
-data class FilmstripCell(
+// Stable data structure for LazyRow - represents a segment of a clip
+private data class ClipSegment(
     val clipId: String,
-    val timeMs: Long,
-    val thumbnailKey: ThumbnailKey
+    val clip: TimelineUiClip,
+    val segmentIndex: Int,
+    val globalStartMs: Long, // Start time in timeline
+    val durationMs: Long,    // Duration of this segment
+    val isFirstInClip: Boolean,
+    val isLastInClip: Boolean
 )
-
-data class ClipBoundary(
-    val clipId: String,
-    val startMs: Long,
-    val endMs: Long,
-    val clip: TimelineUiClip
-)
-
-// Helper functions for filmstrip rendering
-private fun buildClipBoundaries(
-    clips: List<TimelineUiClip>,
-    clipStartTimes: Map<String, Long>
-): List<ClipBoundary> {
-    return clips.map { clip ->
-        val startMs = clipStartTimes[clip.id] ?: 0L
-        ClipBoundary(
-            clipId = clip.id,
-            startMs = startMs,
-            endMs = startMs + clip.durationMs,
-            clip = clip
-        )
-    }
-}
-
-private fun buildFilmstripCells(
-    clips: List<TimelineUiClip>,
-    clipStartTimes: Map<String, Long>,
-    viewportRangeMs: LongRange,
-    thumbnailIntervalMs: Long,
-    thumbnailKeyProvider: (Long, TimelineUiClip, Int) -> ThumbnailKey,
-    zoomBucket: Int
-): List<FilmstripCell> {
-    val cells = mutableListOf<FilmstripCell>()
-    
-    clips.forEach { clip ->
-        val clipStartMs = clipStartTimes[clip.id] ?: 0L
-        val clipEndMs = clipStartMs + clip.durationMs
-        
-        // Only generate cells for clips that overlap with viewport
-        if (clipEndMs > viewportRangeMs.first && clipStartMs < viewportRangeMs.last) {
-            val visibleStart = max(clipStartMs, viewportRangeMs.first)
-            val visibleEnd = min(clipEndMs, viewportRangeMs.last)
-            
-            var timeMs = visibleStart
-            while (timeMs <= visibleEnd) {
-                val key = thumbnailKeyProvider(timeMs * 1000, clip, zoomBucket)
-                cells.add(
-                    FilmstripCell(
-                        clipId = clip.id,
-                        timeMs = timeMs,
-                        thumbnailKey = key
-                    )
-                )
-                timeMs += thumbnailIntervalMs
-            }
-        }
-    }
-    
-    return cells.sortedBy { it.timeMs }
-}
-
-private fun findClipAtTime(
-    boundaries: List<ClipBoundary>,
-    timeMs: Long
-): TimelineUiClip? {
-    return boundaries.firstOrNull { boundary ->
-        timeMs >= boundary.startMs && timeMs < boundary.endMs
-    }?.clip
-}
-
-private fun isClipBoundary(
-    cell: FilmstripCell,
-    boundaries: List<ClipBoundary>,
-    nextCell: FilmstripCell?
-): Boolean {
-    if (nextCell == null) return false
-    return cell.clipId != nextCell.clipId
-}
 
 @Composable
 fun TimelineView(
@@ -180,26 +108,107 @@ fun TimelineView(
     onZoomChange: (zoomDelta: Float) -> Unit = {}
 ) {
     val density = LocalDensity.current
-    val clipMinWidthDp = 48.dp
-    val clipHeight = 80.dp
-    val thumbnailHeight = 72.dp
-    val thumbnailWidth = 96.dp
+    val thumbnailWidthDp = 96.dp
+    val thumbnailHeightDp = 72.dp
+    val maxSegmentWidthDp = 2000.dp // Prevent Compose constraint crashes
+    
     var draggingClipId by remember { mutableStateOf<String?>(null) }
     var dragOffsetPx by remember { mutableFloatStateOf(0f) }
-    val masterClips = tracks.firstOrNull()?.clips.orEmpty()
+    
+    val videoTrack = tracks.firstOrNull() ?: return
+    val masterClips = videoTrack.clips
     val thumbnailState = thumbnailCoordinator.state()
-    val currentTimeMs by remember(masterClips, pixelsPerSecond, listState) {
-        derivedStateOf {
-            if (masterClips.isEmpty()) {
-                return@derivedStateOf 0L
+    
+    // Stable dataset: Build segments from clips
+    val segments = remember(masterClips, pixelsPerSecond, density) {
+        val result = mutableListOf<ClipSegment>()
+        var globalStartMs = 0L
+        
+        masterClips.forEach { clip ->
+            val clipWidthPx = (clip.durationMs / 1000f) * pixelsPerSecond
+            val clipWidthDp = with(density) { clipWidthPx.toDp() }
+            val maxSegmentWidthPx = with(density) { maxSegmentWidthDp.toPx() }
+            
+            if (clipWidthDp <= maxSegmentWidthDp) {
+                // Single segment
+                result.add(
+                    ClipSegment(
+                        clipId = clip.id,
+                        clip = clip,
+                        segmentIndex = 0,
+                        globalStartMs = globalStartMs,
+                        durationMs = clip.durationMs,
+                        isFirstInClip = true,
+                        isLastInClip = true
+                    )
+                )
+            } else {
+                // Multi-segment
+                var remainingMs = clip.durationMs
+                var segmentStartMs = globalStartMs
+                var segIndex = 0
+                
+                while (remainingMs > 0L) {
+                    val segmentDurationMs = ((maxSegmentWidthPx / pixelsPerSecond) * 1000f).toLong()
+                        .coerceAtMost(remainingMs)
+                    
+                    result.add(
+                        ClipSegment(
+                            clipId = clip.id,
+                            clip = clip,
+                            segmentIndex = segIndex,
+                            globalStartMs = segmentStartMs,
+                            durationMs = segmentDurationMs,
+                            isFirstInClip = segIndex == 0,
+                            isLastInClip = segmentDurationMs >= remainingMs
+                        )
+                    )
+                    
+                    remainingMs -= segmentDurationMs
+                    segmentStartMs += segmentDurationMs
+                    segIndex++
+                }
             }
-            val firstIndex = listState.firstVisibleItemIndex.coerceIn(0, masterClips.lastIndex)
-            val timeBeforeMs = masterClips.take(firstIndex).sumOf { it.durationMs }
-            val offsetMs =
-                ((listState.firstVisibleItemScrollOffset / pixelsPerSecond) * 1000f).toLong()
-            (timeBeforeMs + offsetMs).coerceAtLeast(0L)
+            
+            globalStartMs += clip.durationMs
+        }
+        
+        result
+    }
+    
+    // Calculate viewport range for thumbnail requests
+    val viewportRangeMs by remember(segments, pixelsPerSecond, listState) {
+        derivedStateOf {
+            if (segments.isEmpty() || pixelsPerSecond <= 0f) return@derivedStateOf 0L..0L
+            
+            val firstIndex = listState.firstVisibleItemIndex.coerceIn(0, segments.lastIndex)
+            val startMs = segments[firstIndex].globalStartMs +
+                    ((listState.firstVisibleItemScrollOffset / pixelsPerSecond) * 1000f).toLong()
+            
+            val viewportWidthPx = listState.layoutInfo.viewportSize.width.toFloat()
+            val durationMs = ((viewportWidthPx / pixelsPerSecond) * 1000f).toLong()
+            
+            startMs..(startMs + durationMs)
         }
     }
+    
+    val thumbnailIntervalMs by remember(pixelsPerSecond, density) {
+        derivedStateOf {
+            val intervalPx = with(density) { thumbnailWidthDp.toPx() }
+            ((intervalPx / pixelsPerSecond) * 1000f).toLong().coerceAtLeast(THUMBNAIL_MIN_INTERVAL_MS)
+        }
+    }
+    
+    val currentTimeMs by remember(segments, pixelsPerSecond, listState) {
+        derivedStateOf {
+            if (segments.isEmpty()) return@derivedStateOf 0L
+            val firstIndex = listState.firstVisibleItemIndex.coerceIn(0, segments.lastIndex)
+            segments[firstIndex].globalStartMs +
+                ((listState.firstVisibleItemScrollOffset / pixelsPerSecond) * 1000f).toLong()
+        }
+    }
+    
+    // Clip start times for thumbnail coordinator
     val clipStartTimes = remember(masterClips) {
         var accumulated = 0L
         masterClips.associate { clip ->
@@ -208,55 +217,28 @@ fun TimelineView(
             clip.id to start
         }
     }
-    val viewportRangeMs by remember(masterClips, pixelsPerSecond, listState) {
-        derivedStateOf {
-            if (masterClips.isEmpty() || pixelsPerSecond <= 0f) {
-                return@derivedStateOf 0L..0L
-            }
-            val firstIndex = listState.firstVisibleItemIndex.coerceIn(0, masterClips.lastIndex)
-            val timeBeforeMs = masterClips.take(firstIndex).sumOf { it.durationMs }
-            val offsetMs =
-                ((listState.firstVisibleItemScrollOffset / pixelsPerSecond) * 1000f).toLong()
-            val startMs = (timeBeforeMs + offsetMs).coerceAtLeast(0L)
-            val viewportWidthPx =
-                listState.layoutInfo.viewportSize.width.toFloat().coerceAtLeast(0f)
-            val durationMs = ((viewportWidthPx / pixelsPerSecond) * 1000f).toLong()
-            startMs..(startMs + durationMs)
-        }
-    }
-    val thumbnailIntervalMs by remember(pixelsPerSecond) {
-        derivedStateOf {
-            val intervalPx = with(density) { thumbnailWidth.toPx() }
-            ((intervalPx / pixelsPerSecond) * 1000f).toLong().coerceAtLeast(THUMBNAIL_MIN_INTERVAL_MS)
-        }
-    }
-    remember(tracks) {
-        tracks.maxOfOrNull { track -> track.clips.sumOf { it.durationMs } } ?: 0L
-    }
-    val electricBlue = Color(0xFF2979FF)
-    val absoluteBlack = Color.Black
-
-    val requestedRange = viewportRangeMs
-    LaunchedEffect(requestedRange, zoomBucket, thumbnailIntervalMs, masterClips) {
+    
+    // Request thumbnails (throttled)
+    LaunchedEffect(viewportRangeMs, zoomBucket, thumbnailIntervalMs) {
         if (masterClips.isEmpty()) return@LaunchedEffect
-        delay(120)
-        if (requestedRange != viewportRangeMs) return@LaunchedEffect
+        delay(120) // Throttle
+        
         thumbnailCoordinator.requestFilmstrip(
             clips = masterClips,
             clipStartTimes = clipStartTimes,
-            viewportRangeMs = requestedRange,
+            viewportRangeMs = viewportRangeMs,
             thumbnailIntervalMs = thumbnailIntervalMs,
             playheadTimeMs = currentTimeMs,
             zoomBucket = zoomBucket,
             thumbnailKeyProvider = thumbnailKeyProvider
         )
     }
-
+    
     Box(
         modifier = modifier
             .fillMaxWidth()
             .clipToBounds()
-            .background(absoluteBlack)
+            .background(Color.Black)
             .pointerInput(Unit) {
                 detectTransformGestures { _, _, zoom, _ ->
                     if (zoom != 1f) {
@@ -265,39 +247,8 @@ fun TimelineView(
                 }
             }
     ) {
-        // Single continuous track design
-        val videoTrack = tracks.firstOrNull() ?: return
-
-        // Build clip boundaries for selection detection
-        val clipBoundaries = remember(videoTrack.clips, clipStartTimes) {
-            buildClipBoundaries(videoTrack.clips, clipStartTimes)
-        }
-
-        // Build filmstrip cells (only visible ones)
-        val filmstripCells = remember(
-            videoTrack.clips,
-            clipStartTimes,
-            viewportRangeMs,
-            thumbnailIntervalMs,
-            zoomBucket
-        ) {
-            if (thumbnailKeyProvider != null) {
-                buildFilmstripCells(
-                    videoTrack.clips,
-                    clipStartTimes,
-                    viewportRangeMs,
-                    thumbnailIntervalMs,
-                    thumbnailKeyProvider,
-                    zoomBucket
-                )
-            } else {
-                emptyList()
-            }
-        }
-
         Box(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Single continuous card with filmstrip
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -310,102 +261,110 @@ fun TimelineView(
                         horizontalArrangement = Arrangement.spacedBy(0.dp)
                     ) {
                         itemsIndexed(
-                            filmstripCells,
-                            key = { _, cell -> "${cell.clipId}_${cell.timeMs}" }
-                        ) { index, cell ->
-                            // Render thumbnail cell
-                            val bitmap = thumbnailState[cell.thumbnailKey.keyString()]
-                            val nextCell = filmstripCells.getOrNull(index + 1)
-                            val prevCell = filmstripCells.getOrNull(index - 1)
-
-                            val isStart = prevCell?.clipId != cell.clipId
-                            val isEnd = nextCell?.clipId != cell.clipId
-                            val isDragging = draggingClipId == cell.clipId
+                            items = segments,
+                            key = { _, seg -> "${seg.clipId}_seg${seg.segmentIndex}" }
+                        ) { segmentIndex, segment ->
+                            val clip = segment.clip
+                            val segmentWidthPx = (segment.durationMs / 1000f) * pixelsPerSecond
+                            val segmentWidthDp = with(density) { segmentWidthPx.toDp() }
+                            
+                            // Calculate how many thumbnails fit in this segment
+                            val thumbnailWidthPx = with(density) { thumbnailWidthDp.toPx() }
+                            val thumbnailCount = (segmentWidthPx / thumbnailWidthPx).toInt()
+                                .coerceAtLeast(1)
                             
                             val shape = RoundedCornerShape(
-                                topStart = if (isStart) 8.dp else 0.dp,
-                                bottomStart = if (isStart) 8.dp else 0.dp,
-                                topEnd = if (isEnd) 8.dp else 0.dp,
-                                bottomEnd = if (isEnd) 8.dp else 0.dp
+                                topStart = if (segment.isFirstInClip) 8.dp else 0.dp,
+                                bottomStart = if (segment.isFirstInClip) 8.dp else 0.dp,
+                                topEnd = if (segment.isLastInClip) 8.dp else 0.dp,
+                                bottomEnd = if (segment.isLastInClip) 8.dp else 0.dp
                             )
-
+                            
+                            val isDragging = draggingClipId == clip.id
+                            
                             Row(
-                                modifier = Modifier.fillMaxHeight(),
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .graphicsLayer {
+                                        alpha = if (isDragging) 0.6f else 1f
+                                        translationX = if (isDragging && segment.isFirstInClip) dragOffsetPx else 0f
+                                    }
+                                    .clickable {
+                                        onClipSelected(videoTrack.id, clip)
+                                    }
+                                    .pointerInput(clip.id, segment.isFirstInClip) {
+                                        if (segment.isFirstInClip) {
+                                            detectDragGestures(
+                                                onDragStart = {
+                                                    draggingClipId = clip.id
+                                                    dragOffsetPx = 0f
+                                                },
+                                                onDrag = { change, dragAmount ->
+                                                    change.consume()
+                                                    dragOffsetPx += dragAmount.x
+                                                },
+                                                onDragEnd = {
+                                                    val clipIndex = masterClips.indexOf(clip)
+                                                    val cellWidthPx = with(density) { thumbnailWidthDp.toPx() }
+                                                    val indexShift = (dragOffsetPx / (cellWidthPx * 3)).toInt()
+                                                    val newIndex = (clipIndex + indexShift)
+                                                        .coerceIn(0, masterClips.lastIndex)
+                                                    
+                                                    if (newIndex != clipIndex) {
+                                                        onClipMoved(videoTrack.id, clip.id, newIndex)
+                                                    }
+                                                    
+                                                    draggingClipId = null
+                                                    dragOffsetPx = 0f
+                                                },
+                                                onDragCancel = {
+                                                    draggingClipId = null
+                                                    dragOffsetPx = 0f
+                                                }
+                                            )
+                                        }
+                                    },
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(thumbnailWidth, thumbnailHeight)
-                                        .clip(shape)
-                                        .graphicsLayer {
-                                            alpha = if (isDragging) 0.6f else 1f
-                                            translationX = if (isDragging) dragOffsetPx else 0f
-                                        }
-                                        .clickable {
-                                            val clip = findClipAtTime(clipBoundaries, cell.timeMs)
-                                            clip?.let { onClipSelected(videoTrack.id, it) }
-                                        }
-                                        .pointerInput(cell.clipId, isStart) {
-                                            if (isStart) {
-                                                detectDragGestures(
-                                                    onDragStart = {
-                                                        draggingClipId = cell.clipId
-                                                        dragOffsetPx = 0f
-                                                    },
-                                                    onDrag = { change, dragAmount ->
-                                                        change.consume()
-                                                        dragOffsetPx += dragAmount.x
-                                                    },
-                                                    onDragEnd = {
-                                                        // Drag ended
-                                                        val clip = findClipAtTime(clipBoundaries, cell.timeMs)
-                                                        if (clip != null) {
-                                                            // Calculate new index based on drag offset
-                                                            val clipIndex = videoTrack.clips.indexOf(clip)
-                                                            val cellWidthPx = with(density) { thumbnailWidth.toPx() }
-                                                            val indexShift = (dragOffsetPx / (cellWidthPx * 3)).toInt() // Require dragging multiple cells
-                                                            val newIndex = (clipIndex + indexShift).coerceIn(0, videoTrack.clips.lastIndex)
-                                                            
-                                                            if (newIndex != clipIndex) {
-                                                                onClipMoved(videoTrack.id, clip.id, newIndex)
-                                                            }
-                                                        }
-                                                        draggingClipId = null
-                                                        dragOffsetPx = 0f
-                                                    },
-                                                    onDragCancel = {
-                                                        draggingClipId = null
-                                                        dragOffsetPx = 0f
-                                                    }
+                                // Render thumbnails for this segment
+                                repeat(thumbnailCount) { thumbIndex ->
+                                    val localTimeMs = segment.globalStartMs +
+                                            ((thumbIndex.toFloat() / thumbnailCount) * segment.durationMs).toLong()
+                                    
+                                    val key = thumbnailKeyProvider(localTimeMs * 1000, clip, zoomBucket)
+                                    val bitmap = thumbnailState[key.keyString()]
+                                    
+                                    Box(
+                                        modifier = Modifier
+                                            .size(thumbnailWidthDp, thumbnailHeightDp)
+                                            .clip(shape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        androidx.compose.animation.Crossfade(
+                                            targetState = bitmap,
+                                            animationSpec = androidx.compose.animation.core.tween(300),
+                                            label = "ThumbnailFade"
+                                        ) { targetBitmap ->
+                                            if (targetBitmap != null) {
+                                                androidx.compose.foundation.Image(
+                                                    bitmap = targetBitmap.asImageBitmap(),
+                                                    contentDescription = null,
+                                                    contentScale = ContentScale.Crop,
+                                                    modifier = Modifier.fillMaxSize()
+                                                )
+                                            } else {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .background(Color(0xFF1E1E1E))
                                                 )
                                             }
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    androidx.compose.animation.Crossfade(
-                                        targetState = bitmap,
-                                        animationSpec = androidx.compose.animation.core.tween(300),
-                                        label = "ThumbnailCrossfade"
-                                    ) { targetBitmap ->
-                                        if (targetBitmap != null) {
-                                            androidx.compose.foundation.Image(
-                                                bitmap = targetBitmap.asImageBitmap(),
-                                                contentDescription = null,
-                                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                                modifier = Modifier.fillMaxSize()
-                                            )
-                                        } else {
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .background(Color(0xFF1E1E1E)) // Dark placeholder
-                                            )
                                         }
                                     }
                                 }
-
-                                // Separator at clip boundary
-                                if (isEnd) {
+                                
+                                // Separator at end of clip
+                                if (segment.isLastInClip && segmentIndex < segments.lastIndex) {
                                     Box(
                                         modifier = Modifier
                                             .width(4.dp)
@@ -418,15 +377,14 @@ fun TimelineView(
                     }
                 }
             }
-
-            // Playhead overlay (centered vertical line)
+            
+            // Playhead
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .fillMaxHeight(),
                 contentAlignment = Alignment.Center
             ) {
-                // Vertical line
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
