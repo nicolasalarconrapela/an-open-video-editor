@@ -328,11 +328,10 @@ fun VideoEditorScreen(
             memoryCache = memoryCache,
             diskCache = diskCache,
             decode = { key ->
-                android.util.Log.d("ThumbnailDecode", "Decoding thumbnail - URI: ${key.videoIdOrUri}, timeUs: ${key.timeUs}, size: ${key.targetWidth}x${key.targetHeight}")
                 val retriever = MediaMetadataRetriever()
                 try {
                     retriever.setDataSource(context, key.videoIdOrUri.toUri())
-                    android.util.Log.d("ThumbnailDecode", "DataSource set successfully")
+
 
                     val targetWidth = key.targetWidth.coerceAtLeast(1)
                     val targetHeight = key.targetHeight.coerceAtLeast(1)
@@ -350,15 +349,13 @@ fun VideoEditorScreen(
                         retriever.getFrameAtTime(key.timeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
                     }
                     if (frame == null) {
-                        android.util.Log.w("ThumbnailDecode", "getFrameAtTime returned NULL for timeUs: ${key.timeUs}")
                         return@ThumbnailRepository null
                     }
 
-                    android.util.Log.d("ThumbnailDecode", "Frame extracted: ${frame.width}x${frame.height}")
+
 
                     val shouldScale = frame.width != targetWidth || frame.height != targetHeight
                     val result = if (shouldScale) {
-                        android.util.Log.d("ThumbnailDecode", "Scaling to ${targetWidth}x${targetHeight}")
                         frame.scale(targetWidth, targetHeight).also {
                             if (it != frame) {
                                 frame.recycle()
@@ -368,7 +365,6 @@ fun VideoEditorScreen(
                         frame
                     }
 
-                    android.util.Log.d("ThumbnailDecode", "Decode complete, returning bitmap")
                     result
                 } catch (e: Exception) {
                     android.util.Log.e("ThumbnailDecode", "Exception decoding thumbnail for ${key.videoIdOrUri} at ${key.timeUs}", e)

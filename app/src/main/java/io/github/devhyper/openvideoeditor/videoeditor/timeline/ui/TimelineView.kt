@@ -351,14 +351,13 @@ fun TimelineView(
                                                     onDragStart = {
                                                         draggingClipId = cell.clipId
                                                         dragOffsetPx = 0f
-                                                        android.util.Log.d("TimelineView", "Started dragging clip: ${cell.clipId}")
                                                     },
                                                     onDrag = { change, dragAmount ->
                                                         change.consume()
                                                         dragOffsetPx += dragAmount.x
                                                     },
                                                     onDragEnd = {
-                                                        android.util.Log.d("TimelineView", "Drag ended for clip: ${cell.clipId}, offset: $dragOffsetPx")
+                                                        // Drag ended
                                                         val clip = findClipAtTime(clipBoundaries, cell.timeMs)
                                                         if (clip != null) {
                                                             // Calculate new index based on drag offset
@@ -383,19 +382,25 @@ fun TimelineView(
                                         },
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    if (bitmap != null) {
-                                        androidx.compose.foundation.Image(
-                                            bitmap = bitmap.asImageBitmap(),
-                                            contentDescription = null,
-                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                    } else {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .background(Color(0xFF1E1E1E))
-                                        )
+                                    androidx.compose.animation.Crossfade(
+                                        targetState = bitmap,
+                                        animationSpec = androidx.compose.animation.core.tween(300),
+                                        label = "ThumbnailCrossfade"
+                                    ) { targetBitmap ->
+                                        if (targetBitmap != null) {
+                                            androidx.compose.foundation.Image(
+                                                bitmap = targetBitmap.asImageBitmap(),
+                                                contentDescription = null,
+                                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        } else {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .background(Color(0xFF1E1E1E)) // Dark placeholder
+                                            )
+                                        }
                                     }
                                 }
 
