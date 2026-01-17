@@ -330,6 +330,7 @@ fun TimelinePrecisionView(
                     .height(24.dp),
                 pixelsPerSecond = pixelsPerSecond,
                 scrollState = rulerScrollState,
+                horizontalPadding = halfWidthDp,
                 totalSeconds = totalSeconds,
                 onSeek = onSeek
             )
@@ -680,6 +681,7 @@ private fun TimelineTimeRuler(
     modifier: Modifier,
     pixelsPerSecond: Float,
     scrollState: ScrollState,
+    horizontalPadding: androidx.compose.ui.unit.Dp,
     totalSeconds: Int = 300,
     onSeek: (Long) -> Unit
 ) {
@@ -689,7 +691,7 @@ private fun TimelineTimeRuler(
     Row(
         modifier = modifier
             .horizontalScroll(scrollState)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = horizontalPadding),
         horizontalArrangement = Arrangement.spacedBy(0.dp)
     ) {
         repeat(totalSeconds) { sec ->

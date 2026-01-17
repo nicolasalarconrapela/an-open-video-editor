@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.0] - 2026-01-09
+### Mejorado
+- Timeline de precisión alinea el ruler con el padding del playhead para mantener la escala sincronizada con los clips.
+
 ## [1.3.99] - 2026-01-09
 ### Mejorado
 - Timeline de precisión usa offsets acumulados para sincronizar el playhead y el ruler con menos coste por scroll.
