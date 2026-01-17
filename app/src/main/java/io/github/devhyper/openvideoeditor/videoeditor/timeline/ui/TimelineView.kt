@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import io.github.devhyper.openvideoeditor.R
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRequestCoordinator
+import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailLODConfig
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.THUMBNAIL_MIN_INTERVAL_MS
 import kotlinx.coroutines.delay
 import kotlin.math.abs
@@ -110,7 +111,8 @@ fun TimelineView(
     val density = LocalDensity.current
     val thumbnailWidthDp = 96.dp
     val thumbnailHeightDp = 72.dp
-    val maxSegmentWidthDp = 2000.dp // Prevent Compose constraint crashes
+    val maxSegmentWidthDp = 2000.dp
+    val thumbnailWidthPx = with(density) { thumbnailWidthDp.toPx() }
     
     var draggingClipId by remember { mutableStateOf<String?>(null) }
     var dragOffsetPx by remember { mutableFloatStateOf(0f) }
@@ -118,6 +120,16 @@ fun TimelineView(
     val videoTrack = tracks.firstOrNull() ?: return
     val masterClips = videoTrack.clips
     val thumbnailState = thumbnailCoordinator.state()
+    
+    // Map zoomBucket to LOD bucket
+    val lodBucket = remember(zoomBucket) {
+        when (zoomBucket) {
+            0 -> ThumbnailLODConfig.LODBucket.OVERVIEW
+            1 -> ThumbnailLODConfig.LODBucket.NORMAL
+            2 -> ThumbnailLODConfig.LODBucket.DETAILED
+            else -> ThumbnailLODConfig.LODBucket.ULTRA
+        }
+    }
     
     // Stable dataset: Build segments from clips
     val segments = remember(masterClips, pixelsPerSecond, density) {
@@ -130,7 +142,6 @@ fun TimelineView(
             val maxSegmentWidthPx = with(density) { maxSegmentWidthDp.toPx() }
             
             if (clipWidthDp <= maxSegmentWidthDp) {
-                // Single segment
                 result.add(
                     ClipSegment(
                         clipId = clip.id,
@@ -143,7 +154,6 @@ fun TimelineView(
                     )
                 )
             } else {
-                // Multi-segment
                 var remainingMs = clip.durationMs
                 var segmentStartMs = globalStartMs
                 var segIndex = 0
@@ -176,7 +186,7 @@ fun TimelineView(
         result
     }
     
-    // Calculate viewport range for thumbnail requests
+    // Calculate viewport range
     val viewportRangeMs by remember(segments, pixelsPerSecond, listState) {
         derivedStateOf {
             if (segments.isEmpty() || pixelsPerSecond <= 0f) return@derivedStateOf 0L..0L
@@ -192,13 +202,6 @@ fun TimelineView(
         }
     }
     
-    val thumbnailIntervalMs by remember(pixelsPerSecond, density) {
-        derivedStateOf {
-            val intervalPx = with(density) { thumbnailWidthDp.toPx() }
-            ((intervalPx / pixelsPerSecond) * 1000f).toLong().coerceAtLeast(THUMBNAIL_MIN_INTERVAL_MS)
-        }
-    }
-    
     val currentTimeMs by remember(segments, pixelsPerSecond, listState) {
         derivedStateOf {
             if (segments.isEmpty()) return@derivedStateOf 0L
@@ -208,7 +211,6 @@ fun TimelineView(
         }
     }
     
-    // Clip start times for thumbnail coordinator
     val clipStartTimes = remember(masterClips) {
         var accumulated = 0L
         masterClips.associate { clip ->
@@ -218,19 +220,32 @@ fun TimelineView(
         }
     }
     
-    // Request thumbnails (throttled)
-    LaunchedEffect(viewportRangeMs, zoomBucket, thumbnailIntervalMs) {
+    // Detect scrolling state
+    val isScrolling by remember {
+        derivedStateOf { listState.isScrollInProgress }
+    }
+    
+    // Request thumbnails with LOD system (throttled during scroll)
+    LaunchedEffect(viewportRangeMs, lodBucket, isScrolling) {
         if (masterClips.isEmpty()) return@LaunchedEffect
-        delay(120) // Throttle
         
-        thumbnailCoordinator.requestFilmstrip(
+        // Debounce during scroll
+        if (isScrolling) {
+            delay(50)
+        } else {
+            delay(150)
+        }
+        
+        thumbnailCoordinator.requestFilmstripLOD(
             clips = masterClips,
             clipStartTimes = clipStartTimes,
             viewportRangeMs = viewportRangeMs,
-            thumbnailIntervalMs = thumbnailIntervalMs,
+            lodBucket = lodBucket,
+            pixelsPerSecond = pixelsPerSecond,
+            thumbnailWidthPx = thumbnailWidthPx,
             playheadTimeMs = currentTimeMs,
-            zoomBucket = zoomBucket,
-            thumbnailKeyProvider = thumbnailKeyProvider
+            thumbnailKeyProvider = thumbnailKeyProvider,
+            isScrolling = isScrolling
         )
     }
     
@@ -326,13 +341,28 @@ fun TimelineView(
                                     },
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Render thumbnails for this segment
+                                // Render thumbnails for this segment with LOD fallback
                                 repeat(thumbnailCount) { thumbIndex ->
                                     val localTimeMs = segment.globalStartMs +
                                             ((thumbIndex.toFloat() / thumbnailCount) * segment.durationMs).toLong()
                                     
-                                    val key = thumbnailKeyProvider(localTimeMs * 1000, clip, zoomBucket)
-                                    val bitmap = thumbnailState[key.keyString()]
+                                    // Try current LOD bucket first
+                                    val currentKey = thumbnailKeyProvider(localTimeMs * 1000, clip, lodBucket.level)
+                                    var bitmap = thumbnailState[currentKey.keyString()]
+                                    
+                                    // Fallback to lower LOD if not available
+                                    if (bitmap == null) {
+                                        val fallbackBuckets = ThumbnailLODConfig.getFallbackBuckets(lodBucket)
+                                        for (fallback in fallbackBuckets) {
+                                            val fallbackKey = thumbnailKeyProvider(
+                                                localTimeMs * 1000,
+                                                clip,
+                                                fallback.level
+                                            )
+                                            bitmap = thumbnailState[fallbackKey.keyString()]
+                                            if (bitmap != null) break
+                                        }
+                                    }
                                     
                                     Box(
                                         modifier = Modifier
@@ -353,6 +383,7 @@ fun TimelineView(
                                                     modifier = Modifier.fillMaxSize()
                                                 )
                                             } else {
+                                                // Placeholder
                                                 Box(
                                                     modifier = Modifier
                                                         .fillMaxSize()
