@@ -279,10 +279,22 @@ fun VideoEditorScreen(
     // Track work ID from ViewModel (persists across recompositions)
     val currentExportWorkId by viewModel.currentExportWorkId.collectAsState()
     var showCompletionDialog by rememberSaveable { mutableStateOf(false) }
+    val globalPaused by VideoExportWorker.isPausedFlow.collectAsState()
 
     // Find active export (RUNNING or ENQUEUED)
     val activeExport = exportWorkInfos.firstOrNull {
         it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED
+    }
+    val pausedExport = if (globalPaused && currentExportWorkId != null) {
+        exportWorkInfos.firstOrNull { it.id.toString() == currentExportWorkId }
+    } else {
+        null
+    }
+
+    LaunchedEffect(activeExport?.id) {
+        if (activeExport != null && activeExport.id.toString() != currentExportWorkId) {
+            viewModel.setCurrentExportWorkId(activeExport.id.toString())
+        }
     }
 
     // Check if our session's export just finished
@@ -299,6 +311,22 @@ fun VideoEditorScreen(
     if (activeExport != null) {
         ExportProgressDialog(activeExport, videoTitle, isFinished = false) {
             workManager.cancelWorkById(activeExport.id)
+            viewModel.setCurrentExportWorkId(null)
+        }
+    } else if (globalPaused && pausedExport != null) {
+        ExportProgressDialog(pausedExport, videoTitle, isFinished = false) {
+            val projectDataPath =
+                pausedExport.inputData.getString(VideoExportWorker.KEY_PROJECT_DATA_PATH)
+            val exportSettingsPath =
+                pausedExport.inputData.getString(VideoExportWorker.KEY_EXPORT_SETTINGS_PATH)
+            if (projectDataPath != null && exportSettingsPath != null) {
+                val intent = Intent(context, ExportActionReceiver::class.java).apply {
+                    action = "CANCEL_PAUSED"
+                    putExtra("projectDataPath", projectDataPath)
+                    putExtra("exportSettingsPath", exportSettingsPath)
+                }
+                context.sendBroadcast(intent)
+            }
             viewModel.setCurrentExportWorkId(null)
         }
     } else if (showCompletionDialog && sessionExport != null) {
@@ -1660,7 +1688,12 @@ fun ExportProgressDialog(
     isFinished: Boolean,
     onDismissOrCancel: () -> Unit
 ) {
+    val context = LocalContext.current
     val progress = workInfo.progress.getFloat(VideoExportWorker.KEY_PROGRESS, 0f)
+    val projectDataPath =
+        workInfo.inputData.getString(VideoExportWorker.KEY_PROJECT_DATA_PATH)
+    val exportSettingsPath =
+        workInfo.inputData.getString(VideoExportWorker.KEY_EXPORT_SETTINGS_PATH)
 
     val animatedProgress = animateFloatAsState(
         targetValue = if (isFinished) 1f else progress,
@@ -1732,7 +1765,27 @@ fun ExportProgressDialog(
                         }
 
                         TextButton(
-                            onClick = { VideoExportWorker.setPaused(!globalPaused) },
+                            onClick = {
+                                val action = if (globalPaused) "RESUME" else "PAUSE"
+                                val intent = Intent(context, ExportActionReceiver::class.java).apply {
+                                    this.action = action
+                                    if (action == "PAUSE") {
+                                        putExtra("workerId", workInfo.id.toString())
+                                    } else {
+                                        if (projectDataPath != null && exportSettingsPath != null) {
+                                            putExtra("projectDataPath", projectDataPath)
+                                            putExtra("exportSettingsPath", exportSettingsPath)
+                                        } else {
+                                            android.util.Log.e(
+                                                "ExportDebug",
+                                                "❌ Resume failed: missing paths in dialog."
+                                            )
+                                            return@TextButton
+                                        }
+                                    }
+                                }
+                                context.sendBroadcast(intent)
+                            },
                             modifier = Modifier.weight(1f)
                         ) {
                             Text(

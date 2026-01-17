@@ -216,6 +216,22 @@ fun TimelinePrecisionView(
         }
         result
     }
+    val segmentStartTimesMs = remember(segments) {
+        var accumulated = 0L
+        segments.map { segment ->
+            val start = accumulated
+            accumulated += segment.durationMs
+            start
+        }
+    }
+    val segmentStartOffsetsPx = remember(segments) {
+        var accumulated = 0f
+        segments.map { segment ->
+            val start = accumulated
+            accumulated += segment.widthPx
+            start
+        }
+    }
 
     BoxWithConstraints(
         modifier = modifier
@@ -248,22 +264,19 @@ fun TimelinePrecisionView(
             if (abs(currentTimeMs - lastScrollMs) < 120L) return@LaunchedEffect
             if (segments.isEmpty()) return@LaunchedEffect
 
-            var remainingMs = currentTimeMs
-            var targetSegmentIndex = 0
-
-            // Find which segment covers currentTime
-            for ((idx, segment) in segments.withIndex()) {
-                if (remainingMs < segment.durationMs) {
-                    targetSegmentIndex = idx
-                    break
-                }
-                remainingMs -= segment.durationMs
-                // If we reach the last segment and still have time left, clamp to it
-                if (idx == segments.lastIndex) {
-                    targetSegmentIndex = idx
-                    remainingMs = segment.durationMs // Clamp to end
-                }
+            val totalDurationMs =
+                segmentStartTimesMs.lastOrNull()?.plus(segments.lastOrNull()?.durationMs ?: 0L)
+                    ?: 0L
+            val clampedTimeMs = currentTimeMs.coerceIn(0L, totalDurationMs)
+            val searchIndex = segmentStartTimesMs.binarySearch(clampedTimeMs)
+            val targetSegmentIndex = if (searchIndex >= 0) {
+                searchIndex
+            } else {
+                (-(searchIndex + 1) - 1).coerceIn(0, segments.lastIndex)
             }
+            val segmentStartMs = segmentStartTimesMs.getOrElse(targetSegmentIndex) { 0L }
+            val remainingMs =
+                (clampedTimeMs - segmentStartMs).coerceIn(0L, segments[targetSegmentIndex].durationMs)
 
             val offsetPx = ((remainingMs / 1000f) * pixelsPerSecond).toInt()
             listState.scrollToItem(targetSegmentIndex, offsetPx)
@@ -274,11 +287,7 @@ fun TimelinePrecisionView(
             snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
                 .collect { (index, offset) ->
                     if (listState.isScrollInProgress) {
-                        var timeMs = 0L
-                        // Sum duration of previous segments
-                        for (i in 0 until index) {
-                            timeMs += segments.getOrNull(i)?.durationMs ?: 0L
-                        }
+                        val timeMs = segmentStartTimesMs.getOrElse(index) { 0L }
                         val offsetMs = ((offset / pixelsPerSecond) * 1000).toLong()
                         onSeek(timeMs + offsetMs)
                     }
@@ -293,12 +302,10 @@ fun TimelinePrecisionView(
             if (!listState.isScrollInProgress) return@LaunchedEffect
             if (segments.isEmpty()) return@LaunchedEffect
 
-            var totalOffsetPx = 0f
             val safeIndex = listState.firstVisibleItemIndex.coerceIn(0, segments.lastIndex)
-            for (i in 0 until safeIndex) {
-                totalOffsetPx += segments[i].widthPx
-            }
-            totalOffsetPx += listState.firstVisibleItemScrollOffset
+            val totalOffsetPx =
+                segmentStartOffsetsPx.getOrElse(safeIndex) { 0f } +
+                    listState.firstVisibleItemScrollOffset
             rulerScrollState.scrollTo(totalOffsetPx.toInt())
         }
 
@@ -371,13 +378,11 @@ fun TimelinePrecisionView(
                         if (segments.isEmpty()) return@LaunchedEffect
 
                         // Calculate current pixel offset from segments
-                        var totalOffsetPx = 0f
                         val safeIndex =
                             listState.firstVisibleItemIndex.coerceIn(0, segments.lastIndex)
-                        for (i in 0 until safeIndex) {
-                            totalOffsetPx += segments[i].widthPx
-                        }
-                        totalOffsetPx += listState.firstVisibleItemScrollOffset
+                        val totalOffsetPx =
+                            segmentStartOffsetsPx.getOrElse(safeIndex) { 0f } +
+                                listState.firstVisibleItemScrollOffset
 
                         // Apply to audio scroll
                         audioScrollState.scrollTo(totalOffsetPx.toInt())

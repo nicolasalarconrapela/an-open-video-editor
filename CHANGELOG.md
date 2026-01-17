@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.3.99] - 2026-01-09
+### Mejorado
+- Timeline de precisión usa offsets acumulados para sincronizar el playhead y el ruler con menos coste por scroll.
+
+## [1.3.98] - 2026-01-09
+### Corregido
+- El diálogo de exportación permanece visible durante la pausa y permite cancelar limpiamente la exportación pausada.
+
+## [1.3.97] - 2026-01-09
+### Corregido
+- Sincroniza el ID de exportación activo al reanudar para que el diálogo de finalización se muestre correctamente.
+
+## [1.3.96] - 2026-01-09
+### Corregido
+- Pausa y reanudación de exportación ahora usan el flujo de broadcast para cancelar y reanudar correctamente desde el diálogo de progreso.
+
 ## [1.3.95] - 2026-01-09
 ### Ajustado
 - Workflow codex actualizado para la rama propose-thumbnail-generation-strategy.
