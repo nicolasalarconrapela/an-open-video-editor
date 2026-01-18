@@ -581,7 +581,11 @@ fun VideoEditorScreen(
 
                 val tapModifier = Modifier.pointerInput(Unit) {
                     detectTapGestures(
-                        onTap = { viewModel.setControlsVisible(!controlsVisible) }
+                        onTap = { viewModel.setControlsVisible(!controlsVisible) },
+                        onDoubleTap = {
+                            scale = 1f
+                            offset = Offset.Zero
+                        }
                     )
                 }
                 val transformModifier = Modifier.pointerInput(Unit) {
@@ -594,11 +598,7 @@ fun VideoEditorScreen(
                         }
                     }
                 }
-                val androidViewModifier = if (frameModeEnabled) {
-                    tapModifier
-                } else {
-                    tapModifier.then(transformModifier)
-                }
+                val androidViewModifier = tapModifier.then(transformModifier)
 
                 val projectTitle = remember(uri) { getFileNameFromUri(context, uri.toUri()) }
                 Row(

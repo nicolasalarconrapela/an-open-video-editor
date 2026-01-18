@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.14] - 2026-01-09
+### Mejorado
+- Zoom del visor permite reinicio con doble toque y se mantiene activo en modo frame.
+
 ## [1.4.13] - 2026-01-09
 ### Corregido
 - Captura de imagen ahora usa el frame incrustado cuando está disponible.
