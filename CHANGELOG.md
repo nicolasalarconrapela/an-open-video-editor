@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.7] - 2026-01-09
+### Corregido
+- El diálogo de exportación muestra una etiqueta de pausa cuando la exportación está detenida temporalmente.
+
 ## [1.4.6] - 2026-01-09
 ### Corregido
 - Se pide confirmación antes de cancelar una exportación pausada desde el diálogo.

@@ -1777,6 +1777,16 @@ fun ExportProgressDialog(
                     }
                 } else {
                     val globalPaused by VideoExportWorker.isPausedFlow.collectAsState()
+                    if (globalPaused) {
+                        Text(
+                            text = stringResource(R.string.export_paused_label),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colorScheme.secondary,
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .padding(bottom = 8.dp)
+                        )
+                    }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly
