@@ -285,6 +285,7 @@ fun VideoEditorScreen(
     var showCompletionDialog by rememberSaveable { mutableStateOf(false) }
     var showPausedCancelConfirm by rememberSaveable { mutableStateOf(false) }
     val globalPaused by VideoExportWorker.isPausedFlow.collectAsState()
+    val currentExportPaths by viewModel.currentExportPaths.collectAsState()
 
     // Find active export (RUNNING or ENQUEUED)
     val activeExport = exportWorkInfos.firstOrNull {
@@ -314,12 +315,23 @@ fun VideoEditorScreen(
 
     // Show progress dialog only for active exports
     if (activeExport != null) {
-        ExportProgressDialog(activeExport, videoTitle, isFinished = false) {
+        ExportProgressDialog(
+            workInfo = activeExport,
+            videoTitle = videoTitle,
+            isFinished = false,
+            exportPaths = currentExportPaths
+        ) {
             workManager.cancelWorkById(activeExport.id)
             viewModel.setCurrentExportWorkId(null)
+            viewModel.setCurrentExportPaths(null)
         }
     } else if (globalPaused && pausedExport != null) {
-        ExportProgressDialog(pausedExport, videoTitle, isFinished = false) {
+        ExportProgressDialog(
+            workInfo = pausedExport,
+            videoTitle = videoTitle,
+            isFinished = false,
+            exportPaths = currentExportPaths
+        ) {
             showPausedCancelConfirm = true
         }
 
@@ -332,19 +344,23 @@ fun VideoEditorScreen(
                     TextButton(
                         onClick = {
                             showPausedCancelConfirm = false
-                            val projectDataPath =
-                                pausedExport.inputData.getString(VideoExportWorker.KEY_PROJECT_DATA_PATH)
-                            val exportSettingsPath =
-                                pausedExport.inputData.getString(VideoExportWorker.KEY_EXPORT_SETTINGS_PATH)
-                            if (projectDataPath != null && exportSettingsPath != null) {
+                            val exportPaths = currentExportPaths
+                            if (exportPaths != null) {
                                 val intent = Intent(context, ExportActionReceiver::class.java).apply {
                                     action = "CANCEL_PAUSED"
-                                    putExtra("projectDataPath", projectDataPath)
-                                    putExtra("exportSettingsPath", exportSettingsPath)
+                                    putExtra("projectDataPath", exportPaths.projectDataPath)
+                                    putExtra("exportSettingsPath", exportPaths.exportSettingsPath)
                                 }
                                 context.sendBroadcast(intent)
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.export_resume_missing_data),
+                                    Toast.LENGTH_LONG
+                                ).show()
                             }
                             viewModel.setCurrentExportWorkId(null)
+                            viewModel.setCurrentExportPaths(null)
                         }
                     ) {
                         Text(stringResource(R.string.cancel_export_confirm))
@@ -359,9 +375,15 @@ fun VideoEditorScreen(
         }
     } else if (showCompletionDialog && sessionExport != null) {
         // Show completion dialog
-        ExportProgressDialog(sessionExport, videoTitle, isFinished = true) {
+        ExportProgressDialog(
+            workInfo = sessionExport,
+            videoTitle = videoTitle,
+            isFinished = true,
+            exportPaths = currentExportPaths
+        ) {
             showCompletionDialog = false
             viewModel.setCurrentExportWorkId(null)
+            viewModel.setCurrentExportPaths(null)
             // Prune old completed works
             workManager.pruneWork()
         }
@@ -1728,7 +1750,7 @@ private fun ExportDialog(
         } else {
             // Trigger WorkManager
             SideEffect {
-                val workId = startExportWork(context, transformManager, exportSettings)
+                val workId = startExportWork(context, transformManager, exportSettings, viewModel)
                 if (workId != null) {
                     viewModel.setCurrentExportWorkId(workId)
                 }
@@ -1859,14 +1881,13 @@ fun ExportProgressDialog(
     workInfo: WorkInfo,
     videoTitle: String,
     isFinished: Boolean,
+    exportPaths: VideoEditorViewModel.ExportPaths?,
     onDismissOrCancel: () -> Unit
 ) {
     val context = LocalContext.current
     val progress = workInfo.progress.getFloat(VideoExportWorker.KEY_PROGRESS, 0f)
-    val projectDataPath =
-        workInfo.inputData.getString(VideoExportWorker.KEY_PROJECT_DATA_PATH)
-    val exportSettingsPath =
-        workInfo.inputData.getString(VideoExportWorker.KEY_EXPORT_SETTINGS_PATH)
+    val projectDataPath = exportPaths?.projectDataPath
+    val exportSettingsPath = exportPaths?.exportSettingsPath
 
     val animatedProgress = animateFloatAsState(
         targetValue = if (isFinished) 1f else progress,
@@ -1992,7 +2013,8 @@ fun ExportProgressDialog(
 private fun startExportWork(
     context: Context,
     transformManager: TransformManager,
-    exportSettings: ExportSettings
+    exportSettings: ExportSettings,
+    viewModel: VideoEditorViewModel
 ): String? {
     // Use unique filenames to prevent conflicts if multiple exports are triggered
     val uniqueId = java.util.UUID.randomUUID().toString()
@@ -2019,6 +2041,12 @@ private fun startExportWork(
             "video_export_main",
             androidx.work.ExistingWorkPolicy.REPLACE,
             request
+        )
+        viewModel.setCurrentExportPaths(
+            VideoEditorViewModel.ExportPaths(
+                projectDataPath = projectDataFile.absolutePath,
+                exportSettingsPath = settingsFile.absolutePath
+            )
         )
         return request.id.toString()
     } catch (e: Exception) {

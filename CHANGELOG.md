@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.19] - 2026-01-09
+### Corregido
+- Exportación pausada usa rutas almacenadas en el estado en lugar de WorkInfo inputData.
+
 ## [1.4.18] - 2026-01-09
 ### Ajustado
 - Workflow codex muestra stacktrace para errores de build.
