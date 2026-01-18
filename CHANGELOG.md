@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.2] - 2026-01-09
+### Mejorado
+- Timeline de precisión limita la frecuencia de sincronización del ruler y audio para reducir trabajo durante scroll rápido.
+
 ## [1.4.1] - 2026-01-09
 ### Corregido
 - El ruler y la pista de audio del timeline se sincronizan también durante el scroll programático del playhead.

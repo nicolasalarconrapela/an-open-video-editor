@@ -65,6 +65,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRequestCoordinator
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -297,15 +300,24 @@ fun TimelinePrecisionView(
         // Time Ruler Scroll State
         val rulerScrollState = rememberScrollState()
 
-        // Sync Ruler with Video Scroll (user or programmatic)
-        LaunchedEffect(listState.firstVisibleItemScrollOffset, listState.firstVisibleItemIndex) {
-            if (segments.isEmpty()) return@LaunchedEffect
-
-            val safeIndex = listState.firstVisibleItemIndex.coerceIn(0, segments.lastIndex)
-            val totalOffsetPx =
-                segmentStartOffsetsPx.getOrElse(safeIndex) { 0f } +
-                    listState.firstVisibleItemScrollOffset
-            rulerScrollState.scrollTo(totalOffsetPx.toInt())
+        // Sync Ruler with Video Scroll (user or programmatic), throttled.
+        LaunchedEffect(listState, segments, segmentStartOffsetsPx) {
+            snapshotFlow {
+                listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+            }
+                .map { (index, offset) ->
+                    if (segments.isEmpty()) return@map 0
+                    val safeIndex = index.coerceIn(0, segments.lastIndex)
+                    val totalOffsetPx =
+                        segmentStartOffsetsPx.getOrElse(safeIndex) { 0f } + offset
+                    totalOffsetPx.toInt()
+                }
+                .debounce(16)
+                .distinctUntilChanged()
+                .collect { targetOffset ->
+                    if (segments.isEmpty()) return@collect
+                    rulerScrollState.scrollTo(targetOffset)
+                }
         }
 
         Column(
@@ -369,22 +381,24 @@ fun TimelinePrecisionView(
                     // Audio track uses separate ScrollState synced by offset
                     val audioScrollState = rememberScrollState()
 
-                    // Sync audio scroll with video master scroll (user or programmatic)
-                    LaunchedEffect(
-                        listState.firstVisibleItemScrollOffset,
-                        listState.firstVisibleItemIndex
-                    ) {
-                        if (segments.isEmpty()) return@LaunchedEffect
-
-                        // Calculate current pixel offset from segments
-                        val safeIndex =
-                            listState.firstVisibleItemIndex.coerceIn(0, segments.lastIndex)
-                        val totalOffsetPx =
-                            segmentStartOffsetsPx.getOrElse(safeIndex) { 0f } +
-                                listState.firstVisibleItemScrollOffset
-
-                        // Apply to audio scroll
-                        audioScrollState.scrollTo(totalOffsetPx.toInt())
+                    // Sync audio scroll with video master scroll (user or programmatic), throttled.
+                    LaunchedEffect(listState, segments, segmentStartOffsetsPx) {
+                        snapshotFlow {
+                            listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+                        }
+                            .map { (index, offset) ->
+                                if (segments.isEmpty()) return@map 0
+                                val safeIndex = index.coerceIn(0, segments.lastIndex)
+                                val totalOffsetPx =
+                                    segmentStartOffsetsPx.getOrElse(safeIndex) { 0f } + offset
+                                totalOffsetPx.toInt()
+                            }
+                            .debounce(16)
+                            .distinctUntilChanged()
+                            .collect { targetOffset ->
+                                if (segments.isEmpty()) return@collect
+                                audioScrollState.scrollTo(targetOffset)
+                            }
                     }
 
                     Row(
