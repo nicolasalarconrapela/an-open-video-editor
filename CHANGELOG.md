@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.1] - 2026-01-09
+### Corregido
+- El ruler y la pista de audio del timeline se sincronizan también durante el scroll programático del playhead.
+
 ## [1.4.0] - 2026-01-09
 ### Mejorado
 - Timeline de precisión alinea el ruler con el padding del playhead para mantener la escala sincronizada con los clips.

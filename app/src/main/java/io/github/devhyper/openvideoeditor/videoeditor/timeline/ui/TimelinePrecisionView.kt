@@ -297,9 +297,8 @@ fun TimelinePrecisionView(
         // Time Ruler Scroll State
         val rulerScrollState = rememberScrollState()
 
-        // Sync Ruler with Video Scroll
+        // Sync Ruler with Video Scroll (user or programmatic)
         LaunchedEffect(listState.firstVisibleItemScrollOffset, listState.firstVisibleItemIndex) {
-            if (!listState.isScrollInProgress) return@LaunchedEffect
             if (segments.isEmpty()) return@LaunchedEffect
 
             val safeIndex = listState.firstVisibleItemIndex.coerceIn(0, segments.lastIndex)
@@ -370,12 +369,11 @@ fun TimelinePrecisionView(
                     // Audio track uses separate ScrollState synced by offset
                     val audioScrollState = rememberScrollState()
 
-                    // Sync audio scroll with video master scroll
+                    // Sync audio scroll with video master scroll (user or programmatic)
                     LaunchedEffect(
                         listState.firstVisibleItemScrollOffset,
                         listState.firstVisibleItemIndex
                     ) {
-                        if (!listState.isScrollInProgress) return@LaunchedEffect
                         if (segments.isEmpty()) return@LaunchedEffect
 
                         // Calculate current pixel offset from segments
