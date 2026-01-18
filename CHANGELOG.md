@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.10] - 2026-01-09
+### Añadido
+- Header superior con nombre del proyecto y botón de opciones.
+
 ## [1.4.9] - 2026-01-09
 ### Añadido
 - Vista previa con frame independiente movible para incrustar el video dentro del editor.

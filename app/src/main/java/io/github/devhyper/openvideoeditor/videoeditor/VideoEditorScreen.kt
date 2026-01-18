@@ -600,6 +600,32 @@ fun VideoEditorScreen(
                     tapModifier.then(transformModifier)
                 }
 
+                val projectTitle = remember(uri) { getFileNameFromUri(context, uri.toUri()) }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.Black)
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = projectTitle,
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = { viewModel.setControlsVisible(!controlsVisible) }) {
+                        Icon(
+                            imageVector = Icons.Filled.MoreVert,
+                            contentDescription = stringResource(R.string.more_vertical_options),
+                            tint = Color.White
+                        )
+                    }
+                }
+
                 Box(
                     modifier = Modifier
                         .weight(1f)
