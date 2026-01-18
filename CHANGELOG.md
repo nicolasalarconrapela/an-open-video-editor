@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.8] - 2026-01-09
+### Mejorado
+- El scrub del timeline usa el centro del playhead para sincronizar el frame con el editor al deslizar.
+
 ## [1.4.7] - 2026-01-09
 ### Corregido
 - El diálogo de exportación muestra una etiqueta de pausa cuando la exportación está detenida temporalmente.
