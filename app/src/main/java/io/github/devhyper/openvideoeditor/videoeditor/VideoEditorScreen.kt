@@ -26,6 +26,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -58,6 +59,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Forward10
@@ -118,6 +120,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
@@ -561,6 +564,8 @@ fun VideoEditorScreen(
 
                 var scale by remember { mutableFloatStateOf(1f) }
                 var offset by remember { mutableStateOf(Offset.Zero) }
+                var frameModeEnabled by rememberSaveable { mutableStateOf(false) }
+                var frameOffset by remember { mutableStateOf(Offset.Zero) }
 
                 LaunchedEffect(scale, offset, textureView) {
                     val view = textureView
@@ -574,22 +579,26 @@ fun VideoEditorScreen(
                     }
                 }
 
-                val androidViewModifier = Modifier
-                    .pointerInput(Unit) {
-                        detectTransformGestures { _, pan, zoom, _ ->
-                            scale = (scale * zoom).coerceIn(1f, 10f)
-                            if (scale > 1f) {
-                                offset += pan
-                            } else {
-                                offset = Offset.Zero
-                            }
+                val tapModifier = Modifier.pointerInput(Unit) {
+                    detectTapGestures(
+                        onTap = { viewModel.setControlsVisible(!controlsVisible) }
+                    )
+                }
+                val transformModifier = Modifier.pointerInput(Unit) {
+                    detectTransformGestures { _, pan, zoom, _ ->
+                        scale = (scale * zoom).coerceIn(1f, 10f)
+                        if (scale > 1f) {
+                            offset += pan
+                        } else {
+                            offset = Offset.Zero
                         }
                     }
-                    .pointerInput(Unit) {
-                        detectTapGestures(
-                            onTap = { viewModel.setControlsVisible(!controlsVisible) }
-                        )
-                    }
+                }
+                val androidViewModifier = if (frameModeEnabled) {
+                    tapModifier
+                } else {
+                    tapModifier.then(transformModifier)
+                }
 
                 Box(
                     modifier = Modifier
@@ -598,30 +607,81 @@ fun VideoEditorScreen(
                         .clipToBounds()
                         .windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility)
                 ) {
-                    AndroidView(
-                        modifier = androidViewModifier.fillMaxSize(),
-                        factory = {
-                            textureView = TextureView(context).apply {
-                                layoutParams =
-                                    FrameLayout.LayoutParams(
-                                        ViewGroup.LayoutParams.MATCH_PARENT,
-                                        ViewGroup.LayoutParams.MATCH_PARENT
-                                    )
-                            }
-                            textureView!!
+                    if (frameModeEnabled) {
+                        val videoFormat = player.videoFormat
+                        val frameWidth = 240.dp
+                        val frameHeight = if (videoFormat != null &&
+                            videoFormat.width > 0 &&
+                            videoFormat.height > 0
+                        ) {
+                            frameWidth * (videoFormat.height.toFloat() / videoFormat.width.toFloat())
+                        } else {
+                            135.dp
                         }
-                    )
-
-                    val videoFormat = player.videoFormat
-                    if (videoFormat != null) {
                         Box(
                             modifier = Modifier
-                                .width(videoFormat.width.dp)
-                                .height(videoFormat.height.dp)
                                 .align(Alignment.Center)
-                                .windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility)
+                                .offset {
+                                    IntOffset(
+                                        frameOffset.x.roundToInt(),
+                                        frameOffset.y.roundToInt()
+                                    )
+                                }
+                                .size(frameWidth, frameHeight)
+                                .background(Color.Black, RoundedCornerShape(12.dp))
+                                .border(
+                                    width = 2.dp,
+                                    brush = SolidColor(Color(0xFF00C853)),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .clip(RoundedCornerShape(12.dp))
+                                .pointerInput(Unit) {
+                                    detectDragGestures { change, dragAmount ->
+                                        change.consume()
+                                        frameOffset += dragAmount
+                                    }
+                                }
                         ) {
-                            currentEditingEffect?.Editor()
+                            AndroidView(
+                                modifier = androidViewModifier.fillMaxSize(),
+                                factory = {
+                                    textureView = TextureView(context).apply {
+                                        layoutParams =
+                                            FrameLayout.LayoutParams(
+                                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                                ViewGroup.LayoutParams.MATCH_PARENT
+                                            )
+                                    }
+                                    textureView!!
+                                }
+                            )
+                        }
+                    } else {
+                        AndroidView(
+                            modifier = androidViewModifier.fillMaxSize(),
+                            factory = {
+                                textureView = TextureView(context).apply {
+                                    layoutParams =
+                                        FrameLayout.LayoutParams(
+                                            ViewGroup.LayoutParams.MATCH_PARENT,
+                                            ViewGroup.LayoutParams.MATCH_PARENT
+                                        )
+                                }
+                                textureView!!
+                            }
+                        )
+
+                        val videoFormat = player.videoFormat
+                        if (videoFormat != null) {
+                            Box(
+                                modifier = Modifier
+                                    .width(videoFormat.width.dp)
+                                    .height(videoFormat.height.dp)
+                                    .align(Alignment.Center)
+                                    .windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility)
+                            ) {
+                                currentEditingEffect?.Editor()
+                            }
                         }
                     }
 
@@ -703,6 +763,13 @@ fun VideoEditorScreen(
                         timelineListState = timelineListState,
                         onPlayerSeek = { timeMs -> player.seekTo(timeMs) },
                         viewModel = viewModel,
+                        frameModeEnabled = frameModeEnabled,
+                        onToggleFrameMode = {
+                            frameModeEnabled = !frameModeEnabled
+                            if (!frameModeEnabled) {
+                                frameOffset = Offset.Zero
+                            }
+                        },
                         thumbnailCoordinator = thumbnailCoordinator,
                         thumbnailKeyProvider = thumbnailKeyProvider
                     )
@@ -982,6 +1049,8 @@ private fun BottomControls(
     timelineListState: LazyListState,
     onPlayerSeek: (Long) -> Unit,
     viewModel: VideoEditorViewModel,
+    frameModeEnabled: Boolean,
+    onToggleFrameMode: () -> Unit,
     thumbnailCoordinator: ThumbnailRequestCoordinator,
     thumbnailKeyProvider: ((timeUs: Long, clip: TimelineUiClip, zoomBucket: Int) -> ThumbnailKey)? = null
 ) {
@@ -1051,6 +1120,12 @@ private fun BottomControls(
                     label = stringResource(R.string.video_filters),
                     icon = Icons.Filled.Filter,
                     onClick = { showFilterBottomSheet = true }
+                ),
+                EditorToolAction(
+                    label = stringResource(R.string.frame_mode),
+                    icon = Icons.Filled.AspectRatio,
+                    hasBadge = frameModeEnabled,
+                    onClick = onToggleFrameMode
                 ),
                 EditorToolAction(
                     label = stringResource(R.string.video_layers),

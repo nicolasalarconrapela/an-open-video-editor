@@ -76,4 +76,5 @@
     <string name="cancel_export_message">¿Quieres cancelar la exportación pausada?</string>
     <string name="cancel_export_confirm">Cancelar exportación</string>
     <string name="export_paused_label">Pausado</string>
+    <string name="frame_mode">Frame independiente</string>
 </resources>

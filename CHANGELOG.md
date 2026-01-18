@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.9] - 2026-01-09
+### Añadido
+- Vista previa con frame independiente movible para incrustar el video dentro del editor.
+
 ## [1.4.8] - 2026-01-09
 ### Mejorado
 - El scrub del timeline usa el centro del playhead para sincronizar el frame con el editor al deslizar.
