@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.13] - 2026-01-09
+### Corregido
+- Captura de imagen ahora usa el frame incrustado cuando está disponible.
+
 ## [1.4.12] - 2026-01-09
 ### Ajustado
 - Evita duplicidad de controles ocultando la superposición de controles al usar el frame independiente.

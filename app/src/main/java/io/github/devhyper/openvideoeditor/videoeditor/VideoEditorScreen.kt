@@ -770,8 +770,13 @@ fun VideoEditorScreen(
                             player.playbackParameters = PlaybackParameters(speed)
                         },
                         onCaptureClick = {
-                            screenScope.launch(Dispatchers.IO) {
-                                saveFrame(context, uri, currentTime)
+                            val frameBitmap = textureView?.bitmap
+                            screenScope.launch {
+                                if (frameBitmap != null) {
+                                    saveBitmap(context, frameBitmap)
+                                } else {
+                                    saveFrame(context, uri, currentTime)
+                                }
                             }
                         },
                         viewModel = viewModel
@@ -2038,27 +2043,7 @@ private suspend fun saveFrame(context: Context, uri: String, timeMs: Long) {
             val bitmap =
                 retriever.getFrameAtTime(timeMs * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
             if (bitmap != null) {
-                val filename = "frame_${System.currentTimeMillis()}.jpg"
-                val contentValues = ContentValues().apply {
-                    put(MediaStore.Images.Media.DISPLAY_NAME, filename)
-                    put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-                    put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/OpenVideoEditor")
-                }
-                val resolver = context.contentResolver
-                val imageUri =
-                    resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-                if (imageUri != null) {
-                    resolver.openOutputStream(imageUri)?.use { stream ->
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, stream)
-                    }
-                    withContext(Dispatchers.Main) {
-                        android.widget.Toast.makeText(
-                            context,
-                            "Frame saved to Pictures",
-                            android.widget.Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                }
+                saveBitmapInternal(context, bitmap)
             } else {
                 withContext(Dispatchers.Main) {
                     android.widget.Toast.makeText(
@@ -2079,6 +2064,36 @@ private suspend fun saveFrame(context: Context, uri: String, timeMs: Long) {
             }
         } finally {
             retriever.release()
+        }
+    }
+}
+
+private suspend fun saveBitmap(context: Context, bitmap: Bitmap) {
+    withContext(Dispatchers.IO) {
+        saveBitmapInternal(context, bitmap)
+    }
+}
+
+private suspend fun saveBitmapInternal(context: Context, bitmap: Bitmap) {
+    val filename = "frame_${System.currentTimeMillis()}.jpg"
+    val contentValues = ContentValues().apply {
+        put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+        put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+        put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/OpenVideoEditor")
+    }
+    val resolver = context.contentResolver
+    val imageUri =
+        resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+    if (imageUri != null) {
+        resolver.openOutputStream(imageUri)?.use { stream ->
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, stream)
+        }
+        withContext(Dispatchers.Main) {
+            android.widget.Toast.makeText(
+                context,
+                "Frame saved to Pictures",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
         }
     }
 }
