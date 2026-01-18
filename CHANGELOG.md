@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.17] - 2026-01-09
+### Ajustado
+- Workflow codex reduce ruido de logs en build.
+
 ## [1.4.16] - 2026-01-09
 ### Ajustado
 - Workflow codex incluye la rama review-project-for-errors-and-bugs.
