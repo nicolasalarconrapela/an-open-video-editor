@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.16] - 2026-01-09
+### Ajustado
+- Workflow codex incluye la rama review-project-for-errors-and-bugs.
+
 ## [1.4.15] - 2026-01-09
 ### Añadido
 - Visualizador de tiempo actual y duración total con soporte de horas.
