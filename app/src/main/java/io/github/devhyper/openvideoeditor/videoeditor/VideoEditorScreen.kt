@@ -681,6 +681,30 @@ fun VideoEditorScreen(
                                     textureView!!
                                 }
                             )
+                            IconButton(
+                                onClick = {
+                                    if (player.isPlaying) {
+                                        player.pause()
+                                    } else {
+                                        player.play()
+                                    }
+                                    isPlaying = player.isPlaying
+                                },
+                                modifier = Modifier
+                                    .align(Alignment.Center)
+                                    .size(56.dp)
+                                    .background(Color.Black.copy(alpha = 0.45f), CircleShape)
+                            ) {
+                                Icon(
+                                    imageVector = if (player.isPlaying) {
+                                        Icons.Filled.Pause
+                                    } else {
+                                        Icons.Filled.PlayArrow
+                                    },
+                                    contentDescription = stringResource(R.string.play_pause),
+                                    tint = Color.White
+                                )
+                            }
                         }
                     } else {
                         AndroidView(

@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.11] - 2026-01-09
+### Añadido
+- Botón de reproducción en el centro del frame incrustado.
+
 ## [1.4.10] - 2026-01-09
 ### Añadido
 - Header superior con nombre del proyecto y botón de opciones.
