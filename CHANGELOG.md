@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.6] - 2026-01-09
+### Corregido
+- Se pide confirmación antes de cancelar una exportación pausada desde el diálogo.
+
 ## [1.4.5] - 2026-01-09
 ### Corregido
 - Se muestra un mensaje al intentar reanudar una exportación sin datos disponibles.

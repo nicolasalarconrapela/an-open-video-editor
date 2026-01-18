@@ -279,6 +279,7 @@ fun VideoEditorScreen(
     // Track work ID from ViewModel (persists across recompositions)
     val currentExportWorkId by viewModel.currentExportWorkId.collectAsState()
     var showCompletionDialog by rememberSaveable { mutableStateOf(false) }
+    var showPausedCancelConfirm by rememberSaveable { mutableStateOf(false) }
     val globalPaused by VideoExportWorker.isPausedFlow.collectAsState()
 
     // Find active export (RUNNING or ENQUEUED)
@@ -315,19 +316,42 @@ fun VideoEditorScreen(
         }
     } else if (globalPaused && pausedExport != null) {
         ExportProgressDialog(pausedExport, videoTitle, isFinished = false) {
-            val projectDataPath =
-                pausedExport.inputData.getString(VideoExportWorker.KEY_PROJECT_DATA_PATH)
-            val exportSettingsPath =
-                pausedExport.inputData.getString(VideoExportWorker.KEY_EXPORT_SETTINGS_PATH)
-            if (projectDataPath != null && exportSettingsPath != null) {
-                val intent = Intent(context, ExportActionReceiver::class.java).apply {
-                    action = "CANCEL_PAUSED"
-                    putExtra("projectDataPath", projectDataPath)
-                    putExtra("exportSettingsPath", exportSettingsPath)
+            showPausedCancelConfirm = true
+        }
+
+        if (showPausedCancelConfirm) {
+            AlertDialog(
+                title = { Text(stringResource(R.string.cancel_export_title)) },
+                text = { Text(stringResource(R.string.cancel_export_message)) },
+                onDismissRequest = { showPausedCancelConfirm = false },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showPausedCancelConfirm = false
+                            val projectDataPath =
+                                pausedExport.inputData.getString(VideoExportWorker.KEY_PROJECT_DATA_PATH)
+                            val exportSettingsPath =
+                                pausedExport.inputData.getString(VideoExportWorker.KEY_EXPORT_SETTINGS_PATH)
+                            if (projectDataPath != null && exportSettingsPath != null) {
+                                val intent = Intent(context, ExportActionReceiver::class.java).apply {
+                                    action = "CANCEL_PAUSED"
+                                    putExtra("projectDataPath", projectDataPath)
+                                    putExtra("exportSettingsPath", exportSettingsPath)
+                                }
+                                context.sendBroadcast(intent)
+                            }
+                            viewModel.setCurrentExportWorkId(null)
+                        }
+                    ) {
+                        Text(stringResource(R.string.cancel_export_confirm))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showPausedCancelConfirm = false }) {
+                        Text(stringResource(R.string.dismiss))
+                    }
                 }
-                context.sendBroadcast(intent)
-            }
-            viewModel.setCurrentExportWorkId(null)
+            )
         }
     } else if (showCompletionDialog && sessionExport != null) {
         // Show completion dialog
