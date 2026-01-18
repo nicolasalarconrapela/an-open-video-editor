@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.4] - 2026-01-09
+### Mejorado
+- Timeline de precisión reutiliza miniaturas entre niveles de LOD para reducir búsquedas repetidas al hacer zoom.
+
 ## [1.4.3] - 2026-01-09
 ### Mejorado
 - Timeline de precisión separa el plan de segmentación del escalado para evitar recalcular segmentos al cambiar zoom.

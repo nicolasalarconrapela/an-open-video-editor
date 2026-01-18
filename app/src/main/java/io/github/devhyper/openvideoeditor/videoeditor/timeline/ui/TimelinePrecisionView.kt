@@ -131,6 +131,15 @@ fun TimelinePrecisionView(
     var lastScrollMs by remember { mutableLongStateOf(0L) }
     val density = androidx.compose.ui.platform.LocalDensity.current
     val thumbnailState = thumbnailCoordinator.state()
+    val bestThumbnailCache = remember {
+        mutableMapOf<String, String>()
+    }
+
+    LaunchedEffect(lodBucket.level, videoTrack?.clips?.size) {
+        if (bestThumbnailCache.size > 1200) {
+            bestThumbnailCache.clear()
+        }
+    }
 
     // Segment logic to avoid Constraint crashes
     // Work entirely in PX for calculations, convert to DP only for modifiers
@@ -546,13 +555,26 @@ fun TimelinePrecisionView(
                                         val localTimeMs =
                                             segment.startTimeOffsetMs + (i * intervalMs)
 
-                                        // Try current LOD first
-                                        val currentKey = thumbnailKeyProvider(
-                                            localTimeMs * 1000,
-                                            clip,
-                                            lodBucket.level
-                                        )
-                                        var bitmap = thumbnailState[currentKey.keyString()]
+                                        val cacheKey =
+                                            "${clip.id}_${segment.segmentIndex}_$i"
+
+                                        // Try cached best LOD first (if present)
+                                        val cachedKey = bestThumbnailCache[cacheKey]
+                                        var bitmap =
+                                            cachedKey?.let { thumbnailState[it] }
+
+                                        // Try current LOD if cache miss
+                                        if (bitmap == null) {
+                                            val currentKey = thumbnailKeyProvider(
+                                                localTimeMs * 1000,
+                                                clip,
+                                                lodBucket.level
+                                            )
+                                            bitmap = thumbnailState[currentKey.keyString()]
+                                            if (bitmap != null) {
+                                                bestThumbnailCache[cacheKey] = currentKey.keyString()
+                                            }
+                                        }
 
                                         // Fallback to lower LOD if not available
                                         if (bitmap == null) {
@@ -567,7 +589,11 @@ fun TimelinePrecisionView(
                                                     fallback.level
                                                 )
                                                 bitmap = thumbnailState[fallbackKey.keyString()]
-                                                if (bitmap != null) break
+                                                if (bitmap != null) {
+                                                    bestThumbnailCache[cacheKey] =
+                                                        fallbackKey.keyString()
+                                                    break
+                                                }
                                             }
                                         }
 
