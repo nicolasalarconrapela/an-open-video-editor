@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.18] - 2026-01-09
+### Ajustado
+- Workflow codex muestra stacktrace para errores de build.
+
 ## [1.4.17] - 2026-01-09
 ### Ajustado
 - Workflow codex reduce ruido de logs en build.

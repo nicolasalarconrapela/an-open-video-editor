@@ -85,7 +85,9 @@ jobs:
             --parallel \
             -Dorg.gradle.jvmargs="${ORG_GRADLE_JVMARGS}" \
             -Dkotlin.daemon.jvmargs="${KOTLIN_DAEMON_JVMARGS}" \
-            --warning-mode=summary
+            --warning-mode=summary \
+            --stacktrace \
+            --console=plain
 
       # Sacar versionName y versionCode en UNA invocación de :app:properties
       - name: Set APK artifact name
