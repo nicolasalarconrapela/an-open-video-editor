@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.12] - 2026-01-09
+### Ajustado
+- Evita duplicidad de controles ocultando la superposición de controles al usar el frame independiente.
+
 ## [1.4.11] - 2026-01-09
 ### Añadido
 - Botón de reproducción en el centro del frame incrustado.

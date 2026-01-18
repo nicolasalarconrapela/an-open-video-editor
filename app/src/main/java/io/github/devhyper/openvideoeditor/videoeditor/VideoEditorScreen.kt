@@ -738,7 +738,7 @@ fun VideoEditorScreen(
                     PlayerControls(
                         modifier = Modifier
                             .fillMaxSize(),
-                        isVisible = { controlsVisible },
+                        isVisible = { controlsVisible && !frameModeEnabled },
                         isPlaying = { isPlaying },
                         title = { getFileNameFromUri(context, uri.toUri()) },
                         transformManager = transformManager,
