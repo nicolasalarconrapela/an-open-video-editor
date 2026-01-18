@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.5] - 2026-01-09
+### Corregido
+- Se muestra un mensaje al intentar reanudar una exportación sin datos disponibles.
+
 ## [1.4.4] - 2026-01-09
 ### Mejorado
 - Timeline de precisión reutiliza miniaturas entre niveles de LOD para reducir búsquedas repetidas al hacer zoom.

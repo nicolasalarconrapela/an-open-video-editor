@@ -71,4 +71,5 @@
     <string name="proxy_quality_medium">Media</string>
     <string name="proxy_quality_high">Alta</string>
     <string name="permission_denied_grant_video_permissions">Permiso denegado, conceder permisos de vídeo</string>
+    <string name="export_resume_missing_data">No se pudo reanudar la exportación. Intenta exportar de nuevo.</string>
 </resources>

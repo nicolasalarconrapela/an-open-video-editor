@@ -1780,6 +1780,11 @@ fun ExportProgressDialog(
                                                 "ExportDebug",
                                                 "❌ Resume failed: missing paths in dialog."
                                             )
+                                            Toast.makeText(
+                                                context,
+                                                context.getString(R.string.export_resume_missing_data),
+                                                Toast.LENGTH_LONG
+                                            ).show()
                                             return@TextButton
                                         }
                                     }
