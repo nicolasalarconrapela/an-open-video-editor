@@ -146,6 +146,7 @@ import io.github.devhyper.openvideoeditor.misc.REFRESH_RATE
 import io.github.devhyper.openvideoeditor.misc.SwitchSetting
 import io.github.devhyper.openvideoeditor.misc.TextfieldSetting
 import io.github.devhyper.openvideoeditor.misc.formatMinSec
+import io.github.devhyper.openvideoeditor.misc.formatTimecode
 import io.github.devhyper.openvideoeditor.misc.getFileNameFromUri
 import io.github.devhyper.openvideoeditor.misc.toLongPair
 import io.github.devhyper.openvideoeditor.misc.validateUFloatAndNonzero
@@ -1128,6 +1129,24 @@ private fun BottomControls(
             .padding(bottom = 0.dp)
             .background(Color.Black)
     ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = currentTime().formatTimecode(),
+                color = Color.White,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                text = totalDuration().formatTimecode(),
+                color = Color.White.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
         Box(
             modifier = Modifier
                 .fillMaxWidth()

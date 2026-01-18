@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.15] - 2026-01-09
+### Añadido
+- Visualizador de tiempo actual y duración total con soporte de horas.
+
 ## [1.4.14] - 2026-01-09
 ### Mejorado
 - Zoom del visor permite reinicio con doble toque y se mantiene activo en modo frame.
