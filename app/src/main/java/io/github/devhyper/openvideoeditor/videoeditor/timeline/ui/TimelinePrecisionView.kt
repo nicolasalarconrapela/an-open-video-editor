@@ -70,6 +70,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.delay
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
@@ -148,76 +149,67 @@ fun TimelinePrecisionView(
         val durationMs: Long
     )
 
-    val segments = remember(videoTrack?.clips, pixelsPerSecond, density) {
-        val result = mutableListOf<TimelineSegment>()
-        videoTrack?.clips?.forEachIndexed { index, clip ->
-            // Calculate in PX
-            val totalWidthPx = (clip.durationMs / 1000f) * pixelsPerSecond
+    data class SegmentPlan(
+        val clip: TimelineUiClip,
+        val clipIndex: Int,
+        val segmentIndex: Int,
+        val isFirst: Boolean,
+        val isLast: Boolean,
+        val startTimeOffsetMs: Long,
+        val durationMs: Long
+    )
 
-            if (totalWidthPx <= maxSegmentWidthPx) {
-                // Single segment
+    val segmentPlan = remember(videoTrack?.clips, maxSegmentWidthPx) {
+        val result = mutableListOf<SegmentPlan>()
+        videoTrack?.clips?.forEachIndexed { index, clip ->
+            val clipWidthPx = (clip.durationMs / 1000f) * basePixelsPerSecond
+            val segmentsCount = ceil(clipWidthPx / maxSegmentWidthPx)
+                .toInt()
+                .coerceAtLeast(1)
+            val baseDurationMs = (clip.durationMs / segmentsCount).coerceAtLeast(1L)
+            var currentOffsetMs = 0L
+            for (segIndex in 0 until segmentsCount) {
+                val isLastSeg = segIndex == segmentsCount - 1
+                val segDurationMs = if (isLastSeg) {
+                    (clip.durationMs - currentOffsetMs).coerceAtLeast(1L)
+                } else {
+                    baseDurationMs.coerceAtMost(
+                        (clip.durationMs - currentOffsetMs - 1L).coerceAtLeast(1L)
+                    )
+                }
                 result.add(
-                    TimelineSegment(
-                        id = "${clip.id}_0",
+                    SegmentPlan(
                         clip = clip,
                         clipIndex = index,
-                        segmentIndex = 0,
-                        isFirst = true,
-                        isLast = true,
-                        widthPx = totalWidthPx,
-                        startTimeOffsetMs = 0L,
-                        durationMs = clip.durationMs
+                        segmentIndex = segIndex,
+                        isFirst = segIndex == 0,
+                        isLast = isLastSeg,
+                        startTimeOffsetMs = currentOffsetMs,
+                        durationMs = segDurationMs
                     )
                 )
-            } else {
-                // Multi-segment - split in PX, with exact duration accounting
-                var remainingWidthPx = totalWidthPx
-                var currentOffsetMs = 0L
-                var segIndex = 0
-
-                while (remainingWidthPx > 0f) {
-                    val segWidthPx = remainingWidthPx.coerceAtMost(maxSegmentWidthPx)
-                    val isLastSeg = remainingWidthPx <= maxSegmentWidthPx
-
-                    // Provisional duration based on px->ms, rounded, never 0ms
-                    val computedMs = ((segWidthPx / pixelsPerSecond) * 1000f)
-                        .roundToInt()
-                        .toLong()
-                        .coerceAtLeast(1L)
-
-                    // Ensure sum of seg durations == clip.durationMs (last segment takes remainder)
-                    val segDurationMs = if (isLastSeg) {
-                        (clip.durationMs - currentOffsetMs).coerceAtLeast(1L)
-                    } else {
-                        computedMs.coerceAtMost(
-                            (clip.durationMs - currentOffsetMs - 1L).coerceAtLeast(1L)
-                        )
-                    }
-
-                    result.add(
-                        TimelineSegment(
-                            id = "${clip.id}_$segIndex",
-                            clip = clip,
-                            clipIndex = index,
-                            segmentIndex = segIndex,
-                            isFirst = segIndex == 0,
-                            isLast = isLastSeg,
-                            widthPx = segWidthPx,
-                            startTimeOffsetMs = currentOffsetMs,
-                            durationMs = segDurationMs
-                        )
-                    )
-
-                    remainingWidthPx -= segWidthPx
-                    currentOffsetMs += segDurationMs
-                    segIndex++
-
-                    // Safety: if we've consumed full duration, stop
-                    if (currentOffsetMs >= clip.durationMs) break
-                }
+                currentOffsetMs += segDurationMs
+                if (currentOffsetMs >= clip.durationMs) break
             }
         }
         result
+    }
+
+    val segments = remember(segmentPlan, pixelsPerSecond, density) {
+        segmentPlan.map { plan ->
+            val widthPx = (plan.durationMs / 1000f) * pixelsPerSecond
+            TimelineSegment(
+                id = "${plan.clip.id}_${plan.segmentIndex}",
+                clip = plan.clip,
+                clipIndex = plan.clipIndex,
+                segmentIndex = plan.segmentIndex,
+                isFirst = plan.isFirst,
+                isLast = plan.isLast,
+                widthPx = widthPx,
+                startTimeOffsetMs = plan.startTimeOffsetMs,
+                durationMs = plan.durationMs
+            )
+        }
     }
     val segmentStartTimesMs = remember(segments) {
         var accumulated = 0L
