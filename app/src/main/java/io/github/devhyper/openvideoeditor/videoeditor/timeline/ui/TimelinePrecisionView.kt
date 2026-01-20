@@ -68,7 +68,6 @@ import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRequest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.ceil
@@ -289,16 +288,9 @@ fun TimelinePrecisionView(
         }
 
         LaunchedEffect(listState, segments, pixelsPerSecond) {
-            snapshotFlow { listState.layoutInfo }
-                .mapNotNull { layoutInfo ->
-                    val centerPx =
-                        (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2f
-                    val centerItem = layoutInfo.visibleItemsInfo.firstOrNull { item ->
-                        centerPx >= item.offset && centerPx <= item.offset + item.size
-                    } ?: return@mapNotNull null
-                    val offsetInItemPx = centerPx - centerItem.offset
-                    centerItem.index to offsetInItemPx
-                }
+            snapshotFlow {
+                listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+            }
                 .distinctUntilChanged()
                 .collect { (index, offsetPx) ->
                     if (listState.isScrollInProgress) {

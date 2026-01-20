@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.21] - 2026-01-09
+### Ajustado
+- El timeline sincroniza el editor en tiempo real al desplazar de izquierda a derecha.
+
 ## [1.4.20] - 2026-01-09
 ### Corregido
 - El zoom aplica una actualización del frame cuando el video está en pausa.
