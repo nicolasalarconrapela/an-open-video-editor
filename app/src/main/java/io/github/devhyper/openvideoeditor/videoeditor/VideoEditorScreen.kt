@@ -619,6 +619,7 @@ fun VideoEditorScreen(
                         } else {
                             offset = Offset.Zero
                         }
+                        player.seekTo(player.currentPosition)
                     }
                 }
                 val androidViewModifier = tapModifier.then(transformModifier)

@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.20] - 2026-01-09
+### Corregido
+- El zoom aplica una actualización del frame cuando el video está en pausa.
+
 ## [1.4.19] - 2026-01-09
 ### Corregido
 - Exportación pausada usa rutas almacenadas en el estado en lugar de WorkInfo inputData.
