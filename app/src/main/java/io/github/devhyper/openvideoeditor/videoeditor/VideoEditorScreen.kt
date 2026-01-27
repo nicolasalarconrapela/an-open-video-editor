@@ -26,6 +26,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -58,6 +59,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Forward10
@@ -118,6 +120,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
@@ -143,6 +146,7 @@ import io.github.devhyper.openvideoeditor.misc.REFRESH_RATE
 import io.github.devhyper.openvideoeditor.misc.SwitchSetting
 import io.github.devhyper.openvideoeditor.misc.TextfieldSetting
 import io.github.devhyper.openvideoeditor.misc.formatMinSec
+import io.github.devhyper.openvideoeditor.misc.formatTimecode
 import io.github.devhyper.openvideoeditor.misc.getFileNameFromUri
 import io.github.devhyper.openvideoeditor.misc.toLongPair
 import io.github.devhyper.openvideoeditor.misc.validateUFloatAndNonzero
@@ -279,10 +283,24 @@ fun VideoEditorScreen(
     // Track work ID from ViewModel (persists across recompositions)
     val currentExportWorkId by viewModel.currentExportWorkId.collectAsState()
     var showCompletionDialog by rememberSaveable { mutableStateOf(false) }
+    var showPausedCancelConfirm by rememberSaveable { mutableStateOf(false) }
+    val globalPaused by VideoExportWorker.isPausedFlow.collectAsState()
+    val currentExportPaths by viewModel.currentExportPaths.collectAsState()
 
     // Find active export (RUNNING or ENQUEUED)
     val activeExport = exportWorkInfos.firstOrNull {
         it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED
+    }
+    val pausedExport = if (globalPaused && currentExportWorkId != null) {
+        exportWorkInfos.firstOrNull { it.id.toString() == currentExportWorkId }
+    } else {
+        null
+    }
+
+    LaunchedEffect(activeExport?.id) {
+        if (activeExport != null && activeExport.id.toString() != currentExportWorkId) {
+            viewModel.setCurrentExportWorkId(activeExport.id.toString())
+        }
     }
 
     // Check if our session's export just finished
@@ -297,15 +315,75 @@ fun VideoEditorScreen(
 
     // Show progress dialog only for active exports
     if (activeExport != null) {
-        ExportProgressDialog(activeExport, videoTitle, isFinished = false) {
+        ExportProgressDialog(
+            workInfo = activeExport,
+            videoTitle = videoTitle,
+            isFinished = false,
+            exportPaths = currentExportPaths
+        ) {
             workManager.cancelWorkById(activeExport.id)
             viewModel.setCurrentExportWorkId(null)
+            viewModel.setCurrentExportPaths(null)
+        }
+    } else if (globalPaused && pausedExport != null) {
+        ExportProgressDialog(
+            workInfo = pausedExport,
+            videoTitle = videoTitle,
+            isFinished = false,
+            exportPaths = currentExportPaths
+        ) {
+            showPausedCancelConfirm = true
+        }
+
+        if (showPausedCancelConfirm) {
+            AlertDialog(
+                title = { Text(stringResource(R.string.cancel_export_title)) },
+                text = { Text(stringResource(R.string.cancel_export_message)) },
+                onDismissRequest = { showPausedCancelConfirm = false },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showPausedCancelConfirm = false
+                            val exportPaths = currentExportPaths
+                            if (exportPaths != null) {
+                                val intent = Intent(context, ExportActionReceiver::class.java).apply {
+                                    action = "CANCEL_PAUSED"
+                                    putExtra("projectDataPath", exportPaths.projectDataPath)
+                                    putExtra("exportSettingsPath", exportPaths.exportSettingsPath)
+                                }
+                                context.sendBroadcast(intent)
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.export_resume_missing_data),
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                            viewModel.setCurrentExportWorkId(null)
+                            viewModel.setCurrentExportPaths(null)
+                        }
+                    ) {
+                        Text(stringResource(R.string.cancel_export_confirm))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showPausedCancelConfirm = false }) {
+                        Text(stringResource(R.string.dismiss))
+                    }
+                }
+            )
         }
     } else if (showCompletionDialog && sessionExport != null) {
         // Show completion dialog
-        ExportProgressDialog(sessionExport, videoTitle, isFinished = true) {
+        ExportProgressDialog(
+            workInfo = sessionExport,
+            videoTitle = videoTitle,
+            isFinished = true,
+            exportPaths = currentExportPaths
+        ) {
             showCompletionDialog = false
             viewModel.setCurrentExportWorkId(null)
+            viewModel.setCurrentExportPaths(null)
             // Prune old completed works
             workManager.pruneWork()
         }
@@ -509,6 +587,8 @@ fun VideoEditorScreen(
 
                 var scale by remember { mutableFloatStateOf(1f) }
                 var offset by remember { mutableStateOf(Offset.Zero) }
+                var frameModeEnabled by rememberSaveable { mutableStateOf(false) }
+                var frameOffset by remember { mutableStateOf(Offset.Zero) }
 
                 LaunchedEffect(scale, offset, textureView) {
                     val view = textureView
@@ -522,22 +602,53 @@ fun VideoEditorScreen(
                     }
                 }
 
-                val androidViewModifier = Modifier
-                    .pointerInput(Unit) {
-                        detectTransformGestures { _, pan, zoom, _ ->
-                            scale = (scale * zoom).coerceIn(1f, 10f)
-                            if (scale > 1f) {
-                                offset += pan
-                            } else {
-                                offset = Offset.Zero
-                            }
+                val tapModifier = Modifier.pointerInput(Unit) {
+                    detectTapGestures(
+                        onTap = { viewModel.setControlsVisible(!controlsVisible) },
+                        onDoubleTap = {
+                            scale = 1f
+                            offset = Offset.Zero
                         }
+                    )
+                }
+                val transformModifier = Modifier.pointerInput(Unit) {
+                    detectTransformGestures { _, pan, zoom, _ ->
+                        scale = (scale * zoom).coerceIn(1f, 10f)
+                        if (scale > 1f) {
+                            offset += pan
+                        } else {
+                            offset = Offset.Zero
+                        }
+                        player.seekTo(player.currentPosition)
                     }
-                    .pointerInput(Unit) {
-                        detectTapGestures(
-                            onTap = { viewModel.setControlsVisible(!controlsVisible) }
+                }
+                val androidViewModifier = tapModifier.then(transformModifier)
+
+                val projectTitle = remember(uri) { getFileNameFromUri(context, uri.toUri()) }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.Black)
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = projectTitle,
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = { viewModel.setControlsVisible(!controlsVisible) }) {
+                        Icon(
+                            imageVector = Icons.Filled.MoreVert,
+                            contentDescription = stringResource(R.string.more_vertical_options),
+                            tint = Color.White
                         )
                     }
+                }
 
                 Box(
                     modifier = Modifier
@@ -546,37 +657,112 @@ fun VideoEditorScreen(
                         .clipToBounds()
                         .windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility)
                 ) {
-                    AndroidView(
-                        modifier = androidViewModifier.fillMaxSize(),
-                        factory = {
-                            textureView = TextureView(context).apply {
-                                layoutParams =
-                                    FrameLayout.LayoutParams(
-                                        ViewGroup.LayoutParams.MATCH_PARENT,
-                                        ViewGroup.LayoutParams.MATCH_PARENT
-                                    )
-                            }
-                            textureView!!
+                    if (frameModeEnabled) {
+                        val videoFormat = player.videoFormat
+                        val frameWidth = 240.dp
+                        val frameHeight = if (videoFormat != null &&
+                            videoFormat.width > 0 &&
+                            videoFormat.height > 0
+                        ) {
+                            frameWidth * (videoFormat.height.toFloat() / videoFormat.width.toFloat())
+                        } else {
+                            135.dp
                         }
-                    )
-
-                    val videoFormat = player.videoFormat
-                    if (videoFormat != null) {
                         Box(
                             modifier = Modifier
-                                .width(videoFormat.width.dp)
-                                .height(videoFormat.height.dp)
                                 .align(Alignment.Center)
-                                .windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility)
+                                .offset {
+                                    IntOffset(
+                                        frameOffset.x.roundToInt(),
+                                        frameOffset.y.roundToInt()
+                                    )
+                                }
+                                .size(frameWidth, frameHeight)
+                                .background(Color.Black, RoundedCornerShape(12.dp))
+                                .border(
+                                    width = 2.dp,
+                                    brush = SolidColor(Color(0xFF00C853)),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .clip(RoundedCornerShape(12.dp))
+                                .pointerInput(Unit) {
+                                    detectDragGestures { change, dragAmount ->
+                                        change.consume()
+                                        frameOffset += dragAmount
+                                    }
+                                }
                         ) {
-                            currentEditingEffect?.Editor()
+                            AndroidView(
+                                modifier = androidViewModifier.fillMaxSize(),
+                                factory = {
+                                    textureView = TextureView(context).apply {
+                                        layoutParams =
+                                            FrameLayout.LayoutParams(
+                                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                                ViewGroup.LayoutParams.MATCH_PARENT
+                                            )
+                                    }
+                                    textureView!!
+                                }
+                            )
+                            IconButton(
+                                onClick = {
+                                    if (player.isPlaying) {
+                                        player.pause()
+                                    } else {
+                                        player.play()
+                                    }
+                                    isPlaying = player.isPlaying
+                                },
+                                modifier = Modifier
+                                    .align(Alignment.Center)
+                                    .size(56.dp)
+                                    .background(Color.Black.copy(alpha = 0.45f), CircleShape)
+                            ) {
+                                Icon(
+                                    imageVector = if (player.isPlaying) {
+                                        Icons.Filled.Pause
+                                    } else {
+                                        Icons.Filled.PlayArrow
+                                    },
+                                    contentDescription = stringResource(R.string.play_pause),
+                                    tint = Color.White
+                                )
+                            }
+                        }
+                    } else {
+                        AndroidView(
+                            modifier = androidViewModifier.fillMaxSize(),
+                            factory = {
+                                textureView = TextureView(context).apply {
+                                    layoutParams =
+                                        FrameLayout.LayoutParams(
+                                            ViewGroup.LayoutParams.MATCH_PARENT,
+                                            ViewGroup.LayoutParams.MATCH_PARENT
+                                        )
+                                }
+                                textureView!!
+                            }
+                        )
+
+                        val videoFormat = player.videoFormat
+                        if (videoFormat != null) {
+                            Box(
+                                modifier = Modifier
+                                    .width(videoFormat.width.dp)
+                                    .height(videoFormat.height.dp)
+                                    .align(Alignment.Center)
+                                    .windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility)
+                            ) {
+                                currentEditingEffect?.Editor()
+                            }
                         }
                     }
 
                     PlayerControls(
                         modifier = Modifier
                             .fillMaxSize(),
-                        isVisible = { controlsVisible },
+                        isVisible = { controlsVisible && !frameModeEnabled },
                         isPlaying = { isPlaying },
                         title = { getFileNameFromUri(context, uri.toUri()) },
                         transformManager = transformManager,
@@ -608,8 +794,13 @@ fun VideoEditorScreen(
                             player.playbackParameters = PlaybackParameters(speed)
                         },
                         onCaptureClick = {
-                            screenScope.launch(Dispatchers.IO) {
-                                saveFrame(context, uri, currentTime)
+                            val frameBitmap = textureView?.bitmap
+                            screenScope.launch {
+                                if (frameBitmap != null) {
+                                    saveBitmap(context, frameBitmap)
+                                } else {
+                                    saveFrame(context, uri, currentTime)
+                                }
                             }
                         },
                         viewModel = viewModel
@@ -651,6 +842,13 @@ fun VideoEditorScreen(
                         timelineListState = timelineListState,
                         onPlayerSeek = { timeMs -> player.seekTo(timeMs) },
                         viewModel = viewModel,
+                        frameModeEnabled = frameModeEnabled,
+                        onToggleFrameMode = {
+                            frameModeEnabled = !frameModeEnabled
+                            if (!frameModeEnabled) {
+                                frameOffset = Offset.Zero
+                            }
+                        },
                         thumbnailCoordinator = thumbnailCoordinator,
                         thumbnailKeyProvider = thumbnailKeyProvider
                     )
@@ -930,6 +1128,8 @@ private fun BottomControls(
     timelineListState: LazyListState,
     onPlayerSeek: (Long) -> Unit,
     viewModel: VideoEditorViewModel,
+    frameModeEnabled: Boolean,
+    onToggleFrameMode: () -> Unit,
     thumbnailCoordinator: ThumbnailRequestCoordinator,
     thumbnailKeyProvider: ((timeUs: Long, clip: TimelineUiClip, zoomBucket: Int) -> ThumbnailKey)? = null
 ) {
@@ -952,6 +1152,24 @@ private fun BottomControls(
             .padding(bottom = 0.dp)
             .background(Color.Black)
     ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = currentTime().formatTimecode(),
+                color = Color.White,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                text = totalDuration().formatTimecode(),
+                color = Color.White.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -999,6 +1217,12 @@ private fun BottomControls(
                     label = stringResource(R.string.video_filters),
                     icon = Icons.Filled.Filter,
                     onClick = { showFilterBottomSheet = true }
+                ),
+                EditorToolAction(
+                    label = stringResource(R.string.frame_mode),
+                    icon = Icons.Filled.AspectRatio,
+                    hasBadge = frameModeEnabled,
+                    onClick = onToggleFrameMode
                 ),
                 EditorToolAction(
                     label = stringResource(R.string.video_layers),
@@ -1527,7 +1751,7 @@ private fun ExportDialog(
         } else {
             // Trigger WorkManager
             SideEffect {
-                val workId = startExportWork(context, transformManager, exportSettings)
+                val workId = startExportWork(context, transformManager, exportSettings, viewModel)
                 if (workId != null) {
                     viewModel.setCurrentExportWorkId(workId)
                 }
@@ -1658,9 +1882,13 @@ fun ExportProgressDialog(
     workInfo: WorkInfo,
     videoTitle: String,
     isFinished: Boolean,
+    exportPaths: VideoEditorViewModel.ExportPaths?,
     onDismissOrCancel: () -> Unit
 ) {
+    val context = LocalContext.current
     val progress = workInfo.progress.getFloat(VideoExportWorker.KEY_PROGRESS, 0f)
+    val projectDataPath = exportPaths?.projectDataPath
+    val exportSettingsPath = exportPaths?.exportSettingsPath
 
     val animatedProgress = animateFloatAsState(
         targetValue = if (isFinished) 1f else progress,
@@ -1720,6 +1948,16 @@ fun ExportProgressDialog(
                     }
                 } else {
                     val globalPaused by VideoExportWorker.isPausedFlow.collectAsState()
+                    if (globalPaused) {
+                        Text(
+                            text = stringResource(R.string.export_paused_label),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colorScheme.secondary,
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .padding(bottom = 8.dp)
+                        )
+                    }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly
@@ -1732,7 +1970,32 @@ fun ExportProgressDialog(
                         }
 
                         TextButton(
-                            onClick = { VideoExportWorker.setPaused(!globalPaused) },
+                            onClick = {
+                                val action = if (globalPaused) "RESUME" else "PAUSE"
+                                val intent = Intent(context, ExportActionReceiver::class.java).apply {
+                                    this.action = action
+                                    if (action == "PAUSE") {
+                                        putExtra("workerId", workInfo.id.toString())
+                                    } else {
+                                        if (projectDataPath != null && exportSettingsPath != null) {
+                                            putExtra("projectDataPath", projectDataPath)
+                                            putExtra("exportSettingsPath", exportSettingsPath)
+                                        } else {
+                                            android.util.Log.e(
+                                                "ExportDebug",
+                                                "❌ Resume failed: missing paths in dialog."
+                                            )
+                                            Toast.makeText(
+                                                context,
+                                                context.getString(R.string.export_resume_missing_data),
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                            return@TextButton
+                                        }
+                                    }
+                                }
+                                context.sendBroadcast(intent)
+                            },
                             modifier = Modifier.weight(1f)
                         ) {
                             Text(
@@ -1751,7 +2014,8 @@ fun ExportProgressDialog(
 private fun startExportWork(
     context: Context,
     transformManager: TransformManager,
-    exportSettings: ExportSettings
+    exportSettings: ExportSettings,
+    viewModel: VideoEditorViewModel
 ): String? {
     // Use unique filenames to prevent conflicts if multiple exports are triggered
     val uniqueId = java.util.UUID.randomUUID().toString()
@@ -1778,6 +2042,12 @@ private fun startExportWork(
             "video_export_main",
             androidx.work.ExistingWorkPolicy.REPLACE,
             request
+        )
+        viewModel.setCurrentExportPaths(
+            VideoEditorViewModel.ExportPaths(
+                projectDataPath = projectDataFile.absolutePath,
+                exportSettingsPath = settingsFile.absolutePath
+            )
         )
         return request.id.toString()
     } catch (e: Exception) {
@@ -1821,27 +2091,7 @@ private suspend fun saveFrame(context: Context, uri: String, timeMs: Long) {
             val bitmap =
                 retriever.getFrameAtTime(timeMs * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
             if (bitmap != null) {
-                val filename = "frame_${System.currentTimeMillis()}.jpg"
-                val contentValues = ContentValues().apply {
-                    put(MediaStore.Images.Media.DISPLAY_NAME, filename)
-                    put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-                    put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/OpenVideoEditor")
-                }
-                val resolver = context.contentResolver
-                val imageUri =
-                    resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-                if (imageUri != null) {
-                    resolver.openOutputStream(imageUri)?.use { stream ->
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, stream)
-                    }
-                    withContext(Dispatchers.Main) {
-                        android.widget.Toast.makeText(
-                            context,
-                            "Frame saved to Pictures",
-                            android.widget.Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                }
+                saveBitmapInternal(context, bitmap)
             } else {
                 withContext(Dispatchers.Main) {
                     android.widget.Toast.makeText(
@@ -1862,6 +2112,36 @@ private suspend fun saveFrame(context: Context, uri: String, timeMs: Long) {
             }
         } finally {
             retriever.release()
+        }
+    }
+}
+
+private suspend fun saveBitmap(context: Context, bitmap: Bitmap) {
+    withContext(Dispatchers.IO) {
+        saveBitmapInternal(context, bitmap)
+    }
+}
+
+private suspend fun saveBitmapInternal(context: Context, bitmap: Bitmap) {
+    val filename = "frame_${System.currentTimeMillis()}.jpg"
+    val contentValues = ContentValues().apply {
+        put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+        put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+        put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/OpenVideoEditor")
+    }
+    val resolver = context.contentResolver
+    val imageUri =
+        resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+    if (imageUri != null) {
+        resolver.openOutputStream(imageUri)?.use { stream ->
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, stream)
+        }
+        withContext(Dispatchers.Main) {
+            android.widget.Toast.makeText(
+                context,
+                "Frame saved to Pictures",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
         }
     }
 }

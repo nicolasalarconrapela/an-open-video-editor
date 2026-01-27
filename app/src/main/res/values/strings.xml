@@ -26,6 +26,12 @@
     <string name="exporting">Exporting</string>
     <string name="export_cancelled">Export cancelled</string>
     <string name="export_failed">Export failed</string>
+    <string name="export_resume_missing_data">No se pudo reanudar la exportación. Intenta exportar de nuevo.</string>
+    <string name="cancel_export_title">Cancelar exportación</string>
+    <string name="cancel_export_message">¿Quieres cancelar la exportación pausada?</string>
+    <string name="cancel_export_confirm">Cancelar exportación</string>
+    <string name="export_paused_label">Pausado</string>
+    <string name="frame_mode">Frame independiente</string>
     <string name="dismiss">Dismiss</string>
     <string name="error">Error</string>
     <string name="select_a_file_to_edit">Select a file to edit</string>

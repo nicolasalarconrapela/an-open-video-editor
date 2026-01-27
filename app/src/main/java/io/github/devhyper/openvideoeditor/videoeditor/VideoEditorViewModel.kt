@@ -20,6 +20,10 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class VideoEditorViewModel : ViewModel() {
+    data class ExportPaths(
+        val projectDataPath: String,
+        val exportSettingsPath: String
+    )
     val transformManager = TransformManager()
 
     private val _state = MutableStateFlow(EditorState())
@@ -75,6 +79,8 @@ class VideoEditorViewModel : ViewModel() {
 
     private val _currentExportWorkId = MutableStateFlow<String?>(null)
     val currentExportWorkId: StateFlow<String?> = _currentExportWorkId.asStateFlow()
+    private val _currentExportPaths = MutableStateFlow<ExportPaths?>(null)
+    val currentExportPaths: StateFlow<ExportPaths?> = _currentExportPaths.asStateFlow()
 
     fun onEvent(event: EditorEvent) {
         _state.update { current ->
@@ -148,6 +154,10 @@ class VideoEditorViewModel : ViewModel() {
 
     fun setCurrentExportWorkId(value: String?) {
         _currentExportWorkId.update { value }
+    }
+
+    fun setCurrentExportPaths(value: ExportPaths?) {
+        _currentExportPaths.update { value }
     }
 
     fun setClips(clips: List<ClipSource>) {

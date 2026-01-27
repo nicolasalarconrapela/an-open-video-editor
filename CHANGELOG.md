@@ -1,5 +1,113 @@
 # Changelog
 
+## [1.4.22] - 2026-01-09
+### Ajustado
+- Sincronización de scroll del timeline consolida cálculos para reducir trabajo repetido.
+
+## [1.4.21] - 2026-01-09
+### Ajustado
+- El timeline sincroniza el editor en tiempo real al desplazar de izquierda a derecha.
+
+## [1.4.20] - 2026-01-09
+### Corregido
+- El zoom aplica una actualización del frame cuando el video está en pausa.
+
+## [1.4.19] - 2026-01-09
+### Corregido
+- Exportación pausada usa rutas almacenadas en el estado en lugar de WorkInfo inputData.
+
+## [1.4.18] - 2026-01-09
+### Ajustado
+- Workflow codex muestra stacktrace para errores de build.
+
+## [1.4.17] - 2026-01-09
+### Ajustado
+- Workflow codex reduce ruido de logs en build.
+
+## [1.4.16] - 2026-01-09
+### Ajustado
+- Workflow codex incluye la rama review-project-for-errors-and-bugs.
+
+## [1.4.15] - 2026-01-09
+### Añadido
+- Visualizador de tiempo actual y duración total con soporte de horas.
+
+## [1.4.14] - 2026-01-09
+### Mejorado
+- Zoom del visor permite reinicio con doble toque y se mantiene activo en modo frame.
+
+## [1.4.13] - 2026-01-09
+### Corregido
+- Captura de imagen ahora usa el frame incrustado cuando está disponible.
+
+## [1.4.12] - 2026-01-09
+### Ajustado
+- Evita duplicidad de controles ocultando la superposición de controles al usar el frame independiente.
+
+## [1.4.11] - 2026-01-09
+### Añadido
+- Botón de reproducción en el centro del frame incrustado.
+
+## [1.4.10] - 2026-01-09
+### Añadido
+- Header superior con nombre del proyecto y botón de opciones.
+
+## [1.4.9] - 2026-01-09
+### Añadido
+- Vista previa con frame independiente movible para incrustar el video dentro del editor.
+
+## [1.4.8] - 2026-01-09
+### Mejorado
+- El scrub del timeline usa el centro del playhead para sincronizar el frame con el editor al deslizar.
+
+## [1.4.7] - 2026-01-09
+### Corregido
+- El diálogo de exportación muestra una etiqueta de pausa cuando la exportación está detenida temporalmente.
+
+## [1.4.6] - 2026-01-09
+### Corregido
+- Se pide confirmación antes de cancelar una exportación pausada desde el diálogo.
+
+## [1.4.5] - 2026-01-09
+### Corregido
+- Se muestra un mensaje al intentar reanudar una exportación sin datos disponibles.
+
+## [1.4.4] - 2026-01-09
+### Mejorado
+- Timeline de precisión reutiliza miniaturas entre niveles de LOD para reducir búsquedas repetidas al hacer zoom.
+
+## [1.4.3] - 2026-01-09
+### Mejorado
+- Timeline de precisión separa el plan de segmentación del escalado para evitar recalcular segmentos al cambiar zoom.
+
+## [1.4.2] - 2026-01-09
+### Mejorado
+- Timeline de precisión limita la frecuencia de sincronización del ruler y audio para reducir trabajo durante scroll rápido.
+
+## [1.4.1] - 2026-01-09
+### Corregido
+- El ruler y la pista de audio del timeline se sincronizan también durante el scroll programático del playhead.
+
+## [1.4.0] - 2026-01-09
+### Mejorado
+- Timeline de precisión alinea el ruler con el padding del playhead para mantener la escala sincronizada con los clips.
+
+## [1.3.99] - 2026-01-09
+### Mejorado
+- Timeline de precisión usa offsets acumulados para sincronizar el playhead y el ruler con menos coste por scroll.
+
+## [1.3.98] - 2026-01-09
+### Corregido
+- El diálogo de exportación permanece visible durante la pausa y permite cancelar limpiamente la exportación pausada.
+
+## [1.3.97] - 2026-01-09
+### Corregido
+- Sincroniza el ID de exportación activo al reanudar para que el diálogo de finalización se muestre correctamente.
+
+## [1.3.96] - 2026-01-09
+### Corregido
+- Pausa y reanudación de exportación ahora usan el flujo de broadcast para cancelar y reanudar correctamente desde el diálogo de progreso.
+
 ## [1.3.95] - 2026-01-09
 ### Ajustado
 - Workflow codex actualizado para la rama propose-thumbnail-generation-strategy.

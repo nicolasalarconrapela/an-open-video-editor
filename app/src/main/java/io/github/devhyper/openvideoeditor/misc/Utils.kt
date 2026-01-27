@@ -96,6 +96,19 @@ fun Long.formatMinSec(): String {
     }
 }
 
+fun Long.formatTimecode(): String {
+    val hours = TimeUnit.MILLISECONDS.toHours(this)
+    val minutes = TimeUnit.MILLISECONDS.toMinutes(this) -
+        TimeUnit.HOURS.toMinutes(hours)
+    val seconds = TimeUnit.MILLISECONDS.toSeconds(this) -
+        TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(this))
+    return if (hours > 0) {
+        String.format("%02d:%02d:%02d", hours, minutes, seconds)
+    } else {
+        String.format("%02d:%02d", minutes, seconds)
+    }
+}
+
 fun <T> MutableList<T>.move(item: T, newIndex: Int) {
     val currentIndex = indexOf(item)
     if (currentIndex < 0) return

@@ -51,6 +51,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -65,8 +66,12 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailKey
 import io.github.devhyper.openvideoeditor.videoeditor.thumbnail.ThumbnailRequestCoordinator
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.delay
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
@@ -127,6 +132,15 @@ fun TimelinePrecisionView(
     var lastScrollMs by remember { mutableLongStateOf(0L) }
     val density = androidx.compose.ui.platform.LocalDensity.current
     val thumbnailState = thumbnailCoordinator.state()
+    val bestThumbnailCache = remember {
+        mutableMapOf<String, String>()
+    }
+
+    LaunchedEffect(lodBucket.level, videoTrack?.clips?.size) {
+        if (bestThumbnailCache.size > 1200) {
+            bestThumbnailCache.clear()
+        }
+    }
 
     // Segment logic to avoid Constraint crashes
     // Work entirely in PX for calculations, convert to DP only for modifiers
@@ -145,76 +159,83 @@ fun TimelinePrecisionView(
         val durationMs: Long
     )
 
-    val segments = remember(videoTrack?.clips, pixelsPerSecond, density) {
-        val result = mutableListOf<TimelineSegment>()
-        videoTrack?.clips?.forEachIndexed { index, clip ->
-            // Calculate in PX
-            val totalWidthPx = (clip.durationMs / 1000f) * pixelsPerSecond
+    data class SegmentPlan(
+        val clip: TimelineUiClip,
+        val clipIndex: Int,
+        val segmentIndex: Int,
+        val isFirst: Boolean,
+        val isLast: Boolean,
+        val startTimeOffsetMs: Long,
+        val durationMs: Long
+    )
 
-            if (totalWidthPx <= maxSegmentWidthPx) {
-                // Single segment
+    val segmentPlan = remember(videoTrack?.clips, maxSegmentWidthPx) {
+        val result = mutableListOf<SegmentPlan>()
+        videoTrack?.clips?.forEachIndexed { index, clip ->
+            val clipWidthPx = (clip.durationMs / 1000f) * basePixelsPerSecond
+            val segmentsCount = ceil(clipWidthPx / maxSegmentWidthPx)
+                .toInt()
+                .coerceAtLeast(1)
+            val baseDurationMs = (clip.durationMs / segmentsCount).coerceAtLeast(1L)
+            var currentOffsetMs = 0L
+            for (segIndex in 0 until segmentsCount) {
+                val isLastSeg = segIndex == segmentsCount - 1
+                val segDurationMs = if (isLastSeg) {
+                    (clip.durationMs - currentOffsetMs).coerceAtLeast(1L)
+                } else {
+                    baseDurationMs.coerceAtMost(
+                        (clip.durationMs - currentOffsetMs - 1L).coerceAtLeast(1L)
+                    )
+                }
                 result.add(
-                    TimelineSegment(
-                        id = "${clip.id}_0",
+                    SegmentPlan(
                         clip = clip,
                         clipIndex = index,
-                        segmentIndex = 0,
-                        isFirst = true,
-                        isLast = true,
-                        widthPx = totalWidthPx,
-                        startTimeOffsetMs = 0L,
-                        durationMs = clip.durationMs
+                        segmentIndex = segIndex,
+                        isFirst = segIndex == 0,
+                        isLast = isLastSeg,
+                        startTimeOffsetMs = currentOffsetMs,
+                        durationMs = segDurationMs
                     )
                 )
-            } else {
-                // Multi-segment - split in PX, with exact duration accounting
-                var remainingWidthPx = totalWidthPx
-                var currentOffsetMs = 0L
-                var segIndex = 0
-
-                while (remainingWidthPx > 0f) {
-                    val segWidthPx = remainingWidthPx.coerceAtMost(maxSegmentWidthPx)
-                    val isLastSeg = remainingWidthPx <= maxSegmentWidthPx
-
-                    // Provisional duration based on px->ms, rounded, never 0ms
-                    val computedMs = ((segWidthPx / pixelsPerSecond) * 1000f)
-                        .roundToInt()
-                        .toLong()
-                        .coerceAtLeast(1L)
-
-                    // Ensure sum of seg durations == clip.durationMs (last segment takes remainder)
-                    val segDurationMs = if (isLastSeg) {
-                        (clip.durationMs - currentOffsetMs).coerceAtLeast(1L)
-                    } else {
-                        computedMs.coerceAtMost(
-                            (clip.durationMs - currentOffsetMs - 1L).coerceAtLeast(1L)
-                        )
-                    }
-
-                    result.add(
-                        TimelineSegment(
-                            id = "${clip.id}_$segIndex",
-                            clip = clip,
-                            clipIndex = index,
-                            segmentIndex = segIndex,
-                            isFirst = segIndex == 0,
-                            isLast = isLastSeg,
-                            widthPx = segWidthPx,
-                            startTimeOffsetMs = currentOffsetMs,
-                            durationMs = segDurationMs
-                        )
-                    )
-
-                    remainingWidthPx -= segWidthPx
-                    currentOffsetMs += segDurationMs
-                    segIndex++
-
-                    // Safety: if we've consumed full duration, stop
-                    if (currentOffsetMs >= clip.durationMs) break
-                }
+                currentOffsetMs += segDurationMs
+                if (currentOffsetMs >= clip.durationMs) break
             }
         }
         result
+    }
+
+    val segments = remember(segmentPlan, pixelsPerSecond, density) {
+        segmentPlan.map { plan ->
+            val widthPx = (plan.durationMs / 1000f) * pixelsPerSecond
+            TimelineSegment(
+                id = "${plan.clip.id}_${plan.segmentIndex}",
+                clip = plan.clip,
+                clipIndex = plan.clipIndex,
+                segmentIndex = plan.segmentIndex,
+                isFirst = plan.isFirst,
+                isLast = plan.isLast,
+                widthPx = widthPx,
+                startTimeOffsetMs = plan.startTimeOffsetMs,
+                durationMs = plan.durationMs
+            )
+        }
+    }
+    val segmentStartTimesMs = remember(segments) {
+        var accumulated = 0L
+        segments.map { segment ->
+            val start = accumulated
+            accumulated += segment.durationMs
+            start
+        }
+    }
+    val segmentStartOffsetsPx = remember(segments) {
+        var accumulated = 0f
+        segments.map { segment ->
+            val start = accumulated
+            accumulated += segment.widthPx
+            start
+        }
     }
 
     BoxWithConstraints(
@@ -248,22 +269,19 @@ fun TimelinePrecisionView(
             if (abs(currentTimeMs - lastScrollMs) < 120L) return@LaunchedEffect
             if (segments.isEmpty()) return@LaunchedEffect
 
-            var remainingMs = currentTimeMs
-            var targetSegmentIndex = 0
-
-            // Find which segment covers currentTime
-            for ((idx, segment) in segments.withIndex()) {
-                if (remainingMs < segment.durationMs) {
-                    targetSegmentIndex = idx
-                    break
-                }
-                remainingMs -= segment.durationMs
-                // If we reach the last segment and still have time left, clamp to it
-                if (idx == segments.lastIndex) {
-                    targetSegmentIndex = idx
-                    remainingMs = segment.durationMs // Clamp to end
-                }
+            val totalDurationMs =
+                segmentStartTimesMs.lastOrNull()?.plus(segments.lastOrNull()?.durationMs ?: 0L)
+                    ?: 0L
+            val clampedTimeMs = currentTimeMs.coerceIn(0L, totalDurationMs)
+            val searchIndex = segmentStartTimesMs.binarySearch(clampedTimeMs)
+            val targetSegmentIndex = if (searchIndex >= 0) {
+                searchIndex
+            } else {
+                (-(searchIndex + 1) - 1).coerceIn(0, segments.lastIndex)
             }
+            val segmentStartMs = segmentStartTimesMs.getOrElse(targetSegmentIndex) { 0L }
+            val remainingMs =
+                (clampedTimeMs - segmentStartMs).coerceIn(0L, segments[targetSegmentIndex].durationMs)
 
             val offsetPx = ((remainingMs / 1000f) * pixelsPerSecond).toInt()
             listState.scrollToItem(targetSegmentIndex, offsetPx)
@@ -271,35 +289,51 @@ fun TimelinePrecisionView(
         }
 
         LaunchedEffect(listState, segments, pixelsPerSecond) {
-            snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
-                .collect { (index, offset) ->
+            snapshotFlow {
+                listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+            }
+                .distinctUntilChanged()
+                .collect { (index, offsetPx) ->
                     if (listState.isScrollInProgress) {
-                        var timeMs = 0L
-                        // Sum duration of previous segments
-                        for (i in 0 until index) {
-                            timeMs += segments.getOrNull(i)?.durationMs ?: 0L
-                        }
-                        val offsetMs = ((offset / pixelsPerSecond) * 1000).toLong()
+                        val timeMs = segmentStartTimesMs.getOrElse(index) { 0L }
+                        val offsetMs = ((offsetPx / pixelsPerSecond) * 1000).toLong()
                         onSeek(timeMs + offsetMs)
                     }
                 }
         }
 
-        // Time Ruler Scroll State
+        // Time Ruler + Audio Scroll State
         val rulerScrollState = rememberScrollState()
+        val audioScrollState = rememberScrollState()
+        val showAudioState = rememberUpdatedState(showAudio)
 
-        // Sync Ruler with Video Scroll
-        LaunchedEffect(listState.firstVisibleItemScrollOffset, listState.firstVisibleItemIndex) {
-            if (!listState.isScrollInProgress) return@LaunchedEffect
-            if (segments.isEmpty()) return@LaunchedEffect
-
-            var totalOffsetPx = 0f
-            val safeIndex = listState.firstVisibleItemIndex.coerceIn(0, segments.lastIndex)
-            for (i in 0 until safeIndex) {
-                totalOffsetPx += segments[i].widthPx
+        // Sync seek/ruler/audio from a single scroll stream to avoid repeated calculations.
+        LaunchedEffect(listState, segments, segmentStartOffsetsPx, pixelsPerSecond) {
+            snapshotFlow {
+                listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
             }
-            totalOffsetPx += listState.firstVisibleItemScrollOffset
-            rulerScrollState.scrollTo(totalOffsetPx.toInt())
+                .map { (index, offset) ->
+                    if (segments.isEmpty()) return@map null
+                    val safeIndex = index.coerceIn(0, segments.lastIndex)
+                    val totalOffsetPx =
+                        segmentStartOffsetsPx.getOrElse(safeIndex) { 0f } + offset
+                    val timeMs = segmentStartTimesMs.getOrElse(safeIndex) { 0L }
+                    val offsetMs = ((offset / pixelsPerSecond) * 1000).toLong()
+                    Pair(totalOffsetPx.toInt(), timeMs + offsetMs)
+                }
+                .debounce(16)
+                .distinctUntilChanged()
+                .collect { payload ->
+                    if (payload == null || segments.isEmpty()) return@collect
+                    val (totalOffsetPx, timeMs) = payload
+                    if (listState.isScrollInProgress) {
+                        onSeek(timeMs)
+                    }
+                    rulerScrollState.scrollTo(totalOffsetPx)
+                    if (showAudioState.value) {
+                        audioScrollState.scrollTo(totalOffsetPx)
+                    }
+                }
         }
 
         Column(
@@ -323,6 +357,7 @@ fun TimelinePrecisionView(
                     .height(24.dp),
                 pixelsPerSecond = pixelsPerSecond,
                 scrollState = rulerScrollState,
+                horizontalPadding = halfWidthDp,
                 totalSeconds = totalSeconds,
                 onSeek = onSeek
             )
@@ -359,30 +394,6 @@ fun TimelinePrecisionView(
                 exit = fadeOut() + shrinkVertically()
             ) {
                 if (audioTrack != null) {
-                    // Audio track uses separate ScrollState synced by offset
-                    val audioScrollState = rememberScrollState()
-
-                    // Sync audio scroll with video master scroll
-                    LaunchedEffect(
-                        listState.firstVisibleItemScrollOffset,
-                        listState.firstVisibleItemIndex
-                    ) {
-                        if (!listState.isScrollInProgress) return@LaunchedEffect
-                        if (segments.isEmpty()) return@LaunchedEffect
-
-                        // Calculate current pixel offset from segments
-                        var totalOffsetPx = 0f
-                        val safeIndex =
-                            listState.firstVisibleItemIndex.coerceIn(0, segments.lastIndex)
-                        for (i in 0 until safeIndex) {
-                            totalOffsetPx += segments[i].widthPx
-                        }
-                        totalOffsetPx += listState.firstVisibleItemScrollOffset
-
-                        // Apply to audio scroll
-                        audioScrollState.scrollTo(totalOffsetPx.toInt())
-                    }
-
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -536,13 +547,26 @@ fun TimelinePrecisionView(
                                         val localTimeMs =
                                             segment.startTimeOffsetMs + (i * intervalMs)
 
-                                        // Try current LOD first
-                                        val currentKey = thumbnailKeyProvider(
-                                            localTimeMs * 1000,
-                                            clip,
-                                            lodBucket.level
-                                        )
-                                        var bitmap = thumbnailState[currentKey.keyString()]
+                                        val cacheKey =
+                                            "${clip.id}_${segment.segmentIndex}_$i"
+
+                                        // Try cached best LOD first (if present)
+                                        val cachedKey = bestThumbnailCache[cacheKey]
+                                        var bitmap =
+                                            cachedKey?.let { thumbnailState[it] }
+
+                                        // Try current LOD if cache miss
+                                        if (bitmap == null) {
+                                            val currentKey = thumbnailKeyProvider(
+                                                localTimeMs * 1000,
+                                                clip,
+                                                lodBucket.level
+                                            )
+                                            bitmap = thumbnailState[currentKey.keyString()]
+                                            if (bitmap != null) {
+                                                bestThumbnailCache[cacheKey] = currentKey.keyString()
+                                            }
+                                        }
 
                                         // Fallback to lower LOD if not available
                                         if (bitmap == null) {
@@ -557,7 +581,11 @@ fun TimelinePrecisionView(
                                                     fallback.level
                                                 )
                                                 bitmap = thumbnailState[fallbackKey.keyString()]
-                                                if (bitmap != null) break
+                                                if (bitmap != null) {
+                                                    bestThumbnailCache[cacheKey] =
+                                                        fallbackKey.keyString()
+                                                    break
+                                                }
                                             }
                                         }
 
@@ -675,6 +703,7 @@ private fun TimelineTimeRuler(
     modifier: Modifier,
     pixelsPerSecond: Float,
     scrollState: ScrollState,
+    horizontalPadding: androidx.compose.ui.unit.Dp,
     totalSeconds: Int = 300,
     onSeek: (Long) -> Unit
 ) {
@@ -684,7 +713,7 @@ private fun TimelineTimeRuler(
     Row(
         modifier = modifier
             .horizontalScroll(scrollState)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = horizontalPadding),
         horizontalArrangement = Arrangement.spacedBy(0.dp)
     ) {
         repeat(totalSeconds) { sec ->

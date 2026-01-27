@@ -71,4 +71,10 @@
     <string name="proxy_quality_medium">Media</string>
     <string name="proxy_quality_high">Alta</string>
     <string name="permission_denied_grant_video_permissions">Permiso denegado, conceder permisos de vídeo</string>
+    <string name="export_resume_missing_data">No se pudo reanudar la exportación. Intenta exportar de nuevo.</string>
+    <string name="cancel_export_title">Cancelar exportación</string>
+    <string name="cancel_export_message">¿Quieres cancelar la exportación pausada?</string>
+    <string name="cancel_export_confirm">Cancelar exportación</string>
+    <string name="export_paused_label">Pausado</string>
+    <string name="frame_mode">Frame independiente</string>
 </resources>
