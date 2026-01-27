@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.22] - 2026-01-09
+### Ajustado
+- Sincronización de scroll del timeline consolida cálculos para reducir trabajo repetido.
+
 ## [1.4.21] - 2026-01-09
 ### Ajustado
 - El timeline sincroniza el editor en tiempo real al desplazar de izquierda a derecha.

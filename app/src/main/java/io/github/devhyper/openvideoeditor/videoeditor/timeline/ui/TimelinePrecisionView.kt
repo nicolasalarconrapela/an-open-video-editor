@@ -51,6 +51,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -301,26 +302,37 @@ fun TimelinePrecisionView(
                 }
         }
 
-        // Time Ruler Scroll State
+        // Time Ruler + Audio Scroll State
         val rulerScrollState = rememberScrollState()
+        val audioScrollState = rememberScrollState()
+        val showAudioState = rememberUpdatedState(showAudio)
 
-        // Sync Ruler with Video Scroll (user or programmatic), throttled.
-        LaunchedEffect(listState, segments, segmentStartOffsetsPx) {
+        // Sync seek/ruler/audio from a single scroll stream to avoid repeated calculations.
+        LaunchedEffect(listState, segments, segmentStartOffsetsPx, pixelsPerSecond) {
             snapshotFlow {
                 listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
             }
                 .map { (index, offset) ->
-                    if (segments.isEmpty()) return@map 0
+                    if (segments.isEmpty()) return@map null
                     val safeIndex = index.coerceIn(0, segments.lastIndex)
                     val totalOffsetPx =
                         segmentStartOffsetsPx.getOrElse(safeIndex) { 0f } + offset
-                    totalOffsetPx.toInt()
+                    val timeMs = segmentStartTimesMs.getOrElse(safeIndex) { 0L }
+                    val offsetMs = ((offset / pixelsPerSecond) * 1000).toLong()
+                    Pair(totalOffsetPx.toInt(), timeMs + offsetMs)
                 }
                 .debounce(16)
                 .distinctUntilChanged()
-                .collect { targetOffset ->
-                    if (segments.isEmpty()) return@collect
-                    rulerScrollState.scrollTo(targetOffset)
+                .collect { payload ->
+                    if (payload == null || segments.isEmpty()) return@collect
+                    val (totalOffsetPx, timeMs) = payload
+                    if (listState.isScrollInProgress) {
+                        onSeek(timeMs)
+                    }
+                    rulerScrollState.scrollTo(totalOffsetPx)
+                    if (showAudioState.value) {
+                        audioScrollState.scrollTo(totalOffsetPx)
+                    }
                 }
         }
 
@@ -382,29 +394,6 @@ fun TimelinePrecisionView(
                 exit = fadeOut() + shrinkVertically()
             ) {
                 if (audioTrack != null) {
-                    // Audio track uses separate ScrollState synced by offset
-                    val audioScrollState = rememberScrollState()
-
-                    // Sync audio scroll with video master scroll (user or programmatic), throttled.
-                    LaunchedEffect(listState, segments, segmentStartOffsetsPx) {
-                        snapshotFlow {
-                            listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
-                        }
-                            .map { (index, offset) ->
-                                if (segments.isEmpty()) return@map 0
-                                val safeIndex = index.coerceIn(0, segments.lastIndex)
-                                val totalOffsetPx =
-                                    segmentStartOffsetsPx.getOrElse(safeIndex) { 0f } + offset
-                                totalOffsetPx.toInt()
-                            }
-                            .debounce(16)
-                            .distinctUntilChanged()
-                            .collect { targetOffset ->
-                                if (segments.isEmpty()) return@collect
-                                audioScrollState.scrollTo(targetOffset)
-                            }
-                    }
-
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
